@@ -1,0 +1,24 @@
+---
+import LogoMark from "./LogoMark.astro";
+
+const navItems = [
+  { href: "#evento", label: "Evento" },
+  { href: "#carteles", label: "Carteles" },
+  { href: "#programa", label: "Programa" },
+  { href: "#reservas", label: "Reservas" },
+  { href: "#inscripciones", label: "Inscripciones" }
+];
+---
+
+<header class="site-header" aria-label="Cabecera principal">
+  <a class="brand" href="/" aria-label="La Copa Arena inicio">
+    <span class="brand-mark"><LogoMark compact /></span>
+    <span>La Copa Arena</span>
+  </a>
+
+  <nav class="nav-links" aria-label="Navegacion principal">
+    {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
+  </nav>
+
+  <a class="header-cta" href="#inscripciones">Preinscribirme</a>
+</header>

@@ -1,0 +1,22 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+
+const { title, eyebrow, description } = Astro.props;
+---
+
+<BaseLayout title={`${title} | La Copa Arena`} description={description}>
+  <SiteHeader />
+  <main class="legal-page">
+    <section class="legal-hero">
+      <p class="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </section>
+    <section class="legal-content">
+      <slot />
+    </section>
+  </main>
+  <SiteFooter />
+</BaseLayout>

@@ -1,0 +1,277 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Hero from "../components/Hero.astro";
+import SectionHeading from "../components/SectionHeading.astro";
+import { categories, eventHighlights, schedule } from "../data/event";
+---
+
+<BaseLayout>
+  <div class="cursor-blob" data-cursor-blob aria-hidden="true"></div>
+  <SiteHeader />
+  <main>
+    <Hero />
+
+    <section class="marquee-strip" aria-label="Energia del evento">
+      <div>
+        <span>Mejor torneo de O Pozo</span>
+        <span>Voley playa</span>
+        <span>Piques entre colegas</span>
+        <span>O Pozo</span>
+        <span>Copa Arena</span>
+        <span>Inscripcion con ganas</span>
+        <span>Mejor torneo de O Pozo</span>
+        <span>Voley playa</span>
+        <span>Piques entre colegas</span>
+        <span>O Pozo</span>
+        <span>Copa Arena</span>
+        <span>Inscripcion con ganas</span>
+        <span>Mejor torneo de O Pozo</span>
+        <span>Voley playa</span>
+        <span>Piques entre colegas</span>
+        <span>O Pozo</span>
+        <span>Copa Arena</span>
+        <span>Inscripcion con ganas</span>
+      </div>
+    </section>
+
+    <section class="section intro-section" id="evento">
+      <div class="section-grid">
+        <SectionHeading
+          eyebrow="La experiencia"
+          title="El torneo de voley playa que O Pozo se merecia."
+          text="La Copa Arena junta deporte, verano y ese ambiente de colegas en el que vienes a jugar y acabas quedandote hasta que baja el sol."
+        />
+        <div class="intro-copy">
+          <p>
+            No prometemos que no acabes lleno de arena, pero si que vas a tener
+            torneo, risas, grada, fotos y una excusa perfecta para juntar al grupo.
+          </p>
+          <div class="category-cloud" aria-label="Categorias y servicios">
+            {categories.map((category) => <span>{category}</span>)}
+          </div>
+        </div>
+      </div>
+
+      <div class="highlight-grid">
+        {
+          eventHighlights.map((item) => (
+            <article class="highlight-card">
+              <p>{item.kicker}</p>
+              <h3>{item.title}</h3>
+              <span>{item.text}</span>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="poster-section" id="carteles">
+      <div class="poster-copy">
+        <p class="eyebrow">Grafica de playa</p>
+        <h2>Mas camiseta, cartel y vacile. Menos web seria de oficina.</h2>
+        <p>
+          La identidad tira del teal del logo, crema de camiseta y verde acido para que todo huela a playa,
+          torneo y grupo de WhatsApp echando humo.
+        </p>
+      </div>
+      <div class="poster-wall">
+        <article class="poster-card poster-main" data-tilt>
+          <span class="poster-number">02</span>
+          <h3>Voley playa parejas</h3>
+          <p>31 Jul - 9 Ago</p>
+          <small>Trae pareja y valor</small>
+        </article>
+        <article class="poster-card poster-vinyl" data-tilt>
+          <span></span>
+          <h3>Beach set</h3>
+          <p>Partidos, musica y algun 'era mia'.</p>
+        </article>
+        <article class="poster-card poster-bracket" data-tilt>
+          <h3>Cuadro vivo</h3>
+          <div class="mini-bracket">
+            <span>Sandy Sparks</span>
+            <span>Final</span>
+            <span>Showtime</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section vibe-section">
+      <div class="vibe-panel">
+        <div class="score-pill">
+          <span>24</span>
+          <small>equipos objetivo</small>
+        </div>
+        <div class="score-pill coral">
+          <span>01</span>
+          <small>pista central</small>
+        </div>
+        <div class="score-pill yellow">
+          <span>360</span>
+          <small>contenido social</small>
+        </div>
+      </div>
+      <div class="vibe-copy">
+        <p class="eyebrow">Modo Copa Arena</p>
+        <h2>Fresco, salado y con cero ganas de irse pronto.</h2>
+        <p>
+          Teal Copa Arena, crema, arena y verde lima para vestir el mejor torneo de voley playa
+          de O Pozo como lo que es: una fiesta con red en medio.
+        </p>
+      </div>
+    </section>
+
+    <section class="beach-section" aria-label="Playa O Pozo">
+      <div class="beach-copy">
+        <p class="eyebrow">Playa O Pozo</p>
+        <h2>La playa, la red y el grupo mirando como si fueran arbitros.</h2>
+        <p>
+          Aqui se viene a jugar voley playa, a animar a los tuyos y a debatir durante
+          tres dias si ese balon entro o no entro. Spoiler: depende de quien pregunte.
+        </p>
+      </div>
+      <div class="beach-board" data-tilt>
+        <img
+          src="/assets/copa-arena-hero-watercolor.png"
+          alt="Partido de voley playa en Playa O Pozo al atardecer"
+          loading="lazy"
+          decoding="async"
+        />
+        <span class="beach-tag">O Pozo manda</span>
+        <span class="beach-badge">CA</span>
+        <div class="water-shimmer" aria-hidden="true"></div>
+        <div class="board-caption">
+          <strong>Voley playa de verdad</strong>
+          <small>arena, salitre y piques sanos</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="section schedule-section" id="programa">
+      <SectionHeading
+        eyebrow="Programa"
+        title="Un dia para jugar, picarse y acabar comentando la jugada."
+        text="Bloques simples, ritmo alto y margen justo para beber agua, mirar el cuadro y decir que el proximo partido se gana facil."
+      />
+
+      <div class="timeline">
+        {
+          schedule.map((item) => (
+            <article class="timeline-item">
+              <time>{item.time}</time>
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="reserve-band" id="reservas">
+      <div class="reserve-copy">
+        <p class="eyebrow">Reservas</p>
+        <h2>Camisetas, vasos y tokens para venir ya con el flow hecho.</h2>
+        <p>
+          Reserva lo tuyo antes del torneo y evita el clasico 'quedaban tallas, pero no la tuya'.
+          Luego recoges en la arena y a jugar como si estuviera todo controlado.
+        </p>
+      </div>
+
+      <div class="reserve-grid">
+        <div class="reserve-items" aria-label="Productos reservables">
+          <article class="reserve-card" data-tilt>
+            <div class="reserve-visual shirt-visual" aria-hidden="true">
+              <span class="shirt-icon"></span>
+              <span class="shirt-print">CA</span>
+              <span class="product-ticket">Drop oficial</span>
+            </div>
+            <h3>Camiseta oficial</h3>
+            <p>Para jugar, animar o pasearla como si hubieras ganado la final.</p>
+          </article>
+          <article class="reserve-card" data-tilt>
+            <div class="reserve-visual cup-visual" aria-hidden="true">
+              <span class="cup-icon">
+                <span>CA</span>
+              </span>
+              <span class="cup-shadow"></span>
+              <span class="product-ticket">Vaso festival</span>
+            </div>
+            <h3>Vaso reutilizable</h3>
+            <p>Tu vaso de guerra para la fan zone y para no perder el ritmo.</p>
+          </article>
+          <article class="reserve-card" data-tilt>
+            <div class="reserve-visual token-visual" aria-hidden="true">
+              <span class="token-icon token-one">CA</span>
+              <span class="token-icon token-two">1</span>
+              <span class="token-icon token-three">CA</span>
+              <span class="product-ticket">Copacoins</span>
+            </div>
+            <h3>Tokens</h3>
+            <p>Porque hacer cola improvisando nunca fue estrategia ganadora.</p>
+          </article>
+        </div>
+
+        <form class="signup-form reserve-form" name="reserva-merch-demo">
+          <label>
+            Nombre
+            <input type="text" name="name" placeholder="Tu nombre" />
+          </label>
+          <label>
+            Email o WhatsApp
+            <input type="text" name="contact" placeholder="contacto@equipo.com" />
+          </label>
+          <label>
+            Camiseta
+            <select name="shirt">
+              <option>Sin camiseta</option>
+              <option>S</option>
+              <option>M</option>
+              <option>L</option>
+              <option>XL</option>
+            </select>
+          </label>
+          <label>
+            Extras
+            <select name="extras">
+              <option>Vaso + 5 tokens</option>
+              <option>Solo vaso</option>
+              <option>10 tokens</option>
+              <option>Pack completo</option>
+            </select>
+          </label>
+          <button class="button button-primary" type="button">Reservar pack</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="signup-band" id="inscripciones">
+      <div>
+        <p class="eyebrow">Inscripciones</p>
+        <h2>Prepara tu pareja. El pique empieza antes de pisar la arena.</h2>
+        <p>
+          Apunta a tu equipo, avisa al colega que siempre llega tarde y reserva plaza
+          para el torneo de voley playa mas esperado de Playa O Pozo.
+        </p>
+      </div>
+      <form class="signup-form" name="preinscripcion-demo">
+        <label>
+          Nombre del equipo
+          <input type="text" name="team" placeholder="Arena Stars" />
+        </label>
+        <label>
+          Email de contacto
+          <input type="email" name="email" placeholder="capitan@equipo.com" />
+        </label>
+        <button class="button button-primary" type="button">Avisadme</button>
+      </form>
+    </section>
+  </main>
+
+  <SiteFooter />
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+</BaseLayout>

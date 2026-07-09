@@ -1,0 +1,12 @@
+---
+const { compact = false } = Astro.props;
+const src = compact ? "/assets/copa-arena-logo-blue-mark.png" : "/assets/copa-arena-logo-blue-full.png";
+---
+
+<img
+  class:list={["logo-mark", { compact }]}
+  src={src}
+  alt="Logo Copa Arena"
+  loading={compact ? "eager" : "lazy"}
+  decoding="async"
+/>

@@ -1,0 +1,46 @@
+---
+import LogoMark from "./LogoMark.astro";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="footer-main">
+    <div class="footer-brand">
+      <a class="footer-logo" href="/" aria-label="La Copa Arena inicio">
+        <LogoMark />
+      </a>
+      <p>
+        El torneo de voley playa mas querido de Playa O Pozo: deporte, arena,
+        musica y amigos fingiendo que no les importa perder.
+      </p>
+    </div>
+
+    <div class="footer-column">
+      <h2>Contacto</h2>
+      <a href="mailto:contacto@lacopaarena.com">contacto@lacopaarena.com</a>
+      <a href="https://www.instagram.com/la_copa_arena/" rel="noreferrer">Instagram</a>
+      <span>Playa O Pozo, O Porto do Son</span>
+    </div>
+
+    <div class="footer-column">
+      <h2>Evento</h2>
+      <a href="/#evento">La experiencia</a>
+      <a href="/#programa">Programa</a>
+      <a href="/#reservas">Reservas</a>
+      <a href="/#inscripciones">Inscripciones</a>
+    </div>
+
+    <div class="footer-column">
+      <h2>Legal</h2>
+      <a href="/aviso-legal/">Aviso legal</a>
+      <a href="/privacidad/">Privacidad</a>
+      <a href="/cookies/">Cookies</a>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <span>&copy; {year} La Copa Arena</span>
+    <span>Hecha para jugar, reservar y montar buen lio en O Pozo.</span>
+  </div>
+</footer>

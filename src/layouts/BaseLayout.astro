@@ -1,0 +1,23 @@
+---
+import "../styles/global.css";
+
+const {
+  title = "La Copa Arena | Evento deportivo de verano",
+  description = "La Copa Arena: el mejor torneo de voley playa de Playa O Pozo, con arena, amigos, musica y buen pique."
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" href="/assets/copa-arena-favicon.png" type="image/png" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
