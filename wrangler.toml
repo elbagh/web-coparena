@@ -2,18 +2,18 @@
 # La base D1 hay que crearla una vez con: npx wrangler d1 create copa-arena-db
 # y pegar aqui el database_id que devuelve.
 
-name = "la-copa-arena"
+name = 'copa-arena'
 compatibility_date = "2026-07-01"
 pages_build_output_dir = "dist"
 
 [[d1_databases]]
-binding = "DB"
+binding = "copa_arena_db"
 database_name = "copa-arena-db"
-database_id = "PENDIENTE-pegar-el-id-de-wrangler-d1-create"
+database_id = "cd24c895-9353-483e-b2d9-ee000ce7bdbe"
 migrations_dir = "db/migrations"
 
 # Fotos de jugadores (privadas, uso interno para stats). Crear una vez con:
 # npx wrangler r2 bucket create copa-arena-fotos
 [[r2_buckets]]
-binding = "FOTOS"
 bucket_name = "copa-arena-fotos"
+binding = "copa_arena_fotos"
