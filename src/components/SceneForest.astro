@@ -1,36 +1,7 @@
 ---
 import SandDivider from "./SandDivider.astro";
-
-// Treeline de pinos generada de forma determinista (misma silueta en cada build).
-function treeline(seed: number, minHeight: number, maxHeight: number, width = 1440, height = 200) {
-  let state = seed;
-  const random = () => {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
-  };
-
-  let d = `M0 ${height} L0 ${height - minHeight}`;
-  let x = 0;
-  while (x < width) {
-    const treeWidth = 46 + random() * 50;
-    const tip = height - (minHeight + random() * (maxHeight - minHeight));
-    const base = height - (18 + random() * 26);
-    d += ` L${(x + treeWidth * 0.5).toFixed(0)} ${tip.toFixed(0)} L${(x + treeWidth).toFixed(0)} ${base.toFixed(0)}`;
-    x += treeWidth;
-  }
-  return `${d} L${width} ${height} Z`;
-}
-
-const backLine = treeline(7, 60, 120);
-const frontLine = treeline(21, 90, 170);
 ---
 
-<div class="scene-forest" data-scene aria-hidden="true">
+<div class="scene-forest" aria-hidden="true">
   <SandDivider fill="var(--dune)" />
-  <svg class="forest-back" data-parallax="0.18" viewBox="0 0 1440 200" preserveAspectRatio="none">
-    <path d={backLine}></path>
-  </svg>
-  <svg class="forest-front" data-parallax="0.06" viewBox="0 0 1440 200" preserveAspectRatio="none">
-    <path d={frontLine}></path>
-  </svg>
 </div>

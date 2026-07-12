@@ -6,9 +6,7 @@ import Hero from "../components/Hero.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
-import { event, marqueeItems, phases, perks } from "../data/event";
-
-const marquee = Array.from({ length: 3 }, () => marqueeItems).flat();
+import { event, perks } from "../data/event";
 ---
 
 <BaseLayout>
@@ -17,32 +15,10 @@ const marquee = Array.from({ length: 3 }, () => marqueeItems).flat();
   <main>
     <Hero />
 
-    <section class="marquee-strip" aria-label="Fechas y lugar">
-      <div>
-        {marquee.map((item) => <span>{item}</span>)}
-      </div>
-    </section>
-
-    <section class="band-sand band-fechas" id="fechas">
-      <SectionHeading eyebrow="Fechas" title="Seis días de copa" />
-      <div class="phase-grid">
-        {
-          phases.map((phase, index) => (
-            <article class="phase-card reveal" style={`--reveal-delay: ${index * 90}ms`}>
-              <p class="phase-days">
-                {phase.days.map((day) => <span>{day}</span>)}
-              </p>
-              <h3>{phase.label}</h3>
-            </article>
-          ))
-        }
-      </div>
-    </section>
-
     <section class="band-sand band-venir" id="venir">
       <SectionHeading
         eyebrow="Para el público"
-        title="Quieres venir?"
+        title="¡Tienes que venir!"
         text="No es un torneo normal. Toca para ver qué hay."
       />
       <ul class="perk-list">

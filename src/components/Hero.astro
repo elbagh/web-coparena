@@ -13,13 +13,16 @@ import { event } from "../data/event";
   <div class="hero-overlay" aria-hidden="true"></div>
 
   <div class="hero-content">
-    <p class="eyebrow hero-eyebrow">{event.location}</p>
+    <p class="eyebrow hero-eyebrow"><a href="/donde-estamos/">{event.location}</a></p>
     <p class="hero-name">{event.name}</p>
     <h1 id="hero-title" class="hero-dates">
       <span class="date-line">{event.dateStart}</span>
       <span class="date-line date-line-end"><span class="date-dash" aria-hidden="true">—</span>{event.dateEnd}</span>
     </h1>
-    <p class="hero-claim">{event.claim}</p>
+    <div class="hero-claims">
+      <p class="hero-claim">{event.claim}</p>
+      <p class="hero-claim">Un torneo hecho para el disfrute del público.</p>
+    </div>
     <div class="hero-actions">
       <a class="button button-primary" href="#jugar">Quiero jugar</a>
       <a class="button button-secondary" href="#venir">Quiero venir</a>
