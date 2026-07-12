@@ -1,33 +1,58 @@
 ---
 import LegalLayout from "../layouts/LegalLayout.astro";
+import { event } from "../data/event";
 ---
 
 <LegalLayout
-  title="Politica de privacidad"
+  title="Política de privacidad"
   eyebrow="Datos personales"
-  description="Resumen de como se trataran los datos cuando se activen formularios de contacto o inscripcion."
+  description="Cómo tratamos los datos de la inscripción de equipos y del resto de la web."
 >
   <h2>Responsable del tratamiento</h2>
   <p>
-    El responsable sera el titular de La Copa Arena. Sus datos identificativos deberan completarse
-    antes de activar formularios reales.
+    El responsable es la organización de La Copa Arena. Contacto: {event.email}. Los datos
+    identificativos completos del titular deberán completarse antes de la publicación definitiva.
   </p>
 
-  <h2>Datos tratados</h2>
+  <h2>Datos que tratamos</h2>
   <p>
-    En una futura inscripcion se podran solicitar datos como nombre, equipo, email, telefono,
-    categoria, integrantes y datos necesarios para gestionar la participacion.
+    Al inscribir un equipo recogemos: nombre del equipo; y de cada jugador, nombre y apellidos,
+    teléfono móvil, correo electrónico (opcional), red social (opcional) y foto (opcional).
+    También guardamos la fecha y hora del consentimiento. Las fotos no se publican: son de uso
+    interno para elaborar las estadísticas del torneo.
   </p>
 
   <h2>Finalidad</h2>
   <p>
-    Los datos se utilizaran para gestionar consultas, preinscripciones, comunicaciones del torneo,
-    cupos, pagos si los hubiera y cuestiones organizativas del evento.
+    Usamos los datos para gestionar la inscripción, organizar el torneo (calendarios, cruces,
+    comunicaciones sobre el evento) y elaborar sus estadísticas deportivas. El correo indicado se
+    usa para enviar la confirmación de la inscripción y avisos del torneo.
+  </p>
+
+  <h2>Base jurídica</h2>
+  <p>
+    El consentimiento de las personas participantes (art. 6.1.a del RGPD), que se presta al marcar
+    la casilla del formulario y puede retirarse en cualquier momento escribiendo a {event.email}.
+    Quien inscribe al equipo confirma que cuenta con el permiso del resto de integrantes.
+  </p>
+
+  <h2>Conservación</h2>
+  <p>
+    Conservamos los datos durante la edición del torneo y hasta 12 meses después de su
+    finalización, para cerrar las estadísticas y la organización. Pasado ese plazo se eliminan.
+  </p>
+
+  <h2>Destinatarios y encargados</h2>
+  <p>
+    No cedemos datos a terceros. Para prestar el servicio usamos Cloudflare (alojamiento web, base
+    de datos y almacenamiento de fotos) y Google (envío del correo de confirmación desde nuestra
+    cuenta), que actúan como encargados del tratamiento.
   </p>
 
   <h2>Derechos</h2>
   <p>
-    Las personas interesadas podran solicitar acceso, rectificacion, supresion, oposicion,
-    limitacion o portabilidad de sus datos a traves del email de contacto publicado.
+    Puedes solicitar acceso, rectificación, supresión, oposición, limitación o portabilidad de tus
+    datos escribiendo a {event.email}. También puedes reclamar ante la Agencia Española de
+    Protección de Datos (aepd.es) si consideras que el tratamiento no es correcto.
   </p>
 </LegalLayout>

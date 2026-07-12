@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .astro/
+.wrangler/
+.dev.vars
+.vscode/
 
 *.log
 .DS_Store

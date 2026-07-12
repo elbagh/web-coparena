@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+---
+
+<BaseLayout
+  title="Equipos inscritos | La Copa Arena"
+  description="Los equipos que ya están dentro de La Copa Arena. Solo mostramos el nombre de cada equipo."
+>
+  <SiteHeader />
+
+  <main class="legal-page registro-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Equipos</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Equipos inscritos</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Aquí solo aparece el nombre de cada equipo, por orden de inscripción. Los datos de
+        los jugadores se quedan con la organización.
+      </p>
+    </section>
+
+    <section class="teams-panel reveal" style="--reveal-delay: 260ms" data-teams>
+      <p class="teams-status" data-status aria-live="polite">Cargando equipos…</p>
+      <ol class="teams-list" data-list hidden></ol>
+      <div class="teams-actions">
+        <button type="button" class="add-player" data-retry hidden>Reintentar</button>
+        <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/teams-list.js" defer></script>
+</BaseLayout>

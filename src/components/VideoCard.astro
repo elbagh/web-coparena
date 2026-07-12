@@ -1,0 +1,11 @@
+---
+// Tarjeta de video vertical (9:16) pensada para clips cortos de acción.
+// Sin uso hasta tener los clips generados/reales en public/assets/videos/.
+const { src, poster, label } = Astro.props;
+---
+
+<figure class="video-card reveal">
+  <video data-video-observe src={src} poster={poster} muted loop playsinline preload="none"
+  ></video>
+  {label && <figcaption>{label}</figcaption>}
+</figure>

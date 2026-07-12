@@ -1,42 +1,28 @@
 ---
-import LogoMark from "./LogoMark.astro";
+import { event } from "../data/event";
 ---
 
 <section class="hero" aria-labelledby="hero-title">
   <img
     class="hero-art"
     src="/assets/copa-arena-hero-watercolor.png"
-    alt="Foto de voley playa al atardecer tratada con acuarela en colores Copa Arena"
+    alt="Partido de vóley playa al atardecer en la arena, tratado en acuarela"
     loading="eager"
     decoding="async"
   />
-  <div class="hero-overlay"></div>
-  <div class="sea-caustics"></div>
-  <div class="bubble bubble-a"></div>
-  <div class="bubble bubble-b"></div>
-  <div class="bubble bubble-c"></div>
-  <div class="hero-sticker sticker-place">O Pozo</div>
-  <div class="hero-sticker sticker-mode">Voley playa</div>
+  <div class="hero-overlay" aria-hidden="true"></div>
 
   <div class="hero-content">
-    <div class="hero-logo-card" data-tilt>
-      <LogoMark />
-    </div>
-    <p class="eyebrow">El torneo bueno de Playa O Pozo</p>
-    <h1 id="hero-title">La Copa Arena</h1>
-    <p class="hero-copy">
-      El mejor torneo de voley playa de Playa O Pozo: colegas, arena,
-      piques sanos y algun remate que se contara mejor de lo que fue.
-    </p>
+    <p class="eyebrow hero-eyebrow">{event.location}</p>
+    <p class="hero-name">{event.name}</p>
+    <h1 id="hero-title" class="hero-dates">
+      <span class="date-line">{event.dateStart}</span>
+      <span class="date-line date-line-end"><span class="date-dash" aria-hidden="true">—</span>{event.dateEnd}</span>
+    </h1>
+    <p class="hero-claim">{event.claim}</p>
     <div class="hero-actions">
-      <a class="button button-primary" href="#inscripciones">Quiero jugar</a>
-      <a class="button button-secondary" href="#programa">Ver programa</a>
+      <a class="button button-primary" href="#jugar">Quiero jugar</a>
+      <a class="button button-secondary" href="#venir">Quiero venir</a>
     </div>
   </div>
-
-  <aside class="hero-ticket" aria-label="Resumen del evento">
-    <span>31 Jul - 9 Ago</span>
-    <strong>Juega fino</strong>
-    <small>Playa O Pozo, O Porto do Son</small>
-  </aside>
 </section>

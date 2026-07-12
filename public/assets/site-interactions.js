@@ -1,4 +1,8 @@
 const root = document.documentElement;
+root.classList.add("js");
+
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const blob = document.querySelector("[data-cursor-blob]");
 let blobX = 0;
 let blobY = 0;
@@ -27,60 +31,77 @@ window.addEventListener("pointermove", (event) => {
   targetY = y - 80;
 });
 
-document.querySelectorAll("[data-tilt]").forEach((card) => {
-  card.addEventListener("pointermove", (event) => {
-    const rect = card.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width - 0.5;
-    const y = (event.clientY - rect.top) / rect.height - 0.5;
-    card.style.setProperty("--tilt-x", `${(-y * 9).toFixed(2)}deg`);
-    card.style.setProperty("--tilt-y", `${(x * 11).toFixed(2)}deg`);
-    card.style.setProperty("--spot-x", `${event.clientX - rect.left}px`);
-    card.style.setProperty("--spot-y", `${event.clientY - rect.top}px`);
-  });
-
-  card.addEventListener("pointerleave", () => {
-    card.style.setProperty("--tilt-x", "0deg");
-    card.style.setProperty("--tilt-y", "0deg");
-  });
-});
-
-document.querySelectorAll(".button, .poster-card, .highlight-card, .timeline-item, .reserve-card").forEach((item) => {
+document.querySelectorAll(".button, .header-cta, .nav-links a, .timeline-item, .video-card").forEach((item) => {
   item.addEventListener("pointerenter", () => root.classList.add("is-hovering"));
   item.addEventListener("pointerleave", () => root.classList.remove("is-hovering"));
 });
 
-const ballWrap = document.querySelector("[data-scroll-ball]");
-if (ballWrap && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-  const ballVideo = ballWrap.querySelector("video");
-  let ballTarget = 0;
-  let ballTime = 0;
+// Parallax de las capas del escenario ([data-parallax] dentro de [data-scene]).
+const parallaxLayers = [];
+document.querySelectorAll("[data-scene]").forEach((scene) => {
+  scene.querySelectorAll("[data-parallax]").forEach((el) => {
+    const factor = parseFloat(el.dataset.parallax);
+    if (factor) {
+      parallaxLayers.push({ scene, el, factor });
+    }
+  });
+});
 
-  const readBallScroll = () => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    ballTarget = max > 0 ? Math.min(Math.max(window.scrollY / max, 0), 1) : 0;
-    ballWrap.classList.toggle("is-live", ballTarget > 0.02);
-  };
-
-  const startBall = () => {
-    readBallScroll();
-    ballTime = ballTarget;
-    const step = () => {
-      ballTime += (ballTarget - ballTime) * 0.12;
-      const time = ballTime * ballVideo.duration;
-      if (Math.abs(ballVideo.currentTime - time) > 0.01) {
-        ballVideo.currentTime = time;
+if (parallaxLayers.length && !reduceMotion) {
+  const compact = window.matchMedia("(max-width: 900px)");
+  const step = () => {
+    const vh = window.innerHeight;
+    const scale = compact.matches ? 0.55 : 1;
+    parallaxLayers.forEach((layer) => {
+      const rect = layer.scene.getBoundingClientRect();
+      if (rect.bottom < -120 || rect.top > vh + 120) {
+        return;
       }
-      requestAnimationFrame(step);
-    };
+      const progress = (vh - rect.top) / (vh + rect.height) - 0.5;
+      const shift = progress * layer.factor * 220 * scale;
+      layer.el.style.transform = `translate3d(0, ${shift.toFixed(1)}px, 0)`;
+    });
     requestAnimationFrame(step);
   };
+  requestAnimationFrame(step);
+}
 
-  window.addEventListener("scroll", readBallScroll, { passive: true });
-  window.addEventListener("resize", readBallScroll, { passive: true });
-
-  if (ballVideo.readyState >= 1) {
-    startBall();
+// Aparición de elementos .reveal al entrar en viewport.
+const revealEls = document.querySelectorAll(".reveal");
+if (revealEls.length) {
+  if (reduceMotion || !("IntersectionObserver" in window)) {
+    revealEls.forEach((el) => el.classList.add("in-view"));
   } else {
-    ballVideo.addEventListener("loadedmetadata", startBall, { once: true });
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in-view");
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.2, rootMargin: "0px 0px -8% 0px" }
+    );
+    revealEls.forEach((el) => revealObserver.observe(el));
   }
+}
+
+// Los clips de acción se reproducen solo mientras están a la vista.
+const clips = document.querySelectorAll("video[data-video-observe]");
+if (clips.length && "IntersectionObserver" in window && !reduceMotion) {
+  const clipObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target;
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      });
+    },
+    { threshold: 0.35 }
+  );
+  clips.forEach((clip) => clipObserver.observe(clip));
 }

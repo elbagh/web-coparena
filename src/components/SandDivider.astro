@@ -1,0 +1,12 @@
+---
+const { fill = "var(--cream)", flip = false } = Astro.props;
+---
+
+<div class:list={["sand-divider", { "is-flipped": flip }]} aria-hidden="true">
+  <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
+    <path
+      style={`fill: ${fill}`}
+      d="M0 0 L1440 0 L1440 32 C 1380 42 1280 24 1120 40 C 920 62 740 22 540 44 C 340 66 180 18 0 48 Z"
+    ></path>
+  </svg>
+</div>

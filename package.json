@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
+    "@fontsource/titan-one": "^5.2.8",
     "astro": "^5.13.5",
     "typescript": "^5.9.2"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260710.1",
+    "wrangler": "^4.110.0"
+  }
 }

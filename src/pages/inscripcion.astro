@@ -1,0 +1,140 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { event, inscripcion } from "../data/event";
+---
+
+<BaseLayout
+  title="Inscripción | La Copa Arena"
+  description="Inscribe a tu equipo en La Copa Arena: mínimo dos personas, suplentes los que necesitéis. 30 € por equipo, se pagan en el primer partido."
+>
+  <SiteHeader />
+
+  <main class="legal-page registro-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Inscripciones</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Inscribe a tu equipo</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Dos titulares como mínimo y los suplentes que necesitéis. La inscripción son
+        {inscripcion.precio} por equipo y {inscripcion.pago}. Necesitamos al menos un
+        correo del equipo: ahí enviamos la confirmación.
+      </p>
+    </section>
+
+    <form
+      class="form-card reveal"
+      style="--reveal-delay: 260ms"
+      data-team-form
+      novalidate
+      aria-label="Formulario de inscripción de equipo"
+    >
+      <div class="form-banner" role="alert" data-banner hidden></div>
+
+      <div class="field">
+        <label for="equipo" data-label="equipo">Nombre del equipo</label>
+        <input
+          id="equipo"
+          type="text"
+          data-field="equipo"
+          maxlength="60"
+          autocomplete="off"
+          placeholder="Los Rompeolas"
+        />
+        <p class="field-error" hidden></p>
+      </div>
+
+      <div class="players" data-players></div>
+
+      <button type="button" class="add-player" data-add-player>+ Añadir suplente</button>
+
+      <p class="form-price">{inscripcion.precio} por equipo · {inscripcion.pago}</p>
+
+      <div class="consent-box" data-consent>
+        <label class="consent-label">
+          <input type="checkbox" data-field="consentimiento" />
+          <span>
+            He leído y acepto la <a href="/privacidad/">política de privacidad</a>. Consiento que
+            La Copa Arena trate los datos de este formulario (incluidas las fotos, si las subimos)
+            para gestionar la inscripción, organizar el torneo y elaborar sus estadísticas.
+            Confirmo que cuento con el permiso del resto del equipo para facilitar sus datos.
+          </span>
+        </label>
+        <p class="field-error" hidden></p>
+        <p class="consent-small">
+          Responsable: la organización de La Copa Arena ({event.email}). Las fotos no se publican:
+          son de uso interno para las estadísticas. Puedes ejercer tus derechos de acceso,
+          rectificación, supresión y oposición escribiéndonos.
+        </p>
+      </div>
+
+      <div class="turnstile-slot">
+        <div class="cf-turnstile" data-sitekey={inscripcion.turnstileSiteKey}></div>
+      </div>
+
+      <button type="submit" class="button button-primary form-submit" data-submit>
+        Inscribir equipo
+      </button>
+    </form>
+
+    <section class="form-success" data-success hidden aria-live="polite">
+      <p class="eyebrow">Inscripciones</p>
+      <h2>¡Equipo inscrito!</h2>
+      <p data-success-text></p>
+      <p class="form-price">Recordad: {inscripcion.precio} por equipo, en el primer partido.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/equipos/">Ver equipos inscritos</a>
+        <a class="button button-secondary" href={event.instagram} rel="noreferrer">Instagram</a>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+
+  <template id="player-template">
+    <article class="player-card" data-player>
+      <header class="player-head">
+        <span class="player-dorsal" data-dorsal aria-hidden="true">1</span>
+        <span class="player-role" data-role>Titular</span>
+        <button type="button" class="player-remove" data-remove hidden>Quitar</button>
+      </header>
+      <div class="player-grid">
+        <div class="field">
+          <label data-label="nombre">Nombre</label>
+          <input type="text" data-field="nombre" maxlength="60" autocomplete="off" />
+          <p class="field-error" hidden></p>
+        </div>
+        <div class="field">
+          <label data-label="apellidos">Apellidos</label>
+          <input type="text" data-field="apellidos" maxlength="80" autocomplete="off" />
+          <p class="field-error" hidden></p>
+        </div>
+        <div class="field">
+          <label data-label="telefono">Móvil</label>
+          <input type="tel" data-field="telefono" maxlength="18" autocomplete="off" placeholder="612 345 678" />
+          <p class="field-error" hidden></p>
+        </div>
+        <div class="field">
+          <label data-label="email">Correo <span class="field-opt">(opcional)</span></label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
+          <p class="field-error" hidden></p>
+        </div>
+        <div class="field">
+          <label data-label="redSocial">Instagram u otra red <span class="field-opt">(opcional)</span></label>
+          <input type="text" data-field="redSocial" maxlength="120" autocomplete="off" placeholder="@usuario" />
+          <p class="field-error" hidden></p>
+        </div>
+        <div class="field">
+          <label data-label="foto">Foto <span class="field-opt">(opcional)</span></label>
+          <input type="file" data-field="foto" accept="image/jpeg,image/png,image/webp" />
+          <p class="field-hint">Nos ayuda a llevar mejor las estadísticas del torneo. JPG, PNG o WebP, máximo 4 MB.</p>
+          <p class="field-error" hidden></p>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/team-form.js" defer></script>
+</BaseLayout>
