@@ -48,3 +48,39 @@ document.querySelectorAll(".button, .poster-card, .highlight-card, .timeline-ite
   item.addEventListener("pointerenter", () => root.classList.add("is-hovering"));
   item.addEventListener("pointerleave", () => root.classList.remove("is-hovering"));
 });
+
+const ballWrap = document.querySelector("[data-scroll-ball]");
+if (ballWrap && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const ballVideo = ballWrap.querySelector("video");
+  let ballTarget = 0;
+  let ballTime = 0;
+
+  const readBallScroll = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    ballTarget = max > 0 ? Math.min(Math.max(window.scrollY / max, 0), 1) : 0;
+    ballWrap.classList.toggle("is-live", ballTarget > 0.02);
+  };
+
+  const startBall = () => {
+    readBallScroll();
+    ballTime = ballTarget;
+    const step = () => {
+      ballTime += (ballTarget - ballTime) * 0.12;
+      const time = ballTime * ballVideo.duration;
+      if (Math.abs(ballVideo.currentTime - time) > 0.01) {
+        ballVideo.currentTime = time;
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
+  window.addEventListener("scroll", readBallScroll, { passive: true });
+  window.addEventListener("resize", readBallScroll, { passive: true });
+
+  if (ballVideo.readyState >= 1) {
+    startBall();
+  } else {
+    ballVideo.addEventListener("loadedmetadata", startBall, { once: true });
+  }
+}
