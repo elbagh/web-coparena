@@ -1,16 +1,19 @@
-# Configuracion de Cloudflare Pages.
-# Ahora mismo permite desplegar la web estatica. Las Pages Functions quedan
-# preparadas en functions/, pero D1/R2 deben activarse solo cuando existan sus
-# recursos reales en Cloudflare.
+# Configuracion de Cloudflare Workers con Static Assets.
+# Cloudflare debe ejecutar:
+#   Build command: npm run build
+#   Deploy command: npx wrangler deploy
 
 name = "web-coparena"
 compatibility_date = "2026-07-01"
-pages_build_output_dir = "dist"
+
+[assets]
+directory = "./dist"
+html_handling = "auto-trailing-slash"
 
 # Para activar inscripciones reales:
-# 1. Crear D1: npx wrangler d1 create copa-arena-db
-# 2. Crear R2: npx wrangler r2 bucket create copa-arena-fotos
-# 3. Descomentar y completar los bindings con valores reales.
+# Este modo `wrangler deploy` no despliega automaticamente las Pages Functions
+# de functions/. Para publicar /api en Workers hay que migrar esos endpoints a
+# un Worker principal y activar aqui los bindings reales.
 #
 # [[d1_databases]]
 # binding = "DB"
