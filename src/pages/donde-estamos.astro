@@ -1,0 +1,67 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { donde } from "../data/event";
+---
+
+<BaseLayout
+  title="Dónde estamos | La Copa Arena"
+  description="La playa de O Pozo (Langaño), en Porto do Son: mapa, dirección y cómo llegar a La Copa Arena en coche o en bus."
+>
+  <SiteHeader />
+
+  <main class="legal-page donde-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Dónde estamos</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">{donde.nombre}</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">{donde.descripcion}</p>
+    </section>
+
+    <div class="donde-grid">
+      <div class="map-card reveal">
+        <iframe
+          src={donde.mapaEmbed}
+          title="Mapa de la playa de O Pozo (Langaño), Porto do Son"
+          loading="lazy"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+      <div class="donde-photos">
+        {
+          donde.fotos.map((foto, index) => (
+            <figure class="donde-photo reveal" style={`--reveal-delay: ${index * 90}ms`}>
+              <img src={foto.src} alt={foto.alt} loading="lazy" width="1400" height="1050" />
+              <figcaption>{foto.caption}</figcaption>
+            </figure>
+          ))
+        }
+      </div>
+    </div>
+
+    <dl class="llegar-list">
+      {
+        donde.llegar.map((item, index) => (
+          <div class="llegar-item reveal" style={`--reveal-delay: ${index * 70}ms`}>
+            <dt>{item.modo}</dt>
+            <dd>{item.detalle}</dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    <div class="donde-actions reveal">
+      <a class="button button-primary" href={donde.comoLlegarUrl} target="_blank" rel="noreferrer">
+        Cómo llegar
+      </a>
+      <p class="donde-credit">
+        <a href={donde.credito.url} rel="noreferrer">{donde.credito.texto}</a>
+      </p>
+    </div>
+  </main>
+
+  <SiteFooter />
+
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+</BaseLayout>

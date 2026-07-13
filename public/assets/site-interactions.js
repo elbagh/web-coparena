@@ -31,7 +31,7 @@ window.addEventListener("pointermove", (event) => {
   targetY = y - 80;
 });
 
-document.querySelectorAll(".button, .header-cta, .nav-links a, .timeline-item, .video-card").forEach((item) => {
+document.querySelectorAll(".button, .header-join, .nav-links a, .timeline-item, .video-card").forEach((item) => {
   item.addEventListener("pointerenter", () => root.classList.add("is-hovering"));
   item.addEventListener("pointerleave", () => root.classList.remove("is-hovering"));
 });

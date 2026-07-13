@@ -3,12 +3,24 @@
 #   Build command: npm run build
 #   Deploy command: npx wrangler deploy
 
-name = "web-coparena"
+
+# El name debe coincidir con el nombre del proyecto en Cloudflare Pages, y los
+# bindings (DB, FOTOS) con las variables que usa el código de functions/.
+name = "la-copa-arena"
+
 compatibility_date = "2026-07-01"
+
+
+[[d1_databases]]
+binding = "DB"
+database_name = "copa-arena-db"
+database_id = "cd24c895-9353-483e-b2d9-ee000ce7bdbe"
+migrations_dir = "db/migrations"
 
 [assets]
 directory = "./dist"
 html_handling = "auto-trailing-slash"
+
 
 # Para activar inscripciones reales:
 # Este modo `wrangler deploy` no despliega automaticamente las Pages Functions

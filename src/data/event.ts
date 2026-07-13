@@ -27,17 +27,45 @@ export const socials = {
   camisetas: "https://forms.gle/srcH8rUpNCYmUxgn8"
 };
 
-export const marqueeItems = [
-  "31 Jul — 5 Ago",
-  "Playa O Pozo",
-  "Vóley playa",
-  "La Copa Arena"
-];
-
-export const phases = [
-  { label: "Fase de grupos", days: ["31 Jul", "1 Ago", "2 Ago"] },
-  { label: "Fase eliminatoria", days: ["3 Ago", "4 Ago", "5 Ago"] }
-];
+// Datos de la playa: turismo.gal (recurso 10366, Pozo/Lagaño).
+export const donde = {
+  nombre: "Playa de O Pozo (Langaño)",
+  descripcion:
+    "480 metros de arena fina en la ría de Muros e Noia, entre Portosín y Porto do Son. Esta es la arena de la Copa.",
+  // Embed oficial de Google Maps (sin API key): vista satélite con marcador
+  // en 42°44'53.0"N 8°57'15.9"W (coordenadas de turismo.gal para la playa).
+  mapaEmbed:
+    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2900!2d-8.954417!3d42.748056!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0:0x0!2zNDLCsDQ0JzUzLjAiTiA4wrA1NycxNS45Ilc!5e1!3m2!1ses!2ses",
+  comoLlegarUrl: "https://www.google.com/maps/dir/?api=1&destination=42.748056,-8.954417",
+  llegar: [
+    {
+      modo: "Dirección",
+      detalle:
+        "Praia do Pozo (Langaño), lugar de O Pozo, parroquia de Goiáns. 15970 Porto do Son, A Coruña."
+    },
+    {
+      modo: "En coche",
+      detalle:
+        "Por la AC-550 (Noia – Porto do Son). Entre Portosín y Porto do Son, toma el desvío señalizado hacia O Pozo. La playa no tiene parking propio: deja el coche en la aldea o junto a la carretera."
+    },
+    {
+      modo: "En bus",
+      detalle:
+        "Línea interurbana Noia – Ribeira por la costa, con parada a unos 400 metros de la playa."
+    }
+  ],
+  fotos: [
+    {
+      src: "/assets/donde-aldea-pozo.jpg",
+      alt: "El arenal abierto de la playa de O Pozo, con el pinar y las casas al fondo",
+      caption: "El arenal abierto a la ría, con el pinar detrás."
+    }
+  ],
+  credito: {
+    texto: "Foto: Ostiudo (CC0), vía Wikimedia Commons.",
+    url: "https://commons.wikimedia.org/wiki/File:Aldea_de_o_Pozo,_Porto_do_Son.jpg"
+  }
+};
 
 export type PerkPerson = {
   handle: string;
@@ -79,10 +107,6 @@ export const perks: Perk[] = [
       }
     ],
     detailAfter: "Poco expertos en vóley playa, pero le echan ganas."
-  },
-  {
-    title: "Eventos",
-    detail: "Habrá sorpresas durante el torneo."
   },
   {
     title: "Sorteos",
