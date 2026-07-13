@@ -1,6 +1,6 @@
 # La Copa Arena
 
-Web en Astro para el evento deportivo La Copa Arena. La salida actual es estatica y esta preparada para desplegar en Cloudflare Workers con Static Assets.
+Web en Astro para La Copa Arena, con Cloudflare Pages Functions para inscripciones, login con Google y gestión privada de equipos.
 
 ## Desarrollo
 
@@ -9,45 +9,59 @@ npm install
 npm run dev
 ```
 
-## Build y despliegue en Cloudflare Workers
+## Build
 
 ```bash
 npm run build
-npx wrangler deploy
 ```
 
-Configura Cloudflare con:
+## Despliegue en Cloudflare Pages
+
+En el proyecto de Cloudflare Pages:
 
 - Build command: `npm run build`
-- Deploy command: `npx wrangler deploy`
-- Project name: `web-coparena`
+- Build output directory: `dist`
+- Deploy command: dejar vacío
 
-El archivo [wrangler.toml](wrangler.toml) usa `assets.directory = "./dist"`, asi que `npx wrangler deploy` sube la salida estatica generada por Astro en `dist/`.
+Si despliegas por CLI:
 
-## Backend pendiente
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name web-coparena
+```
 
-El directorio [functions/](functions/) contiene el backend preparado originalmente como Cloudflare Pages Functions. Ese formato no se despliega automaticamente con `npx wrangler deploy`, porque ese comando despliega un Worker.
+No uses `npx wrangler deploy` ni `npx wrangler versions upload` para esta web: esos comandos son de Workers y no publican correctamente las Pages Functions de `functions/`.
 
-Para publicar `/api` con este modo hay que migrar esos endpoints a un Worker principal y activar los bindings reales de D1/R2/secrets.
-
-Recursos previstos para el backend:
+## Recursos de Cloudflare
 
 ```bash
 npx wrangler d1 create copa-arena-db
 npx wrangler r2 bucket create copa-arena-fotos
 ```
 
-Secrets previstos:
+El binding de D1 debe llamarse `DB` y el bucket R2 debe llamarse `FOTOS`.
+
+Aplica las migraciones:
 
 ```bash
-npx wrangler secret put TURNSTILE_SECRET_KEY
-npx wrangler secret put GMAIL_CLIENT_ID
-npx wrangler secret put GMAIL_CLIENT_SECRET
-npx wrangler secret put GMAIL_REFRESH_TOKEN
+npx wrangler d1 migrations apply copa-arena-db
 ```
+
+## Variables y secrets
+
+Configura en Cloudflare Pages:
+
+- `GOOGLE_CLIENT_ID`: ID de cliente OAuth de Google, tipo Web.
+- `SESSION_SECRET`: cadena larga y aleatoria para firmar la sesión.
+- `TURNSTILE_SECRET_KEY`: secret de Cloudflare Turnstile.
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+
+En Google Cloud Console, el cliente OAuth debe permitir el dominio de producción y el dominio preview de Pages si quieres probar login en previews.
 
 ## Notas
 
 - `npm run build` debe terminar con 0 errores antes de desplegar.
 - `dist/` no se commitea; Cloudflare lo genera durante el build.
-- Las paginas legales tienen textos base y deben revisarse antes de publicar definitivamente.
+- Cada cuenta de Google solo puede tener un equipo asociado.

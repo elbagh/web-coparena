@@ -272,6 +272,7 @@
       }
 
       if (respuesta.ok && cuerpo.ok) {
+        await window.CopaAuth?.refresh?.();
         form.hidden = true;
         exitoTexto.textContent = cuerpo.emailEnviado
           ? `«${payload.equipo}» ya está en La Copa Arena. Os hemos enviado la confirmación a los correos indicados.`

@@ -25,6 +25,11 @@ export interface RegistroValidado {
   jugadores: JugadorValidado[];
 }
 
+interface OpcionesValidacion {
+  requireTurnstile?: boolean;
+  requireConsent?: boolean;
+}
+
 export const normalizarTexto = (s: string): string =>
   s
     .trim()
@@ -53,9 +58,12 @@ const limpiar = (v: unknown): string =>
  * "jugadores.<índice>.<campo>") con mensajes listos para pintar en pantalla.
  */
 export function validarRegistro(
-  raw: unknown
+  raw: unknown,
+  opciones: OpcionesValidacion = {}
 ): { registro: RegistroValidado } | { campos: Record<string, string> } {
   const campos: Record<string, string> = {};
+  const requireConsent = opciones.requireConsent !== false;
+  const requireTurnstile = opciones.requireTurnstile !== false;
 
   if (typeof raw !== "object" || raw === null) {
     return { campos: { equipo: "El formulario ha llegado vacío. Recarga la página e inténtalo de nuevo." } };
@@ -67,11 +75,14 @@ export function validarRegistro(
     campos.equipo = "El nombre del equipo debe tener entre 2 y 60 caracteres.";
   }
 
-  if (body.consentimiento !== true) {
+  if (requireConsent && body.consentimiento !== true) {
     campos.consentimiento = "Necesitamos tu consentimiento para tratar los datos de la inscripción.";
   }
 
   const turnstileToken = typeof body.turnstileToken === "string" ? body.turnstileToken : "";
+  if (requireTurnstile && !turnstileToken) {
+    campos.turnstile = "Espera un momento a que cargue la verificaciÃ³n anti-bots y vuelve a intentarlo.";
+  }
 
   const jugadoresRaw = Array.isArray(body.jugadores) ? body.jugadores : [];
   if (jugadoresRaw.length < MIN_JUGADORES) {
