@@ -7,20 +7,11 @@
 # CLI deploy, if needed:
 #   npm run build
 #   npx wrangler pages deploy dist --project-name web-coparena
-#
-# Temporary compatibility:
-# Some Cloudflare projects still run `npx wrangler versions upload` or
-# `npx wrangler deploy` as a custom deploy command. The [assets] block below
-# keeps those Worker-style commands from failing while the project is moved to
-# the proper Pages deploy flow.
 
 name = "web-coparena"
 compatibility_date = "2026-07-01"
 pages_build_output_dir = "dist"
 
-[assets]
-directory = "./dist"
-html_handling = "auto-trailing-slash"
 
 [[d1_databases]]
 binding = "DB"
