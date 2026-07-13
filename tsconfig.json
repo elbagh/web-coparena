@@ -4,5 +4,5 @@
     "types": ["@cloudflare/workers-types"]
   },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist", ".worker"]
 }
