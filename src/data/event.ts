@@ -67,46 +67,33 @@ export const donde = {
   }
 };
 
-export const torneoInfo = [
+export type Paso = {
+  titulo: string;
+  texto: string;
+  link?: { label: string; url: string };
+};
+
+export const pasos: Paso[] = [
   {
-    label: "Horarios",
-    title: "Tardes, cuando baja el sol",
-    text: "La idea es jugar por la tarde. Los horarios finos salen cuando sepamos cuántos equipos somos."
+    titulo: "Ficha a tu colega",
+    texto:
+      "Pásale esta web y convéncele: con dos personas ya hay equipo. Este es el paso difícil, el resto es cosa nuestra."
   },
   {
-    label: "Plazas",
-    title: "Equipos limitados",
-    text: "Habrá límite de equipos para que el torneo no se haga eterno. Cuando se llenen, cerramos."
+    titulo: "Inscribid al equipo",
+    texto:
+      "Rellenad la inscripción en dos minutos. Si añadís fotos y redes sociales, mejor para todos.",
+    link: { label: "Inscribir equipo", url: "/inscripcion/" }
   },
   {
-    label: "Formato",
-    title: "Grupos + cruces",
-    text: "Primero fase de grupos y después eliminatorias. Fácil de seguir y con margen para liarla un poco."
+    titulo: "Entráis al WhatsApp",
+    texto:
+      "Os añadimos a los grupos para que sepáis qué días os toca venir. Cualquier duda: MD a Instagram, correo o el propio grupo."
   },
   {
-    label: "Nivel",
-    title: "Amateur con ganas",
-    text: "No hace falta ser profesional. Sí hace falta venir con buen rollo, puntualidad y ganas de jugar."
-  },
-  {
-    label: "Premios",
-    title: "Trofeo y sorpresas",
-    text: "Habrá premios para quienes lleguen arriba y sorteos para que no todo dependa del remate."
-  },
-  {
-    label: "Inscripción",
-    title: "Hasta completar plazas",
-    text: "Mejor no dejarlo para el último día. Si hay hueco, entras; si no, toca animar desde fuera."
-  },
-  {
-    label: "Normas",
-    title: "Lo justo para jugar tranquilos",
-    text: "Dos titulares mínimo, respeto, puntualidad y decisiones de la organización si hay dudas."
-  },
-  {
-    label: "Después",
-    title: "Te confirmamos por correo",
-    text: "Al apuntarte guardamos el equipo, revisamos datos y os mandamos confirmación con lo siguiente."
+    titulo: "El día del torneo",
+    texto:
+      "Trae a tus familiares, amigos, enemigos... Esto es un espectáculo y cada año va a más."
   }
 ];
 

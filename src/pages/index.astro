@@ -6,7 +6,7 @@ import Hero from "../components/Hero.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
-import { event, perks, torneoInfo } from "../data/event";
+import { event, perks, pasos } from "../data/event";
 ---
 
 <BaseLayout>
@@ -15,23 +15,30 @@ import { event, perks, torneoInfo } from "../data/event";
   <main>
     <Hero />
 
-    <section class="band-sand band-basicos" id="torneo">
+    <section class="band-sand band-pasos" id="torneo">
       <SectionHeading
-        eyebrow="Lo básico"
-        title="Antes de apuntarte"
-        text="Sin burocracia: estas son las cuatro cosas que conviene saber antes de formar equipo."
+        eyebrow="Cómo funciona"
+        title="Pasos para apuntarse"
+        text="De cero a jugar la Copa en cuatro pasos."
       />
-      <ul class="info-grid">
+      <ol class="pasos-flow">
         {
-          torneoInfo.map((item, index) => (
-            <li class="info-card reveal" style={`--reveal-delay: ${index * 45}ms`}>
-              <p>{item.label}</p>
-              <h3>{item.title}</h3>
-              <span>{item.text}</span>
+          pasos.map((paso, index) => (
+            <li class="paso reveal" style={`--reveal-delay: ${index * 90}ms`}>
+              <div class="paso-bubble">
+                <span class="paso-num" aria-hidden="true">{index + 1}</span>
+                <h3>{paso.titulo}</h3>
+                <p>{paso.texto}</p>
+                {paso.link && (
+                  <a class="paso-link" href={paso.link.url}>
+                    {paso.link.label}
+                  </a>
+                )}
+              </div>
             </li>
           ))
         }
-      </ul>
+      </ol>
     </section>
 
     <section class="band-sand band-venir" id="venir">

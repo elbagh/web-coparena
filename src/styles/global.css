@@ -661,11 +661,11 @@ html.js .hero-content > *:nth-child(5) {
   background: linear-gradient(180deg, var(--cream) 0%, var(--dune) 100%);
 }
 
-.band-basicos {
+.band-pasos {
   background: linear-gradient(180deg, var(--cream) 0%, #f6e8c6 100%);
 }
 
-.band-basicos .section-heading p {
+.band-pasos .section-heading p {
   color: var(--ink);
   font-size: clamp(1.05rem, 2vw, 1.24rem);
   font-weight: 800;
@@ -804,57 +804,210 @@ html.js .hero-content > *:nth-child(5) {
   text-decoration: underline;
 }
 
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin: 38px 0 0;
+/* Pasos para apuntarse: conversación de bocadillos de cómic que baja en
+   zigzag como un chat. Cada paso toma su color con --paso-bg (nth-child)
+   y los pares se alinean a la derecha con el rabito y el sello espejados. */
+.pasos-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 42px;
+  width: min(880px, 100%);
+  margin: 48px auto 0;
   padding: 0;
   list-style: none;
 }
 
-.info-card {
+.paso {
+  width: min(560px, 100%);
+}
+
+.paso:nth-child(even) {
+  align-self: flex-end;
+}
+
+.paso:nth-child(4n + 1) {
+  --paso-bg: var(--sun);
+}
+
+.paso:nth-child(4n + 2) {
+  --paso-bg: var(--coral);
+}
+
+.paso:nth-child(4n + 3) {
+  --paso-bg: var(--lime);
+}
+
+.paso:nth-child(4n) {
+  --paso-bg: var(--aqua);
+}
+
+.paso-bubble {
+  position: relative;
   display: grid;
-  align-content: start;
   gap: 8px;
-  min-height: 188px;
-  padding: 18px;
+  justify-items: start;
+  padding: 34px 26px 24px;
   border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: rgba(255, 248, 233, 0.86);
-  box-shadow: 4px 4px 0 var(--ink);
-  rotate: -0.7deg;
+  border-radius: 26px;
+  background: var(--paso-bg);
+  box-shadow: 5px 5px 0 var(--ink);
+  rotate: -0.9deg;
+  transition:
+    rotate 220ms ease,
+    translate 220ms ease,
+    box-shadow 220ms ease;
 }
 
-.info-card:nth-child(even) {
-  rotate: 0.7deg;
+.paso:nth-child(even) .paso-bubble {
+  rotate: 0.9deg;
 }
 
-.info-card p,
-.info-card h3,
-.info-card span {
+/* Rabito: triángulo de tinta (::before) con el relleno del bocadillo
+   superpuesto (::after) para dejar solo el contorno. */
+.paso-bubble::before,
+.paso-bubble::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.paso-bubble::before {
+  bottom: -17px;
+  left: 40px;
+  border-width: 18px 22px 0 0;
+  border-color: var(--ink) transparent transparent transparent;
+}
+
+.paso-bubble::after {
+  bottom: -11px;
+  left: 43px;
+  border-width: 12px 15px 0 0;
+  border-color: var(--paso-bg) transparent transparent transparent;
+}
+
+.paso:nth-child(even) .paso-bubble::before {
+  left: auto;
+  right: 40px;
+  border-width: 18px 0 0 22px;
+  border-color: var(--ink) transparent transparent transparent;
+}
+
+.paso:nth-child(even) .paso-bubble::after {
+  left: auto;
+  right: 43px;
+  border-width: 12px 0 0 15px;
+  border-color: var(--paso-bg) transparent transparent transparent;
+}
+
+/* Sello con el número: medio fuera del borde superior, como pegatina.
+   aria-hidden en el markup; la numeración semántica la da el <ol>. */
+.paso-num {
+  position: absolute;
+  top: -26px;
+  left: 18px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 2px solid var(--foam);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--foam);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  rotate: -9deg;
+  box-shadow: 3px 3px 0 rgba(16, 21, 22, 0.28);
+  transition:
+    rotate 220ms ease,
+    scale 220ms ease;
+}
+
+.paso:nth-child(even) .paso-num {
+  left: auto;
+  right: 18px;
+  rotate: 9deg;
+}
+
+.paso-bubble h3,
+.paso-bubble p {
   margin: 0;
+  color: var(--ink);
 }
 
-.info-card p {
-  color: var(--coral);
-  font-size: 0.72rem;
-  font-weight: 1000;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.info-card h3 {
-  color: var(--deep);
-  font-size: clamp(1.05rem, 1.7vw, 1.3rem);
+.paso-bubble h3 {
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 900;
   line-height: 1.14;
 }
 
-.info-card span {
-  color: var(--muted);
-  font-size: 0.93rem;
-  font-weight: 700;
-  line-height: 1.48;
+.paso-bubble p {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.paso-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--foam);
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 3px 3px 0 rgba(16, 21, 22, 0.28);
+  transition:
+    translate 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.paso-link::after {
+  content: "→";
+}
+
+.paso-link:hover {
+  background: var(--foam);
+  color: var(--ink);
+  translate: 0 -2px;
+}
+
+.paso-link:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* Hover: el bocadillo se endereza y despega; la sombra dura crece con él. */
+.paso:hover .paso-bubble {
+  rotate: 0deg;
+  translate: 0 -6px;
+  box-shadow: 8px 11px 0 var(--ink);
+}
+
+.paso:hover .paso-num {
+  rotate: 0deg;
+  scale: 1.12;
+}
+
+/* Hold (clic o toque mantenido): se hunde como al apretar una pegatina. */
+.paso:active .paso-bubble {
+  rotate: 0deg;
+  translate: 0 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition-duration: 90ms;
+}
+
+.paso:active .paso-num {
+  scale: 0.94;
+  transition-duration: 90ms;
 }
 
 .donde-page {
@@ -1759,10 +1912,6 @@ html.js .reveal.in-view {
     gap: 18px;
   }
 
-  .info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .footer-main {
     grid-template-columns: 1fr 1fr;
   }
@@ -1829,19 +1978,26 @@ html.js .reveal.in-view {
     grid-template-columns: 1fr;
   }
 
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
+  .pasos-flow {
+    gap: 34px;
+    margin-top: 36px;
   }
 
-  .info-card {
-    min-height: 0;
-    padding: 16px 14px;
+  .paso {
+    width: 100%;
+  }
+
+  .paso-bubble,
+  .paso:nth-child(even) .paso-bubble {
+    padding: 30px 18px 20px;
     rotate: 0deg;
   }
 
-  .info-card:nth-child(even) {
-    rotate: 0deg;
+  .paso-num {
+    top: -22px;
+    width: 46px;
+    height: 46px;
+    font-size: 1.28rem;
   }
 
   .site-footer {
