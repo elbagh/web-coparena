@@ -61,6 +61,6 @@ En Google Cloud Console, el cliente OAuth debe permitir el dominio de producció
 
 ## Notas
 
-- `npm run build` debe terminar con 0 errores antes de desplegar.
+- `npm run build:site` valida Astro. En Cloudflare, `npm run build` genera `.worker/index.js` antes del deploy.
 - `dist/` y `.worker/` no se commitean; Cloudflare los genera durante el build/deploy.
 - Cada cuenta de Google solo puede tener un equipo asociado.
