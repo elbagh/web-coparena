@@ -22,10 +22,45 @@ import { event, inscripcion } from "../data/event";
       </p>
     </section>
 
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-loading>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Comprobando sesión...</h2>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Primero entra con Google</h2>
+      <p>
+        Así cada equipo queda ligado a una persona y nadie puede crear dos equipos por despiste.
+      </p>
+      <p class="auth-error" data-auth-error hidden></p>
+      <div class="google-login" data-google-login></div>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-no-team hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Perfecto, ya puedes inscribir</h2>
+      <p>Has entrado como <strong data-auth-user-email></strong>. El equipo quedará asociado a esta cuenta.</p>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-team hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Ya tienes equipo</h2>
+      <p>
+        Con esta cuenta ya está inscrito <strong data-auth-team-name></strong>. Puedes editarlo o borrarlo desde tu zona.
+      </p>
+      <div class="auth-actions">
+        <a class="button button-primary" href="/mi-equipo/">Ir a Mi equipo</a>
+        <button type="button" class="add-player" data-logout>Cerrar sesión</button>
+      </div>
+    </section>
+
     <form
       class="form-card reveal"
       style="--reveal-delay: 260ms"
       data-team-form
+      data-auth-requires-no-team
+      hidden
       novalidate
       aria-label="Formulario de inscripción de equipo"
     >
@@ -85,6 +120,7 @@ import { event, inscripcion } from "../data/event";
       <p data-success-text></p>
       <p class="form-price">Recordad: {inscripcion.precio} por equipo, en el primer partido.</p>
       <div class="hero-actions">
+        <a class="button button-primary" href="/mi-equipo/">Ir a Mi equipo</a>
         <a class="button button-primary" href="/equipos/">Ver equipos inscritos</a>
         <a class="button button-secondary" href={event.instagram} rel="noreferrer">Instagram</a>
       </div>
@@ -137,6 +173,8 @@ import { event, inscripcion } from "../data/event";
   </template>
 
   <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/auth.js" defer></script>
   <script is:inline src="/assets/team-form.js" defer></script>
 </BaseLayout>

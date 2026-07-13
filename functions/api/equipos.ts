@@ -2,6 +2,7 @@
 // GET  /api/equipos — listado público: solo nombres y nº de jugadores.
 
 import { json } from "../_lib/http";
+import { requireUser } from "../_lib/auth";
 import { verificarTurnstile } from "../_lib/turnstile";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
@@ -18,6 +19,7 @@ interface Env {
   GMAIL_CLIENT_ID: string;
   GMAIL_CLIENT_SECRET: string;
   GMAIL_REFRESH_TOKEN: string;
+  SESSION_SECRET: string;
 }
 
 const ERROR_500 =
@@ -30,6 +32,9 @@ const CONTENT_TYPE_POR_EXT: Record<string, string> = {
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const user = await requireUser(request, env);
+  if (user instanceof Response) return user;
+
   const contentLength = Number(request.headers.get("Content-Length") ?? "0");
   if (contentLength > MAX_BODY_BYTES) {
     return json({ error: "La petición es demasiado grande. Cada foto puede ocupar como máximo 4 MB." }, 413);
@@ -55,6 +60,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }
   const registro = resultado.registro;
+
+  const equipoPropio = await env.DB
+    .prepare("SELECT id FROM equipos WHERE owner_user_id = ?1")
+    .bind(user.id)
+    .first<{ id: number }>();
+  if (equipoPropio) {
+    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." }, 409);
+  }
 
   const humano = await verificarTurnstile(
     env.TURNSTILE_SECRET_KEY,
@@ -113,8 +126,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const statements = [
       env.DB
-        .prepare("INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at) VALUES (?1, ?2, ?3)")
-        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString()),
+        .prepare(
+          "INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id) VALUES (?1, ?2, ?3, ?4)"
+        )
+        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString(), user.id),
       ...registro.jugadores.map((j, i) =>
         env.DB
           .prepare(
@@ -258,6 +273,9 @@ async function buscarDuplicados(db: D1Database, registro: RegistroValidado): Pro
 function mapearConflictoUnique(err: unknown): Record<string, string> | null {
   const mensaje = err instanceof Error ? err.message : String(err);
   if (!mensaje.includes("UNIQUE constraint failed")) return null;
+  if (mensaje.includes("equipos.owner_user_id")) {
+    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." };
+  }
   if (mensaje.includes("equipos.nombre_normalizado")) {
     return { equipo: "Ya hay un equipo inscrito con ese nombre." };
   }

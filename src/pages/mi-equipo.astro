@@ -1,0 +1,126 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+---
+
+<BaseLayout
+  title="Mi equipo | La Copa Arena"
+  description="Gestiona el equipo que has inscrito en La Copa Arena."
+>
+  <SiteHeader />
+
+  <main class="legal-page registro-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Mi equipo</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Tu equipo, a mano</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Entra con la misma cuenta de Google que usaste para inscribirte y podrás cambiar jugadores,
+        corregir datos o borrar el equipo si al final no podéis venir.
+      </p>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-loading>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Comprobando sesión...</h2>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Entra con Google</h2>
+      <p>Solo podrás ver y tocar el equipo asociado a tu cuenta.</p>
+      <p class="auth-error" data-auth-error hidden></p>
+      <div class="google-login" data-google-login></div>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
+      <div class="auth-row">
+        <div>
+          <p class="eyebrow">Cuenta</p>
+          <h2 data-auth-user-name></h2>
+          <p data-auth-user-email></p>
+        </div>
+        <button type="button" class="add-player" data-logout>Cerrar sesión</button>
+      </div>
+    </section>
+
+    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-my-team>
+      <div class="teams-panel" data-my-team-loading>
+        <p class="teams-status">Cargando tu equipo...</p>
+      </div>
+
+      <div class="teams-panel" data-my-team-empty hidden>
+        <p class="eyebrow">Equipo</p>
+        <h2>Aún no tienes equipo inscrito</h2>
+        <p class="teams-status">Cuando inscribas uno con esta cuenta, aparecerá aquí para poder editarlo.</p>
+        <div class="teams-actions">
+          <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
+          <a class="button button-secondary" href="/equipos/">Ver equipos</a>
+        </div>
+      </div>
+
+      <div class="form-card" data-my-team-editor hidden>
+        <div>
+          <p class="eyebrow">Equipo</p>
+          <h2>Editar inscripción</h2>
+        </div>
+
+        <div class="form-banner" role="alert" data-my-team-banner hidden></div>
+
+        <form data-my-team-form novalidate>
+          <div class="field">
+            <label for="mi-equipo-nombre">Nombre del equipo</label>
+            <input id="mi-equipo-nombre" type="text" data-field="equipo" maxlength="60" autocomplete="off" />
+          </div>
+
+          <div class="players" data-my-team-players></div>
+
+          <div class="my-team-actions">
+            <button type="button" class="add-player" data-my-team-add-player>+ Añadir suplente</button>
+            <button type="submit" class="button button-primary form-submit" data-my-team-save>Guardar cambios</button>
+            <button type="button" class="button button-secondary danger-button" data-my-team-delete>Borrar equipo</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+
+  <template id="my-team-player-template">
+    <article class="player-card" data-player>
+      <header class="player-head">
+        <span class="player-dorsal" data-dorsal aria-hidden="true">1</span>
+        <span class="player-role" data-role>Titular</span>
+        <button type="button" class="player-remove" data-remove hidden>Quitar</button>
+      </header>
+      <div class="player-grid">
+        <div class="field">
+          <label>Nombre</label>
+          <input type="text" data-field="nombre" maxlength="60" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Apellidos</label>
+          <input type="text" data-field="apellidos" maxlength="80" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Móvil</label>
+          <input type="tel" data-field="telefono" maxlength="18" autocomplete="off" placeholder="612 345 678" />
+        </div>
+        <div class="field">
+          <label>Correo <span class="field-opt">(opcional)</span></label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Instagram u otra red <span class="field-opt">(opcional)</span></label>
+          <input type="text" data-field="redSocial" maxlength="120" autocomplete="off" placeholder="@usuario" />
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/auth.js" defer></script>
+  <script is:inline src="/assets/my-team.js" defer></script>
+</BaseLayout>

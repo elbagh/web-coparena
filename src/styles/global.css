@@ -1366,7 +1366,8 @@ html.js .reveal.in-view {
 
 .form-card,
 .form-success,
-.teams-panel {
+.teams-panel,
+.auth-card {
   display: grid;
   gap: 26px;
   padding: clamp(24px, 4vw, 42px);
@@ -1374,6 +1375,72 @@ html.js .reveal.in-view {
   border-radius: 8px;
   background: rgba(255, 248, 233, 0.9);
   box-shadow: 8px 8px 0 var(--ink);
+}
+
+.auth-card {
+  margin-bottom: 22px;
+}
+
+.auth-card h2,
+.teams-panel h2,
+.form-card h2 {
+  margin: 0;
+  color: var(--deep);
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  line-height: 1;
+}
+
+.auth-card p,
+.teams-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.auth-card strong {
+  color: var(--ink);
+}
+
+.auth-actions,
+.auth-row,
+.my-team-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-row {
+  justify-content: space-between;
+}
+
+.google-login {
+  min-height: 44px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.auth-error {
+  color: #b53517 !important;
+  font-weight: 850;
+}
+
+.my-team-shell {
+  display: grid;
+  gap: 22px;
+}
+
+[data-my-team-form] {
+  display: grid;
+  gap: 26px;
+}
+
+.form-banner[data-kind="ok"] {
+  background: rgba(183, 230, 91, 0.28);
+}
+
+.danger-button {
+  color: #8c2a18;
 }
 
 .field {
@@ -1864,7 +1931,8 @@ html.js .reveal.in-view {
 
   .form-card,
   .form-success,
-  .teams-panel {
+  .teams-panel,
+  .auth-card {
     gap: 20px;
     padding: 18px 14px;
     box-shadow: 4px 4px 0 var(--ink);
