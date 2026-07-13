@@ -605,7 +605,7 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 
 .hero-claim {
   width: fit-content;
-  max-width: 34ch;
+  max-width: 44ch;
   margin: 0;
   padding: 12px 16px;
   border-radius: 8px;

@@ -45,8 +45,21 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 - Every frontend change MUST be responsive and adapt to the device/viewport size. Always verify and style the mobile browser (phone) version, not just desktop — use the existing media queries in [src/styles/global.css](src/styles/global.css) (breakpoints 900px and 560px) or add new ones as needed.
 - Note when verifying with headless Chrome screenshots: Chrome clamps the window to a ~500px minimum width, so `--window-size=390,...` renders a 500px layout cropped to 390 — right-edge "cuts" at mobile sizes are usually this artifact, not a layout bug.
 
+## Git workflow (Git Flow)
+
+- This repo follows **Git Flow**. `main` only ever receives merges from `development` — never commit or push directly to `main`.
+- `development` is the integration branch and the base/target for all work. Every branch below is cut **from `development`** and merged **back into `development`** via PR/merge, never straight into `main`:
+  - `feature/<nombre-corto>` — new functionality or enhancements.
+  - `bugfix/<nombre-corto>` — non-urgent bug fixes found on `development`.
+  - `release/<version>` — stabilizes `development` for a release (version bump, final polish) before it goes to `main`.
+  - `hotfix/<nombre-corto>` — urgent fix branched from `main` to patch production, merged back into **both** `main` and `development`.
+- Before starting any requested change: check out `development` (create it from `main` if it doesn't exist yet), pull latest, then branch off it with the right prefix for the kind of change (feature/bugfix/release/hotfix).
+- Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first.
+- **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) ask for explicit confirmation before merging `development` into `main` and pushing.
+
 ## Conventions
 
 - Spanish copy uses **proper accents/diacritics** ("Música", "Navegación", "información") — this reversed an earlier no-accents convention, so fix any accent-less stragglers you touch.
+- Always spell the sport **"volley"** (never "vóley") — fix any stragglers you touch.
 - Copy tone: fun but not jokey — short, confident lines; no chistes. The user curates final wording.
 - Legal pages contain placeholder holder/ownership data that must be completed before real publication.
