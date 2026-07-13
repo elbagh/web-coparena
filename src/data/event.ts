@@ -1,6 +1,6 @@
 export const event = {
   name: "La Copa Arena",
-  claim: "El MEJOR campeonato de volley playa de O Pozo, con diferencia. Hecho para el disfrute del público.",
+  claim: "El mejor campeonato de volley playa de O Pozo. Hecho para el disfrute del público.",
   dateStart: "31 Jul",
   dateEnd: "5 Ago",
   location: "Playa O Pozo, Porto do Son",
