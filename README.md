@@ -20,6 +20,7 @@ Configura Cloudflare Pages con:
 - Framework preset: `Astro`
 - Build command: `npm run build`
 - Output directory: `dist`
+- Project name: `web-coparena`
 
 Al existir [wrangler.toml](wrangler.toml) con `pages_build_output_dir`, la configuración (incluidos los bindings) se toma de ese fichero.
 
@@ -57,7 +58,7 @@ Tablas en [db/migrations/](db/migrations/) (`equipos` y `jugadores` en `0002_equ
 2. **R2**: `npx wrangler r2 bucket create copa-arena-fotos` (privado; las fotos no se sirven al público).
 3. **Turnstile**: crear el widget en el dashboard de Cloudflare (dominio + `*.pages.dev`) y pegar la *site key* en `src/data/event.ts` (`inscripcion.turnstileSiteKey`; ahora lleva la clave de test, que siempre pasa).
 4. **Gmail API** (envío desde copa.arena.2000@gmail.com): en Google Cloud crear proyecto, habilitar Gmail API, pantalla de consentimiento OAuth (External, **publicar la app**: en modo Testing el refresh token caduca a los 7 días), credencial "Aplicación web" con redirect `https://developers.google.com/oauthplayground`, y en OAuth Playground (con "Use your own OAuth credentials") autorizar el scope `gmail.send` y copiar el refresh token.
-5. **Secrets del proyecto Pages**: `npx wrangler pages secret put <NOMBRE> --project-name la-copa-arena` para `TURNSTILE_SECRET_KEY`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN`.
+5. **Secrets del proyecto Pages**: `npx wrangler pages secret put <NOMBRE> --project-name web-coparena` para `TURNSTILE_SECRET_KEY`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN`.
 6. En local, esos valores van en `.dev.vars` (gitignorado); vale la secret de test de Turnstile `1x0000000000000000000000000000000AA` y credenciales de Gmail vacías (el registro funciona y responde `emailEnviado: false`).
 
 Nota: `astro dev` no sirve `/api`; para probar el formulario completo usa `npx wrangler pages dev dist` tras `npm run build`.

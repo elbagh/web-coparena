@@ -1,19 +1,23 @@
-# Configuracion de Cloudflare Pages (web estatica + Pages Functions en functions/).
-# La base D1 hay que crearla una vez con: npx wrangler d1 create copa-arena-db
-# y pegar aqui el database_id que devuelve.
+# Configuracion de Cloudflare Pages.
+# Ahora mismo permite desplegar la web estatica. Las Pages Functions quedan
+# preparadas en functions/, pero D1/R2 deben activarse solo cuando existan sus
+# recursos reales en Cloudflare.
 
-name = "la-copa-arena"
+name = "web-coparena"
 compatibility_date = "2026-07-01"
 pages_build_output_dir = "dist"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "copa-arena-db"
-database_id = "PENDIENTE-pegar-el-id-de-wrangler-d1-create"
-migrations_dir = "db/migrations"
-
-# Fotos de jugadores (privadas, uso interno para stats). Crear una vez con:
-# npx wrangler r2 bucket create copa-arena-fotos
-[[r2_buckets]]
-binding = "FOTOS"
-bucket_name = "copa-arena-fotos"
+# Para activar inscripciones reales:
+# 1. Crear D1: npx wrangler d1 create copa-arena-db
+# 2. Crear R2: npx wrangler r2 bucket create copa-arena-fotos
+# 3. Descomentar y completar los bindings con valores reales.
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "copa-arena-db"
+# database_id = "pegar-aqui-el-id-real"
+# migrations_dir = "db/migrations"
+#
+# [[r2_buckets]]
+# binding = "FOTOS"
+# bucket_name = "copa-arena-fotos"
