@@ -6,7 +6,7 @@ import Hero from "../components/Hero.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
-import { event, perks } from "../data/event";
+import { event, perks, torneoInfo } from "../data/event";
 ---
 
 <BaseLayout>
@@ -14,6 +14,25 @@ import { event, perks } from "../data/event";
   <SiteHeader />
   <main>
     <Hero />
+
+    <section class="band-sand band-basicos" id="torneo">
+      <SectionHeading
+        eyebrow="Lo básico"
+        title="Antes de apuntarte"
+        text="Sin burocracia: estas son las cuatro cosas que conviene saber antes de formar equipo."
+      />
+      <ul class="info-grid">
+        {
+          torneoInfo.map((item, index) => (
+            <li class="info-card reveal" style={`--reveal-delay: ${index * 45}ms`}>
+              <p>{item.label}</p>
+              <h3>{item.title}</h3>
+              <span>{item.text}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
 
     <section class="band-sand band-venir" id="venir">
       <SectionHeading

@@ -31,9 +31,17 @@ window.addEventListener("pointermove", (event) => {
   targetY = y - 80;
 });
 
-document.querySelectorAll(".button, .header-join, .nav-links a, .timeline-item, .video-card").forEach((item) => {
+document.querySelectorAll(".button, .header-join, .mobile-menu a, .nav-links a, .timeline-item, .video-card").forEach((item) => {
   item.addEventListener("pointerenter", () => root.classList.add("is-hovering"));
   item.addEventListener("pointerleave", () => root.classList.remove("is-hovering"));
+});
+
+document.querySelectorAll("[data-mobile-menu]").forEach((menu) => {
+  menu.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => {
+      menu.open = false;
+    });
+  });
 });
 
 // Parallax de las capas del escenario ([data-parallax] dentro de [data-scene]).

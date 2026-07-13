@@ -47,4 +47,19 @@ const navItems = [
     </svg>
     <span>Inscribirse</span>
   </a>
+
+  <details class="mobile-menu" data-mobile-menu>
+    <summary aria-label="Abrir menú de navegación">
+      <span class="mobile-menu-icon" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+      <span>Menú</span>
+    </summary>
+    <nav class="mobile-menu-panel" aria-label="Navegación móvil">
+      {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
+      <a class="mobile-menu-join" href="/inscripcion/">Inscribirse</a>
+    </nav>
+  </details>
 </header>
