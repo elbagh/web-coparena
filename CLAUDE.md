@@ -60,5 +60,6 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 ## Conventions
 
 - Spanish copy uses **proper accents/diacritics** ("Música", "Navegación", "información") — this reversed an earlier no-accents convention, so fix any accent-less stragglers you touch.
+- Always spell the sport **"volley"** (never "vóley") — fix any stragglers you touch.
 - Copy tone: fun but not jokey — short, confident lines; no chistes. The user curates final wording.
 - Legal pages contain placeholder holder/ownership data that must be completed before real publication.
