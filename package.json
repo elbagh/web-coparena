@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "build": "astro check && astro build",
+    "build:worker": "wrangler pages functions build --outdir=.worker",
+    "deploy:worker": "npm run build:worker && wrangler deploy",
+    "deploy": "npm run build && npm run deploy:worker",
     "preview": "astro preview --host 127.0.0.1"
   },
   "dependencies": {
