@@ -1,12 +1,15 @@
-# Configuracion de Cloudflare Pages (web estatica + Pages Functions en functions/).
-# La base D1 hay que crearla una vez con: npx wrangler d1 create copa-arena-db
-# y pegar aqui el database_id que devuelve.
+# Configuracion de Cloudflare Workers con Static Assets.
+# Cloudflare debe ejecutar:
+#   Build command: npm run build
+#   Deploy command: npx wrangler deploy
+
 
 # El name debe coincidir con el nombre del proyecto en Cloudflare Pages, y los
 # bindings (DB, FOTOS) con las variables que usa el código de functions/.
 name = "la-copa-arena"
+
 compatibility_date = "2026-07-01"
-pages_build_output_dir = "dist"
+
 
 [[d1_databases]]
 binding = "DB"
@@ -14,8 +17,22 @@ database_name = "copa-arena-db"
 database_id = "cd24c895-9353-483e-b2d9-ee000ce7bdbe"
 migrations_dir = "db/migrations"
 
-# Fotos de jugadores (privadas, uso interno para stats). Crear una vez con:
-# npx wrangler r2 bucket create copa-arena-fotos
-[[r2_buckets]]
-binding = "FOTOS"
-bucket_name = "copa-arena-fotos"
+[assets]
+directory = "./dist"
+html_handling = "auto-trailing-slash"
+
+
+# Para activar inscripciones reales:
+# Este modo `wrangler deploy` no despliega automaticamente las Pages Functions
+# de functions/. Para publicar /api en Workers hay que migrar esos endpoints a
+# un Worker principal y activar aqui los bindings reales.
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "copa-arena-db"
+# database_id = "pegar-aqui-el-id-real"
+# migrations_dir = "db/migrations"
+#
+# [[r2_buckets]]
+# binding = "FOTOS"
+# bucket_name = "copa-arena-fotos"
