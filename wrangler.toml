@@ -6,7 +6,7 @@
 
 # El name debe coincidir con el nombre del proyecto en Cloudflare Pages, y los
 # bindings (DB, FOTOS) con las variables que usa el código de functions/.
-name = "la-copa-arena"
+name = "web-coparena"
 
 compatibility_date = "2026-07-01"
 
