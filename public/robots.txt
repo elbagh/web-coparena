@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /mi-equipo/
+
+Sitemap: https://lacoparena.es/sitemap.xml

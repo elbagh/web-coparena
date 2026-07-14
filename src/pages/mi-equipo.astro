@@ -5,18 +5,19 @@ import SiteFooter from "../components/SiteFooter.astro";
 ---
 
 <BaseLayout
-  title="Mi equipo | La Copa Arena"
-  description="Gestiona el equipo que has inscrito en La Copa Arena."
+  title="Mi zona | La Copa Arena"
+  description="Entra con Google para crear o gestionar tu equipo de La Copa Arena."
+  noindex
 >
   <SiteHeader />
 
   <main class="legal-page registro-page">
     <section class="legal-hero">
-      <p class="eyebrow reveal">Mi equipo</p>
-      <h1 class="reveal" style="--reveal-delay: 90ms">Tu equipo, a mano</h1>
+      <p class="eyebrow reveal">Mi zona</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Entra y gestiona tu equipo</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
-        Entra con la misma cuenta de Google que usaste para inscribirte y podrás cambiar jugadores,
-        corregir datos o borrar el equipo si al final no podéis venir.
+        Primero entra con Google. Después podrás gestionar el equipo donde aparezca
+        tu correo, aunque lo haya creado otra persona.
       </p>
     </section>
 
@@ -27,8 +28,8 @@ import SiteFooter from "../components/SiteFooter.astro";
 
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
       <p class="eyebrow">Cuenta</p>
-      <h2>Entra con Google</h2>
-      <p>Solo podrás ver y tocar el equipo asociado a tu cuenta.</p>
+      <h2>Primero entra con Google</h2>
+      <p>Así encontramos tu equipo por el correo de Google que figure entre los jugadores.</p>
       <p class="auth-error" data-auth-error hidden></p>
       <div class="google-login" data-google-login></div>
     </section>
@@ -44,7 +45,7 @@ import SiteFooter from "../components/SiteFooter.astro";
       </div>
     </section>
 
-    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-my-team>
+    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-my-team hidden>
       <div class="teams-panel" data-my-team-loading>
         <p class="teams-status">Cargando tu equipo...</p>
       </div>
@@ -52,9 +53,9 @@ import SiteFooter from "../components/SiteFooter.astro";
       <div class="teams-panel" data-my-team-empty hidden>
         <p class="eyebrow">Equipo</p>
         <h2>Aún no tienes equipo inscrito</h2>
-        <p class="teams-status">Cuando inscribas uno con esta cuenta, aparecerá aquí para poder editarlo.</p>
+        <p class="teams-status">Cuando tu correo aparezca en una inscripción, el equipo aparecerá aquí para poder editarlo.</p>
         <div class="teams-actions">
-          <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
+          <a class="button button-primary" href="/inscripcion/">Crear equipo</a>
           <a class="button button-secondary" href="/equipos/">Ver equipos</a>
         </div>
       </div>
@@ -81,6 +82,18 @@ import SiteFooter from "../components/SiteFooter.astro";
             <button type="button" class="button button-secondary danger-button" data-my-team-delete>Borrar equipo</button>
           </div>
         </form>
+      </div>
+    </section>
+
+    <section class="teams-panel shirts-panel reveal" style="--reveal-delay: 340ms" data-auth-logged-in data-shirts hidden>
+      <div>
+        <p class="eyebrow">Camisetas</p>
+        <h2>Camisetas reservadas</h2>
+      </div>
+      <p class="teams-status" data-shirts-status>Cargando camisetas...</p>
+      <div class="shirts-list" data-shirts-list hidden></div>
+      <div class="teams-actions">
+        <a class="button button-primary" href="/camisetas/">Reservar camiseta</a>
       </div>
     </section>
   </main>
@@ -123,4 +136,5 @@ import SiteFooter from "../components/SiteFooter.astro";
   <script is:inline src="/assets/site-interactions.js" defer></script>
   <script is:inline src="/assets/auth.js" defer></script>
   <script is:inline src="/assets/my-team.js" defer></script>
+  <script is:inline src="/assets/shirts.js" defer></script>
 </BaseLayout>

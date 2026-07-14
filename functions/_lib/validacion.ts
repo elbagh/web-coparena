@@ -21,12 +21,10 @@ export interface JugadorValidado {
 export interface RegistroValidado {
   equipo: string;
   equipoNormalizado: string;
-  turnstileToken: string;
   jugadores: JugadorValidado[];
 }
 
 interface OpcionesValidacion {
-  requireTurnstile?: boolean;
   requireConsent?: boolean;
 }
 
@@ -63,7 +61,6 @@ export function validarRegistro(
 ): { registro: RegistroValidado } | { campos: Record<string, string> } {
   const campos: Record<string, string> = {};
   const requireConsent = opciones.requireConsent !== false;
-  const requireTurnstile = opciones.requireTurnstile !== false;
 
   if (typeof raw !== "object" || raw === null) {
     return { campos: { equipo: "El formulario ha llegado vacío. Recarga la página e inténtalo de nuevo." } };
@@ -79,10 +76,6 @@ export function validarRegistro(
     campos.consentimiento = "Necesitamos tu consentimiento para tratar los datos de la inscripción.";
   }
 
-  const turnstileToken = typeof body.turnstileToken === "string" ? body.turnstileToken : "";
-  if (requireTurnstile && !turnstileToken) {
-    campos.turnstile = "Espera un momento a que cargue la verificaciÃ³n anti-bots y vuelve a intentarlo.";
-  }
 
   const jugadoresRaw = Array.isArray(body.jugadores) ? body.jugadores : [];
   if (jugadoresRaw.length < MIN_JUGADORES) {
@@ -188,7 +181,6 @@ export function validarRegistro(
     registro: {
       equipo,
       equipoNormalizado: normalizarTexto(equipo),
-      turnstileToken,
       jugadores
     }
   };

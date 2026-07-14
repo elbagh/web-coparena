@@ -26,8 +26,10 @@
 
   const limpiar = (v) => v.trim().replace(/\s+/g, " ");
   const movilNormalizado = (v) => v.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, "");
+  const emailNormalizado = (v) => limpiar(v).toLowerCase();
 
   const cartas = () => Array.from(contenedor.querySelectorAll("[data-player]"));
+  const usuarioActual = () => window.CopaAuth?.state?.user || null;
 
   // ------------------------------ errores en pantalla ------------------------------
 
@@ -77,6 +79,15 @@
     contenedor.appendChild(carta);
     reindexar();
     return carta;
+  }
+
+  function rellenarEmailGoogle() {
+    const userEmail = usuarioActual()?.email;
+    if (!userEmail) return;
+    const primerEmail = cartas()[0]?.querySelector('[data-field="email"]');
+    if (primerEmail && !limpiar(primerEmail.value)) {
+      primerEmail.value = userEmail;
+    }
   }
 
   function reindexar() {
@@ -225,6 +236,11 @@
       mostrarBanner("Indica al menos un correo en el equipo para poder enviaros la confirmación.");
       valido = false;
     }
+    const userEmail = usuarioActual()?.email;
+    if (userEmail && !jugadores.some((j) => emailNormalizado(j.email || "") === emailNormalizado(userEmail))) {
+      mostrarBanner("Incluye tu correo de Google en uno de los jugadores para ligar el equipo a tu cuenta.");
+      valido = false;
+    }
 
     if (!valido) {
       if (banner.hidden) mostrarBanner("Revisa los campos marcados.");
@@ -232,19 +248,9 @@
       return;
     }
 
-    const token =
-      typeof window.turnstile !== "undefined" && window.turnstile.getResponse
-        ? window.turnstile.getResponse() || ""
-        : "";
-    if (!token) {
-      mostrarBanner("Espera un momento a que cargue la verificación anti-bots y vuelve a intentarlo.");
-      return;
-    }
-
     const payload = {
       equipo: limpiar(form.querySelector('[data-field="equipo"]').value),
       consentimiento: true,
-      turnstileToken: token,
       jugadores
     };
 
@@ -286,9 +292,6 @@
       const mensaje = [cuerpo.error || "No se ha podido completar la inscripción. Inténtalo de nuevo.", ...sueltos].join(" ");
       mostrarBanner(mensaje);
       enfocarPrimerError();
-      if (typeof window.turnstile !== "undefined" && window.turnstile.reset) {
-        window.turnstile.reset();
-      }
     } catch {
       mostrarBanner("No hay conexión. Comprueba la red e inténtalo de nuevo.");
     } finally {
@@ -309,4 +312,12 @@
 
   crearJugador();
   crearJugador();
+  rellenarEmailGoogle();
+
+  window.addEventListener("copa:auth", (event) => {
+    const detail = event.detail || {};
+    if (!detail.loading && detail.user && !detail.team) {
+      rellenarEmailGoogle();
+    }
+  });
 })();

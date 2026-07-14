@@ -3,7 +3,7 @@
 
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
-import { verificarTurnstile } from "../_lib/turnstile";
+import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
@@ -15,7 +15,6 @@ import {
 interface Env {
   DB: D1Database;
   FOTOS: R2Bucket;
-  TURNSTILE_SECRET_KEY: string;
   GMAIL_CLIENT_ID: string;
   GMAIL_CLIENT_SECRET: string;
   GMAIL_REFRESH_TOKEN: string;
@@ -61,21 +60,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   const registro = resultado.registro;
 
-  const equipoPropio = await env.DB
-    .prepare("SELECT id FROM equipos WHERE owner_user_id = ?1")
-    .bind(user.id)
-    .first<{ id: number }>();
-  if (equipoPropio) {
-    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." }, 409);
+  if (!registroIncluyeEmailUsuario(registro, user)) {
+    return json(
+      {
+        error: "Incluye tu correo de Google en uno de los jugadores para ligar el equipo a tu cuenta.",
+        campos: { email: "El equipo debe incluir el mismo correo con el que has iniciado sesión." }
+      },
+      400
+    );
   }
 
-  const humano = await verificarTurnstile(
-    env.TURNSTILE_SECRET_KEY,
-    registro.turnstileToken,
-    request.headers.get("CF-Connecting-IP")
-  );
-  if (!humano) {
-    return json({ error: "No hemos podido verificar que eres una persona. Recarga la página e inténtalo de nuevo." }, 403);
+  const equipoPropio = await equipoDeUsuario(env.DB, user);
+  if (equipoPropio) {
+    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." }, 409);
   }
 
   // Fotos: validación por tamaño, content-type y magic bytes.
@@ -274,7 +271,7 @@ function mapearConflictoUnique(err: unknown): Record<string, string> | null {
   const mensaje = err instanceof Error ? err.message : String(err);
   if (!mensaje.includes("UNIQUE constraint failed")) return null;
   if (mensaje.includes("equipos.owner_user_id")) {
-    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." };
+    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." };
   }
   if (mensaje.includes("equipos.nombre_normalizado")) {
     return { equipo: "Ya hay un equipo inscrito con ese nombre." };

@@ -17,7 +17,9 @@
   const MAX_JUGADORES = 15;
 
   const limpiar = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const emailNormalizado = (value) => limpiar(value).toLowerCase();
   const cards = () => Array.from(players.querySelectorAll("[data-player]"));
+  const currentUserEmail = () => window.CopaAuth?.state?.user?.email || "";
 
   function setBanner(message, kind = "error") {
     banner.textContent = message || "";
@@ -97,6 +99,12 @@
     };
   }
 
+  function payloadIncluyeUsuario(data) {
+    const userEmail = currentUserEmail();
+    if (!userEmail) return true;
+    return data.jugadores.some((player) => emailNormalizado(player.email || "") === emailNormalizado(userEmail));
+  }
+
   function applyServerErrors(fields) {
     const loose = [];
     Object.entries(fields || {}).forEach(([key, message]) => {
@@ -144,11 +152,15 @@
     save.textContent = "Guardando...";
 
     try {
+      const dataToSave = payload();
+      if (!payloadIncluyeUsuario(dataToSave)) {
+        throw new Error("Mantén tu correo de Google en uno de los jugadores para seguir gestionando este equipo.");
+      }
       const response = await fetch("/api/mi-equipo", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload())
+        body: JSON.stringify(dataToSave)
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {

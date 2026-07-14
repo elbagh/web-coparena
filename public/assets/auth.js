@@ -24,6 +24,10 @@
     window.dispatchEvent(new CustomEvent("copa:auth", { detail: { ...state } }));
   }
 
+  function getEmbeddedGoogleClientId() {
+    return document.querySelector('meta[name="google-client-id"]')?.content?.trim() || "";
+  }
+
   function renderAuthState() {
     const loggedIn = Boolean(state.user);
     const hasTeam = Boolean(state.team);
@@ -62,15 +66,16 @@
   }
 
   async function loadConfig() {
+    state.googleClientId = getEmbeddedGoogleClientId();
     try {
       const response = await fetch("/api/auth/config", {
         headers: { Accept: "application/json" },
         credentials: "include"
       });
       const data = response.ok ? await response.json() : {};
-      state.googleClientId = data.googleClientId || "";
+      state.googleClientId = data.googleClientId || state.googleClientId;
     } catch {
-      state.googleClientId = "";
+      state.googleClientId = state.googleClientId || getEmbeddedGoogleClientId();
     }
   }
 

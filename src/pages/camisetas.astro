@@ -1,0 +1,130 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { camisetas } from "../data/event";
+---
+
+<BaseLayout
+  title="Camisetas | La Copa Arena"
+  description="Reserva tu camiseta de La Copa Arena con tu cuenta de Google."
+>
+  <SiteHeader />
+
+  <main class="legal-page registro-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Camisetas</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Reserva la tuya</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Entra con Google, elige talla y cantidad, y dejamos tu reserva guardada.
+        {camisetas.precio}; {camisetas.pago}.
+      </p>
+    </section>
+
+    <section class="shirt-product reveal" style="--reveal-delay: 210ms" aria-label="Camiseta de La Copa Arena">
+      <div class="shirt-product-copy">
+        <p class="eyebrow">Merch</p>
+        <h2>Camiseta oficial</h2>
+        <p>
+          Blanca, sencilla y con el diseño Copa Arena en la espalda. Si la reservas
+          aquí son 15 €; sin reserva serán 18 € en la playa.
+        </p>
+      </div>
+      <figure class="shirt-product-figure">
+        <img
+          src="/assets/camiseta-copa-arena.png"
+          alt="Camiseta blanca de La Copa Arena vista por la espalda con diseño turquesa y arena"
+          width="960"
+          height="720"
+          loading="eager"
+        />
+      </figure>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-loading>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Comprobando sesión...</h2>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Primero entra con Google</h2>
+      <p>Así tu reserva queda ligada a tu cuenta y podrás verla después en Mi zona.</p>
+      <p class="auth-error" data-auth-error hidden></p>
+      <div class="google-login" data-google-login></div>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
+      <div class="auth-row">
+        <div>
+          <p class="eyebrow">Cuenta</p>
+          <h2 data-auth-user-name></h2>
+          <p data-auth-user-email></p>
+        </div>
+        <button type="button" class="add-player" data-logout>Cerrar sesión</button>
+      </div>
+    </section>
+
+    <section class="shirts-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-shirts hidden>
+      <form class="form-card" data-shirts-form novalidate>
+        <div>
+          <p class="eyebrow">Reserva</p>
+          <h2>Camiseta Copa Arena</h2>
+        </div>
+
+        <div class="form-banner" role="alert" data-shirts-banner hidden></div>
+
+        <div class="shirts-form-grid">
+          <div class="field">
+            <label for="camiseta-nombre">Nombre para la reserva</label>
+            <input id="camiseta-nombre" type="text" data-shirt-field="nombre" maxlength="80" autocomplete="name" />
+            <p class="field-error" data-shirt-error="nombre" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="camiseta-talla">Talla</label>
+            <select id="camiseta-talla" data-shirt-field="talla">
+              <option value="">Elige talla</option>
+              {camisetas.tallas.map((talla) => <option value={talla}>{talla}</option>)}
+            </select>
+            <p class="field-error" data-shirt-error="talla" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="camiseta-cantidad">Cantidad</label>
+            <input id="camiseta-cantidad" type="number" data-shirt-field="cantidad" min="1" max="10" value="1" />
+            <p class="field-error" data-shirt-error="cantidad" hidden></p>
+          </div>
+
+          <div class="field shirts-notes">
+            <label for="camiseta-notas">Notas <span class="field-opt">(opcional)</span></label>
+            <textarea id="camiseta-notas" data-shirt-field="notas" maxlength="240" rows="4" placeholder="Ej.: si no queda esta talla, me vale una L"></textarea>
+            <p class="field-error" data-shirt-error="notas" hidden></p>
+          </div>
+        </div>
+
+        <p class="form-price">{camisetas.precio} · {camisetas.pago}</p>
+
+        <button type="submit" class="button button-primary form-submit" data-shirts-submit>
+          Reservar camiseta
+        </button>
+      </form>
+
+      <section class="teams-panel shirts-panel" aria-live="polite">
+        <div>
+          <p class="eyebrow">Tus reservas</p>
+          <h2>Camisetas guardadas</h2>
+        </div>
+        <p class="teams-status" data-shirts-status>Cargando camisetas...</p>
+        <div class="shirts-list" data-shirts-list hidden></div>
+      </section>
+    </section>
+  </main>
+
+  <SiteFooter />
+
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/auth.js" defer></script>
+  <script is:inline src="/assets/shirts.js" defer></script>
+</BaseLayout>

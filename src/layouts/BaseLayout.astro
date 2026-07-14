@@ -1,11 +1,23 @@
 ---
 import "@fontsource/titan-one";
 import "../styles/global.css";
+import { absoluteUrl, site } from "../data/seo";
 
 const {
-  title = "La Copa Arena | Volley playa en Playa O Pozo",
-  description = "La Copa Arena: el mejor campeonato de volley playa de Playa O Pozo. Del 31 de julio al 5 de agosto en Porto do Son."
+  title = site.defaultTitle,
+  description = site.defaultDescription,
+  noindex = false,
+  canonicalPath = Astro.url.pathname,
+  image = site.defaultImage,
+  imageAlt = "La Copa Arena, torneo de volley playa en Playa O Pozo",
+  type = "website",
+  structuredData = []
 } = Astro.props;
+
+const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || "";
+const canonicalUrl = absoluteUrl(canonicalPath);
+const imageUrl = absoluteUrl(image);
+const structuredDataItems = Array.isArray(structuredData) ? structuredData : [structuredData];
 ---
 
 <!doctype html>
@@ -13,9 +25,29 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
+    {googleClientId && <meta name="google-client-id" content={googleClientId} />}
+    <meta name="robots" content={noindex ? "noindex,nofollow" : "index,follow"} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" href="/assets/copa-arena-favicon.png" type="image/png" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content={site.locale} />
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    {
+      structuredDataItems.map((item) =>
+        item ? <script is:inline type="application/ld+json" set:html={JSON.stringify(item)} /> : null
+      )
+    }
     <title>{title}</title>
   </head>
   <body>

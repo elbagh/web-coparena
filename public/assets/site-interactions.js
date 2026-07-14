@@ -89,7 +89,7 @@ if (revealEls.length) {
           }
         });
       },
-      { threshold: 0.2, rootMargin: "0px 0px -8% 0px" }
+      { threshold: 0.04, rootMargin: "0px 0px 18% 0px" }
     );
     revealEls.forEach((el) => revealObserver.observe(el));
   }
