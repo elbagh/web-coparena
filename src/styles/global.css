@@ -2034,13 +2034,6 @@ html.js .reveal.in-view {
   filter: drop-shadow(0 22px 24px rgba(16, 21, 22, 0.28));
 }
 
-.shirt-product-figure figcaption {
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  letter-spacing: 0.02em;
-  color: var(--sun);
-}
-
 .shirts-form-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.7fr 0.55fr;
