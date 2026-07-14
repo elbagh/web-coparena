@@ -1,7 +1,5 @@
 export interface GoogleEnv {
   GOOGLE_CLIENT_ID?: string;
-  PUBLIC_GOOGLE_CLIENT_ID?: string;
-  GOOGLE_OAUTH_CLIENT_ID?: string;
 }
 
 export interface GoogleProfile {
@@ -40,7 +38,7 @@ const GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
 export function getGoogleClientId(env: GoogleEnv): string {
-  return env.GOOGLE_CLIENT_ID || env.PUBLIC_GOOGLE_CLIENT_ID || env.GOOGLE_OAUTH_CLIENT_ID || "";
+  return env.GOOGLE_CLIENT_ID || "";
 }
 
 export async function verifyGoogleCredential(credential: string, env: GoogleEnv): Promise<GoogleProfile> {

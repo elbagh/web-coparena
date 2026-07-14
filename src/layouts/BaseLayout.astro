@@ -7,8 +7,6 @@ const {
   description = "La Copa Arena: el mejor campeonato de volley playa de Playa O Pozo. Del 31 de julio al 5 de agosto en Porto do Son.",
   noindex = false
 } = Astro.props;
-
-const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || "";
 ---
 
 <!doctype html>
@@ -16,7 +14,6 @@ const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || "";
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
-    {googleClientId && <meta name="google-client-id" content={googleClientId} />}
     {noindex && <meta name="robots" content="noindex,nofollow" />}
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
