@@ -1616,7 +1616,10 @@ html.js .reveal.in-view {
 
 .field input[type="text"],
 .field input[type="tel"],
-.field input[type="email"] {
+.field input[type="email"],
+.field input[type="number"],
+.field select,
+.field textarea {
   width: 100%;
   min-width: 0;
   min-height: 50px;
@@ -1630,14 +1633,24 @@ html.js .reveal.in-view {
 
 .field input[type="text"]:focus-visible,
 .field input[type="tel"]:focus-visible,
-.field input[type="email"]:focus-visible {
+.field input[type="email"]:focus-visible,
+.field input[type="number"]:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
   outline: 3px solid var(--coral);
   outline-offset: 2px;
   translate: 2px 2px;
   box-shadow: 1px 1px 0 var(--ink);
 }
 
-.field input[aria-invalid="true"] {
+.field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
   border-color: var(--coral);
   box-shadow: 3px 3px 0 var(--coral);
 }
@@ -1933,6 +1946,236 @@ html.js .reveal.in-view {
   gap: 14px;
 }
 
+.shirts-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.shirt-product {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1.1fr);
+  align-items: center;
+  gap: clamp(20px, 4vw, 44px);
+  margin-bottom: 22px;
+  padding: clamp(20px, 4vw, 36px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 248, 233, 0.94), rgba(231, 218, 181, 0.62));
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.shirt-product-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.shirt-product-copy h2 {
+  margin: 0;
+  color: var(--deep);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.shirt-product-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.shirt-product-figure {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(255, 248, 233, 0.62);
+}
+
+.shirt-product-figure img {
+  display: block;
+  width: min(100%, 560px);
+  height: auto;
+  filter: drop-shadow(0 18px 22px rgba(16, 21, 22, 0.18));
+}
+
+.shirts-form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.7fr 0.55fr;
+  gap: 18px;
+}
+
+.shirts-notes {
+  grid-column: 1 / -1;
+}
+
+.shirts-list {
+  display: grid;
+  gap: 14px;
+}
+
+.shirt-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.shirt-card-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.shirt-size {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 54px;
+  height: 46px;
+  padding-inline: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--lime), var(--sun));
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+  color: var(--deep);
+}
+
+.shirt-card h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  color: var(--deep);
+}
+
+.shirt-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.shirt-card .player-remove {
+  margin-left: auto;
+}
+
+.admin-page {
+  width: min(1180px, calc(100% - 32px));
+}
+
+.admin-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-stat {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.admin-stat strong {
+  font-family: var(--font-display);
+  color: var(--deep);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.admin-stat span {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-panel {
+  align-content: start;
+}
+
+.admin-panel-head,
+.admin-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-list {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-item {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.admin-item h3 {
+  margin: 0;
+  color: var(--deep);
+  font-size: 1.15rem;
+}
+
+.admin-item p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.admin-sublist {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-subitem {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 21, 22, 0.16);
+  border-radius: 8px;
+  background: rgba(231, 218, 181, 0.25);
+}
+
+.admin-subitem strong {
+  color: var(--ink);
+}
+
+.admin-subitem span,
+.admin-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-danger {
+  color: #8c2a18;
+}
+
 /* ------------------------------ media queries ------------------------------ */
 
 @media (max-width: 900px) {
@@ -1983,6 +2226,31 @@ html.js .reveal.in-view {
   }
 
   .teams-list {
+    grid-template-columns: 1fr;
+  }
+
+  .shirt-product {
+    grid-template-columns: 1fr;
+  }
+
+  .shirt-product-figure {
+    order: -1;
+  }
+
+  .shirts-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .shirts-form-grid .field:first-child,
+  .shirts-notes {
+    grid-column: 1 / -1;
+  }
+
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2089,6 +2357,15 @@ html.js .reveal.in-view {
     box-shadow: 4px 4px 0 var(--ink);
   }
 
+  .shirt-product {
+    padding: 18px 14px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .shirt-product-figure img {
+    width: min(100%, 420px);
+  }
+
   .player-card {
     gap: 16px;
     padding: 16px 12px;
@@ -2109,7 +2386,10 @@ html.js .reveal.in-view {
 
   .field input[type="text"],
   .field input[type="tel"],
-  .field input[type="email"] {
+  .field input[type="email"],
+  .field input[type="number"],
+  .field select,
+  .field textarea {
     padding-inline: 12px;
   }
 
@@ -2145,6 +2425,44 @@ html.js .reveal.in-view {
 
   .player-remove {
     padding-inline: 12px;
+  }
+
+  .shirts-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shirts-form-grid .field:first-child,
+  .shirts-notes {
+    grid-column: auto;
+  }
+
+  .shirt-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 12px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .shirt-card .player-remove {
+    margin-left: 0;
+  }
+
+  .admin-page {
+    width: calc(100% - 20px);
+  }
+
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-panel-head,
+  .admin-item-head {
+    display: grid;
+  }
+
+  .admin-danger {
+    margin-left: 0;
   }
 }
 

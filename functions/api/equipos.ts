@@ -64,7 +64,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .bind(user.id)
     .first<{ id: number }>();
   if (equipoPropio) {
-    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." }, 409);
+    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." }, 409);
   }
 
 
@@ -264,7 +264,7 @@ function mapearConflictoUnique(err: unknown): Record<string, string> | null {
   const mensaje = err instanceof Error ? err.message : String(err);
   if (!mensaje.includes("UNIQUE constraint failed")) return null;
   if (mensaje.includes("equipos.owner_user_id")) {
-    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." };
+    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." };
   }
   if (mensaje.includes("equipos.nombre_normalizado")) {
     return { equipo: "Ya hay un equipo inscrito con ese nombre." };

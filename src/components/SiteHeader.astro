@@ -4,7 +4,7 @@ import LogoMark from "./LogoMark.astro";
 const navItems = [
   { href: "/donde-estamos/", label: "Dónde estamos" },
   { href: "/equipos/", label: "Equipos" },
-  { href: "/mi-equipo/", label: "Mi equipo" }
+  { href: "/camisetas/", label: "Camisetas" }
 ];
 ---
 
@@ -28,7 +28,7 @@ const navItems = [
     {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
   </nav>
 
-  <a class="header-join" href="/inscripcion/">
+  <a class="header-join" href="/mi-equipo/">
     <svg class="join-ball" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2.1"></circle>
       <path
@@ -46,7 +46,7 @@ const navItems = [
         stroke-linecap="round"
       ></path>
     </svg>
-    <span>Inscribirse</span>
+    <span>Mi zona</span>
   </a>
 
   <details class="mobile-menu" data-mobile-menu>
@@ -60,7 +60,7 @@ const navItems = [
     </summary>
     <nav class="mobile-menu-panel" aria-label="Navegación móvil">
       {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
-      <a class="mobile-menu-join" href="/inscripcion/">Inscribirse</a>
+      <a class="mobile-menu-join" href="/mi-equipo/">Mi zona</a>
     </nav>
   </details>
 </header>
