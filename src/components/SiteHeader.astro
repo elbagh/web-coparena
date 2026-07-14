@@ -28,26 +28,31 @@ const navItems = [
     {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
   </nav>
 
-  <a class="header-join" href="/mi-equipo/">
-    <svg class="join-ball" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2.1"></circle>
-      <path
-        d="M3.4 8.7c5.3 2.3 11.9 2.3 17.2 0"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.1"
-        stroke-linecap="round"
-      ></path>
-      <path
-        d="M12 2.9c-4.3 5.3-4.3 12.9 0 18.2"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.1"
-        stroke-linecap="round"
-      ></path>
-    </svg>
-    <span>Mi zona</span>
-  </a>
+  <div class="header-join-wrap">
+    <a class="header-join" href="/mi-equipo/">
+      <svg class="join-ball" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="2.1"></circle>
+        <path
+          d="M3.4 8.7c5.3 2.3 11.9 2.3 17.2 0"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.1"
+          stroke-linecap="round"
+        ></path>
+        <path
+          d="M12 2.9c-4.3 5.3-4.3 12.9 0 18.2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.1"
+          stroke-linecap="round"
+        ></path>
+      </svg>
+      <span>Mi zona</span>
+    </a>
+    <p class="nav-session" data-auth-logged-in hidden>
+      Sesión iniciada como <strong data-auth-user-name></strong>
+    </p>
+  </div>
 
   <details class="mobile-menu" data-mobile-menu>
     <summary aria-label="Abrir menú de navegación">
@@ -61,6 +66,9 @@ const navItems = [
     <nav class="mobile-menu-panel" aria-label="Navegación móvil">
       {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
       <a class="mobile-menu-join" href="/mi-equipo/">Mi zona</a>
+      <p class="mobile-menu-session" data-auth-logged-in hidden>
+        Sesión iniciada como <strong data-auth-user-name></strong>
+      </p>
     </nav>
   </details>
 </header>
