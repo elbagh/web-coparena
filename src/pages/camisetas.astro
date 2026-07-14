@@ -42,27 +42,14 @@ import { camisetas } from "../data/event";
     </section>
 
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-loading>
-      <p class="eyebrow">Cuenta</p>
       <h2>Comprobando sesión...</h2>
     </section>
 
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
-      <p class="eyebrow">Cuenta</p>
       <h2>Primero entra con Google</h2>
       <p>Así tu reserva queda ligada a tu cuenta y podrás verla después en Mi zona.</p>
       <p class="auth-error" data-auth-error hidden></p>
       <div class="google-login" data-google-login></div>
-    </section>
-
-    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
-      <div class="auth-row">
-        <div>
-          <p class="eyebrow">Cuenta</p>
-          <h2 data-auth-user-name></h2>
-          <p data-auth-user-email></p>
-        </div>
-        <button type="button" class="add-player" data-logout>Cerrar sesión</button>
-      </div>
     </section>
 
     <section class="shirts-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-shirts hidden>
@@ -125,6 +112,5 @@ import { camisetas } from "../data/event";
 
   <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
-  <script is:inline src="/assets/auth.js" defer></script>
   <script is:inline src="/assets/shirts.js" defer></script>
 </BaseLayout>
