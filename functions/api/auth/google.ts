@@ -1,10 +1,9 @@
 import { createSessionCookie, mapUser, publicUser } from "../../_lib/auth";
-import { verifyGoogleCredential } from "../../_lib/google";
+import { verifyGoogleCredential, type GoogleEnv } from "../../_lib/google";
 import { json } from "../../_lib/http";
 
-interface Env {
+interface Env extends GoogleEnv {
   DB: D1Database;
-  GOOGLE_CLIENT_ID: string;
   SESSION_SECRET: string;
 }
 
