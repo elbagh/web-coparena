@@ -13,11 +13,7 @@ export const inscripcion = {
   pago: "se pagan en el primer partido",
   url: "/inscripcion/",
   minJugadores: 2,
-  maxJugadores: 15,
-  // Site key pública de Cloudflare Turnstile. Esta es la de test (siempre
-  // pasa); al crear el widget real en el dashboard de Cloudflare hay que
-  // pegar aquí la site key de producción.
-  turnstileSiteKey: "1x00000000000000000000AA"
+  maxJugadores: 15
 };
 
 export const socials = {

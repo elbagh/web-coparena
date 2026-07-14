@@ -1842,11 +1842,6 @@ html.js .reveal.in-view {
   color: var(--muted);
 }
 
-.turnstile-slot {
-  min-height: 66px;
-  max-width: 100%;
-  overflow: hidden;
-}
 
 .form-submit {
   justify-self: start;
@@ -2142,15 +2137,6 @@ html.js .reveal.in-view {
     font-size: 0.9rem;
   }
 
-  .turnstile-slot {
-    min-height: 58px;
-  }
-
-  .turnstile-slot .cf-turnstile {
-    width: 300px;
-    transform: scale(0.86);
-    transform-origin: left top;
-  }
 
   .form-submit {
     justify-self: stretch;

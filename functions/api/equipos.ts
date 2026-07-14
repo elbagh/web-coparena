@@ -3,7 +3,6 @@
 
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
-import { verificarTurnstile } from "../_lib/turnstile";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
@@ -15,7 +14,6 @@ import {
 interface Env {
   DB: D1Database;
   FOTOS: R2Bucket;
-  TURNSTILE_SECRET_KEY: string;
   GMAIL_CLIENT_ID: string;
   GMAIL_CLIENT_SECRET: string;
   GMAIL_REFRESH_TOKEN: string;
@@ -69,14 +67,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi equipo." }, 409);
   }
 
-  const humano = await verificarTurnstile(
-    env.TURNSTILE_SECRET_KEY,
-    registro.turnstileToken,
-    request.headers.get("CF-Connecting-IP")
-  );
-  if (!humano) {
-    return json({ error: "No hemos podido verificar que eres una persona. Recarga la página e inténtalo de nuevo." }, 403);
-  }
 
   // Fotos: validación por tamaño, content-type y magic bytes.
   const fotos = new Map<number, { buffer: ArrayBuffer; ext: string }>();

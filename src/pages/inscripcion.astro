@@ -105,9 +105,6 @@ import { event, inscripcion } from "../data/event";
         </p>
       </div>
 
-      <div class="turnstile-slot">
-        <div class="cf-turnstile" data-sitekey={inscripcion.turnstileSiteKey}></div>
-      </div>
 
       <button type="submit" class="button button-primary form-submit" data-submit>
         Inscribir equipo
@@ -172,7 +169,6 @@ import { event, inscripcion } from "../data/event";
     </article>
   </template>
 
-  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
   <script is:inline src="/assets/auth.js" defer></script>
