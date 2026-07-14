@@ -1315,9 +1315,9 @@ html.js .hero-content > *:nth-child(5) {
 .site-footer {
   display: grid;
   width: min(1120px, calc(100% - 32px));
-  gap: 28px;
-  margin: 86px auto 0;
-  padding: clamp(28px, 5vw, 48px);
+  gap: 16px;
+  margin: 56px auto 0;
+  padding: clamp(16px, 2.6vw, 26px);
   border: 2px solid var(--ink);
   border-radius: 8px 8px 0 0;
   color: var(--cream);
@@ -1329,19 +1329,19 @@ html.js .hero-content > *:nth-child(5) {
 
 .footer-main {
   display: grid;
-  grid-template-columns: minmax(240px, 1.3fr) repeat(3, minmax(150px, 0.7fr));
-  gap: clamp(22px, 4vw, 42px);
+  grid-template-columns: minmax(200px, 1.3fr) repeat(3, minmax(120px, 0.7fr));
+  gap: clamp(16px, 2.4vw, 26px);
 }
 
 .footer-brand {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 10px;
 }
 
 .footer-logo {
   display: block;
-  width: min(260px, 100%);
+  width: min(150px, 100%);
   line-height: 0;
 }
 
@@ -1355,18 +1355,19 @@ html.js .hero-content > *:nth-child(5) {
 .footer-column span,
 .footer-bottom {
   color: rgba(243, 234, 210, 0.76);
-  line-height: 1.6;
+  font-size: 0.86rem;
+  line-height: 1.5;
 }
 
 .footer-social {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .footer-social a {
   display: grid;
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 2px solid rgba(243, 234, 210, 0.4);
   border-radius: 50%;
@@ -1382,21 +1383,21 @@ html.js .hero-content > *:nth-child(5) {
 }
 
 .footer-social svg {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
 }
 
 .footer-column {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 6px;
 }
 
 .footer-column h2 {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   color: var(--lime);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-weight: 1000;
   letter-spacing: 0.12em;
   line-height: 1.2;
@@ -1406,6 +1407,7 @@ html.js .hero-content > *:nth-child(5) {
 .footer-column a {
   width: fit-content;
   color: var(--cream);
+  font-size: 0.86rem;
   font-weight: 900;
   overflow-wrap: anywhere;
 }
@@ -1418,10 +1420,10 @@ html.js .hero-content > *:nth-child(5) {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 22px;
+  gap: 8px;
+  padding-top: 12px;
   border-top: 1px solid rgba(243, 234, 210, 0.24);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 850;
 }
 
@@ -2441,37 +2443,37 @@ html.js .reveal.in-view {
 
   /* footer */
   .site-footer {
-    gap: 22px;
-    margin-top: 60px;
-    padding: clamp(24px, 3vw, 34px);
+    gap: 12px;
+    margin-top: 40px;
+    padding: clamp(14px, 1.6vw, 20px);
   }
 
   .footer-brand {
-    gap: 12px;
+    gap: 8px;
   }
 
   .footer-logo {
-    width: min(210px, 100%);
+    width: min(120px, 100%);
   }
 
   .footer-brand p,
   .footer-column a {
-    font-size: 0.94rem;
+    font-size: 0.78rem;
   }
 
   .footer-social a {
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
   }
 
   .footer-social svg {
-    width: 19px;
-    height: 19px;
+    width: 14px;
+    height: 14px;
   }
 
   .footer-bottom {
-    padding-top: 18px;
-    font-size: 0.84rem;
+    padding-top: 10px;
+    font-size: 0.7rem;
   }
 
   /* legales */
