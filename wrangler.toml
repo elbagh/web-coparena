@@ -22,6 +22,10 @@ migrations_dir = "db/migrations"
 binding = "FOTOS"
 bucket_name = "copa-arena-fotos"
 
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # Required secrets/variables in Cloudflare Pages:
 # - GOOGLE_CLIENT_ID
 # - SESSION_SECRET
