@@ -18,7 +18,7 @@ import { event, inscripcion } from "../data/event";
       <p class="reveal" style="--reveal-delay: 180ms">
         Dos titulares como mínimo y los suplentes que necesitéis. La inscripción son
         {inscripcion.precio} por equipo y {inscripcion.pago}. Necesitamos al menos un
-        correo del equipo: ahí enviamos la confirmación.
+        correo del equipo: el tuyo de Google debe aparecer en un jugador para ligar la inscripción.
       </p>
     </section>
 
@@ -31,7 +31,7 @@ import { event, inscripcion } from "../data/event";
       <p class="eyebrow">Cuenta</p>
       <h2>Primero entra con Google</h2>
       <p>
-        Así cada equipo queda ligado a una persona y nadie puede crear dos equipos por despiste.
+        Así buscamos tu equipo por correo y nadie puede crear dos equipos por despiste.
       </p>
       <p class="auth-error" data-auth-error hidden></p>
       <div class="google-login" data-google-login></div>
@@ -40,7 +40,7 @@ import { event, inscripcion } from "../data/event";
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-no-team hidden>
       <p class="eyebrow">Cuenta</p>
       <h2>Perfecto, ya puedes inscribir</h2>
-      <p>Has entrado como <strong data-auth-user-email></strong>. El equipo quedará asociado a esta cuenta.</p>
+      <p>Has entrado como <strong data-auth-user-email></strong>. Ese correo debe aparecer en uno de los jugadores.</p>
     </section>
 
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-team hidden>

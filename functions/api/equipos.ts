@@ -3,6 +3,7 @@
 
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
+import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
@@ -59,14 +60,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   const registro = resultado.registro;
 
-  const equipoPropio = await env.DB
-    .prepare("SELECT id FROM equipos WHERE owner_user_id = ?1")
-    .bind(user.id)
-    .first<{ id: number }>();
+  if (!registroIncluyeEmailUsuario(registro, user)) {
+    return json(
+      {
+        error: "Incluye tu correo de Google en uno de los jugadores para ligar el equipo a tu cuenta.",
+        campos: { email: "El equipo debe incluir el mismo correo con el que has iniciado sesión." }
+      },
+      400
+    );
+  }
+
+  const equipoPropio = await equipoDeUsuario(env.DB, user);
   if (equipoPropio) {
     return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." }, 409);
   }
-
 
   // Fotos: validación por tamaño, content-type y magic bytes.
   const fotos = new Map<number, { buffer: ArrayBuffer; ext: string }>();
