@@ -7,9 +7,52 @@ import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
 import { event, perks, pasos } from "../data/event";
+import { absoluteUrl, site } from "../data/seo";
+
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: site.name,
+    url: site.url,
+    inLanguage: "es",
+    description: site.defaultDescription,
+    sameAs: [event.instagram]
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: event.name,
+    description: event.claim,
+    url: site.url,
+    image: absoluteUrl(site.defaultImage),
+    startDate: "2026-07-31",
+    endDate: "2026-08-05",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    eventStatus: "https://schema.org/EventScheduled",
+    sport: "Beach volleyball",
+    location: {
+      "@type": "Place",
+      name: "Playa de O Pozo",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Porto do Son",
+        addressRegion: "A Coruña",
+        addressCountry: "ES"
+      }
+    },
+    organizer: {
+      "@type": "Organization",
+      name: event.name,
+      url: site.url,
+      email: event.email,
+      sameAs: [event.instagram]
+    }
+  }
+];
 ---
 
-<BaseLayout>
+<BaseLayout structuredData={structuredData}>
   <div class="cursor-blob" data-cursor-blob aria-hidden="true"></div>
   <SiteHeader />
   <main>
