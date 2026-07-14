@@ -2220,6 +2220,398 @@ html.js .reveal.in-view {
 
 /* ------------------------------ media queries ------------------------------ */
 
+/* Densidad de escritorio: los valores base están calibrados para móvil, donde
+   la escala funciona. A partir de 901px los máximos de los clamp y los paddings
+   de banda hacían que a zoom 100% cupiera muy poca información en pantalla, así
+   que aquí se recalibra la escala tipográfica y el ritmo vertical (~0.8x). Los
+   bloques max-width de abajo no se solapan con este, el móvil queda intacto. */
+@media (min-width: 901px) {
+  /* cabecera */
+  .site-header {
+    top: 22px;
+    min-height: 54px;
+    padding: 7px 10px;
+  }
+
+  .brand {
+    font-size: 0.94rem;
+  }
+
+  .brand-mark {
+    width: 106px;
+    height: 38px;
+  }
+
+  .nav-links a {
+    min-height: 36px;
+    padding: 9px 13px;
+    font-size: 0.84rem;
+  }
+
+  .header-join {
+    min-height: 38px;
+    padding: 8px 15px 9px;
+    font-size: 0.86rem;
+  }
+
+  .join-ball {
+    width: 17px;
+    height: 17px;
+  }
+
+  .header-peak {
+    width: 78px;
+    height: 26px;
+  }
+
+  /* tipografía común */
+  .eyebrow {
+    margin-bottom: 10px;
+    font-size: 0.72rem;
+  }
+
+  .section-heading h2 {
+    margin-bottom: 8px;
+    font-size: clamp(1.7rem, 3.1vw, 2.55rem);
+  }
+
+  .section-heading p {
+    max-width: 58ch;
+    font-size: 0.96rem;
+    line-height: 1.6;
+  }
+
+  .band-pasos .section-heading p {
+    font-size: 1rem;
+  }
+
+  .band-venir .section-heading p {
+    font-size: 1.04rem;
+  }
+
+  .button {
+    min-height: 44px;
+    padding: 12px 18px;
+    font-size: 0.95rem;
+  }
+
+  /* hero */
+  .hero {
+    min-height: 84vh;
+    min-height: 84svh;
+  }
+
+  .hero-content {
+    padding: 96px 0 clamp(56px, 8vh, 92px);
+  }
+
+  .hero-name {
+    font-size: clamp(1.2rem, 2vw, 1.6rem);
+  }
+
+  .hero-dates {
+    margin-bottom: 16px;
+    font-size: min(clamp(3rem, 8.2vw, 6.8rem), 26vh);
+  }
+
+  .hero-claim {
+    max-width: 52ch;
+    padding: 10px 14px;
+    font-size: clamp(0.98rem, 1.3vw, 1.1rem);
+  }
+
+  .hero-actions {
+    margin-top: 22px;
+  }
+
+  /* bandas de contenido */
+  .band-sand {
+    padding-block: 64px;
+  }
+
+  .band-sand,
+  .cta-band {
+    scroll-margin-top: 90px;
+  }
+
+  .donde-grid {
+    gap: 20px;
+    margin-top: 28px;
+  }
+
+  .map-card {
+    min-height: 340px;
+  }
+
+  .donde-photo figcaption {
+    font-size: 0.8rem;
+  }
+
+  .llegar-list {
+    gap: 16px 22px;
+    margin-top: 32px;
+  }
+
+  .llegar-item {
+    padding-top: 12px;
+  }
+
+  .llegar-item dt {
+    margin-bottom: 6px;
+    font-size: 0.72rem;
+  }
+
+  .llegar-item dd {
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+
+  .donde-actions {
+    margin-top: 26px;
+  }
+
+  /* pasos */
+  .pasos-flow {
+    gap: 30px;
+    width: min(820px, 100%);
+    margin-top: 34px;
+  }
+
+  .paso {
+    width: min(500px, 100%);
+  }
+
+  .paso-bubble {
+    padding: 26px 20px 18px;
+    border-radius: 22px;
+  }
+
+  .paso-num {
+    top: -20px;
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+
+  .paso-bubble h3 {
+    font-size: clamp(1.05rem, 1.5vw, 1.2rem);
+  }
+
+  .paso-bubble p {
+    font-size: 0.92rem;
+  }
+
+  .paso-link {
+    padding: 8px 15px;
+    font-size: 0.88rem;
+  }
+
+  /* perks */
+  .perk-list {
+    gap: 12px;
+    margin-top: 26px;
+  }
+
+  .perk-chip {
+    padding: 11px 18px;
+    font-size: clamp(0.95rem, 1.3vw, 1.06rem);
+  }
+
+  .perk-body {
+    padding: 15px 18px;
+    font-size: 0.94rem;
+  }
+
+  .perk-person img {
+    width: 46px;
+    height: 46px;
+  }
+
+  /* transición y cta */
+  .scene-forest {
+    height: clamp(70px, 9vw, 120px);
+  }
+
+  .cta-band {
+    min-height: clamp(420px, 62vh, 620px);
+    padding: 88px 16px clamp(76px, 12vh, 124px);
+  }
+
+  .cta-title {
+    margin-bottom: 10px;
+    font-size: clamp(2.2rem, 5.8vw, 4.5rem);
+  }
+
+  .cta-text {
+    font-size: clamp(0.98rem, 1.4vw, 1.12rem);
+  }
+
+  /* footer */
+  .site-footer {
+    gap: 22px;
+    margin-top: 60px;
+    padding: clamp(24px, 3vw, 34px);
+  }
+
+  .footer-brand {
+    gap: 12px;
+  }
+
+  .footer-logo {
+    width: min(210px, 100%);
+  }
+
+  .footer-brand p,
+  .footer-column a {
+    font-size: 0.94rem;
+  }
+
+  .footer-social a {
+    width: 40px;
+    height: 40px;
+  }
+
+  .footer-social svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .footer-bottom {
+    padding-top: 18px;
+    font-size: 0.84rem;
+  }
+
+  /* legales */
+  .legal-page {
+    padding: 122px 0 32px;
+  }
+
+  .legal-hero {
+    margin-bottom: 22px;
+  }
+
+  .legal-hero h1 {
+    font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+  }
+
+  .legal-hero p {
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  .legal-content {
+    gap: 14px;
+    padding: clamp(22px, 3vw, 32px);
+  }
+
+  .legal-content h2 {
+    margin-top: 10px;
+    font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+  }
+
+  .legal-content p {
+    font-size: 0.96rem;
+    line-height: 1.7;
+  }
+
+  /* formularios, equipos y admin */
+  .form-card,
+  .form-success,
+  .teams-panel,
+  .auth-card {
+    gap: 20px;
+    padding: clamp(22px, 3vw, 32px);
+  }
+
+  .auth-card h2,
+  .teams-panel h2,
+  .form-card h2 {
+    font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+  }
+
+  .auth-card p,
+  .teams-panel p {
+    font-size: 0.96rem;
+  }
+
+  .field input[type="text"],
+  .field input[type="tel"],
+  .field input[type="email"],
+  .field input[type="number"],
+  .field select,
+  .field textarea {
+    min-height: 44px;
+    padding: 10px 13px;
+    font-size: 0.95rem;
+  }
+
+  .player-card {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .player-grid {
+    gap: 12px 16px;
+  }
+
+  .player-dorsal {
+    width: 40px;
+    height: 40px;
+    font-size: 1.15rem;
+  }
+
+  .add-player,
+  .form-submit {
+    min-height: 44px;
+  }
+
+  .form-success h2 {
+    font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+  }
+
+  .form-success p {
+    font-size: 0.98rem;
+  }
+
+  .teams-list li {
+    padding: 12px 15px;
+  }
+
+  .teams-list li::before {
+    min-width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+
+  .team-name {
+    font-size: 0.98rem;
+  }
+
+  .shirt-product {
+    padding: clamp(18px, 3vw, 28px);
+  }
+
+  .shirt-product-copy h2 {
+    font-size: clamp(1.6rem, 3vw, 2.3rem);
+  }
+
+  .shirt-product-figure img {
+    width: min(100%, 420px);
+  }
+
+  .admin-stat {
+    padding: 14px 16px;
+  }
+
+  .admin-stat strong {
+    font-size: clamp(1.5rem, 2.6vw, 2rem);
+  }
+
+  .video-strip {
+    padding: 64px 0;
+  }
+}
+
 @media (max-width: 900px) {
   .site-header {
     grid-template-columns: 1fr auto;

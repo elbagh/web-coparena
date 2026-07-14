@@ -43,6 +43,7 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 
 - When a request involves changes to the web frontend (UI, layout, styling, visual components), ALWAYS invoke the `frontend-design:frontend-design` skill before implementing.
 - Every frontend change MUST be responsive and adapt to the device/viewport size. Always verify and style the mobile browser (phone) version, not just desktop — use the existing media queries in [src/styles/global.css](src/styles/global.css) (breakpoints 900px and 560px) or add new ones as needed.
+- The base values in global.css are the **mobile** scale. Desktop density lives in a single `@media (min-width: 901px)` block (start of the media-queries section): it compacts type and vertical rhythm (~0.8x) so more fits on screen at 100% zoom. When adding a new desktop-visible component, check whether it needs an entry there too.
 - Note when verifying with headless Chrome screenshots: Chrome clamps the window to a ~500px minimum width, so `--window-size=390,...` renders a 500px layout cropped to 390 — right-edge "cuts" at mobile sizes are usually this artifact, not a layout bug.
 
 ## Git workflow (Git Flow)
