@@ -26,6 +26,10 @@ migrations_dir = "db/migrations"
 binding = "FOTOS"
 bucket_name = "copa-arena-fotos"
 
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # Required secrets/variables in Cloudflare Workers:
 # - GOOGLE_CLIENT_ID
 # - PUBLIC_GOOGLE_CLIENT_ID (optional build-time fallback; same value as GOOGLE_CLIENT_ID)
