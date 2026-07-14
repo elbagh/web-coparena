@@ -2009,9 +2009,17 @@ html.js .reveal.in-view {
   color: var(--sun);
 }
 
+.shirt-product-figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(12px, 2vw, 24px);
+  min-width: 0;
+}
+
 .shirt-product-figure {
   display: grid;
-  place-items: center;
+  justify-items: center;
+  gap: 8px;
   margin: 0;
   min-width: 0;
   border-radius: 8px;
@@ -2020,9 +2028,17 @@ html.js .reveal.in-view {
 
 .shirt-product-figure img {
   display: block;
-  width: min(100%, 560px);
+  width: 100%;
+  max-width: 280px;
   height: auto;
   filter: drop-shadow(0 22px 24px rgba(16, 21, 22, 0.28));
+}
+
+.shirt-product-figure figcaption {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--sun);
 }
 
 .shirts-form-grid {
@@ -2259,7 +2275,7 @@ html.js .reveal.in-view {
     grid-template-columns: 1fr;
   }
 
-  .shirt-product-figure {
+  .shirt-product-figures {
     order: -1;
   }
 
@@ -2389,7 +2405,7 @@ html.js .reveal.in-view {
   }
 
   .shirt-product-figure img {
-    width: min(100%, 420px);
+    max-width: 180px;
   }
 
   .player-card {
