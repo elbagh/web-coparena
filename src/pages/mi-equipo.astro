@@ -5,18 +5,18 @@ import SiteFooter from "../components/SiteFooter.astro";
 ---
 
 <BaseLayout
-  title="Mi equipo | La Copa Arena"
-  description="Gestiona el equipo que has inscrito en La Copa Arena."
+  title="Mi zona | La Copa Arena"
+  description="Entra con Google para crear o gestionar tu equipo de La Copa Arena."
 >
   <SiteHeader />
 
   <main class="legal-page registro-page">
     <section class="legal-hero">
-      <p class="eyebrow reveal">Mi equipo</p>
-      <h1 class="reveal" style="--reveal-delay: 90ms">Tu equipo, a mano</h1>
+      <p class="eyebrow reveal">Mi zona</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Entra y gestiona tu equipo</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
-        Entra con la misma cuenta de Google que usaste para inscribirte y podrás cambiar jugadores,
-        corregir datos o borrar el equipo si al final no podéis venir.
+        Primero entra con Google. Después podrás crear tu equipo, cambiar jugadores,
+        corregir datos o borrarlo si al final no podéis venir.
       </p>
     </section>
 
@@ -27,8 +27,8 @@ import SiteFooter from "../components/SiteFooter.astro";
 
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
       <p class="eyebrow">Cuenta</p>
-      <h2>Entra con Google</h2>
-      <p>Solo podrás ver y tocar el equipo asociado a tu cuenta.</p>
+      <h2>Primero entra con Google</h2>
+      <p>Así tu equipo queda asociado a tu cuenta y nadie puede tocarlo por error.</p>
       <p class="auth-error" data-auth-error hidden></p>
       <div class="google-login" data-google-login></div>
     </section>
@@ -44,7 +44,7 @@ import SiteFooter from "../components/SiteFooter.astro";
       </div>
     </section>
 
-    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-my-team>
+    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-my-team hidden>
       <div class="teams-panel" data-my-team-loading>
         <p class="teams-status">Cargando tu equipo...</p>
       </div>
@@ -54,7 +54,7 @@ import SiteFooter from "../components/SiteFooter.astro";
         <h2>Aún no tienes equipo inscrito</h2>
         <p class="teams-status">Cuando inscribas uno con esta cuenta, aparecerá aquí para poder editarlo.</p>
         <div class="teams-actions">
-          <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
+          <a class="button button-primary" href="/inscripcion/">Crear equipo</a>
           <a class="button button-secondary" href="/equipos/">Ver equipos</a>
         </div>
       </div>
