@@ -1951,6 +1951,54 @@ html.js .reveal.in-view {
   gap: 22px;
 }
 
+.shirt-product {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1.1fr);
+  align-items: center;
+  gap: clamp(20px, 4vw, 44px);
+  margin-bottom: 22px;
+  padding: clamp(20px, 4vw, 36px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 248, 233, 0.94), rgba(231, 218, 181, 0.62));
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.shirt-product-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.shirt-product-copy h2 {
+  margin: 0;
+  color: var(--deep);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.shirt-product-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.shirt-product-figure {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(255, 248, 233, 0.62);
+}
+
+.shirt-product-figure img {
+  display: block;
+  width: min(100%, 560px);
+  height: auto;
+  filter: drop-shadow(0 18px 22px rgba(16, 21, 22, 0.18));
+}
+
 .shirts-form-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.7fr 0.55fr;
@@ -2181,6 +2229,14 @@ html.js .reveal.in-view {
     grid-template-columns: 1fr;
   }
 
+  .shirt-product {
+    grid-template-columns: 1fr;
+  }
+
+  .shirt-product-figure {
+    order: -1;
+  }
+
   .shirts-form-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -2299,6 +2355,15 @@ html.js .reveal.in-view {
     gap: 20px;
     padding: 18px 14px;
     box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .shirt-product {
+    padding: 18px 14px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .shirt-product-figure img {
+    width: min(100%, 420px);
   }
 
   .player-card {
