@@ -33,10 +33,11 @@ export const donde = {
   descripcion:
     "480 metros de arena fina en la ría de Muros e Noia, entre Portosín y Porto do Son. Esta es la arena de la Copa.",
   // Embed oficial de Google Maps (sin API key): vista satélite con marcador
-  // en 42°44'53.0"N 8°57'15.9"W (coordenadas de turismo.gal para la playa).
+  // en 42°44'52.3"N 8°57'19.4"W (coordenadas de dices.net para Langaño,
+  // justo al lado de O Pozo).
   mapaEmbed:
-    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2900!2d-8.954417!3d42.748056!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0:0x0!2zNDLCsDQ0JzUzLjAiTiA4wrA1NycxNS45Ilc!5e1!3m2!1ses!2ses",
-  comoLlegarUrl: "https://www.google.com/maps/dir/?api=1&destination=42.748056,-8.954417",
+    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2900!2d-8.9554!3d42.74785!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0:0x0!2zNDLCsDQ0JzUyLjMiTiA4wrA1NycxOS40Ilc!5e1!3m2!1ses!2ses",
+  comoLlegarUrl: "https://www.google.com/maps/dir/?api=1&destination=42.74785,-8.9554",
   llegar: [
     {
       modo: "Dirección",
@@ -56,15 +57,16 @@ export const donde = {
   ],
   fotos: [
     {
-      src: "/assets/donde-aldea-pozo.jpg",
-      alt: "El arenal abierto de la playa de O Pozo, con el pinar y las casas al fondo",
-      caption: "El arenal abierto a la ría, con el pinar detrás."
+      src: "/assets/donde-langano-1.jpg",
+      alt: "Vista aérea de la cala de Langaño, con la costa rocosa y el pinar bordeando el arenal",
+      caption: "La cala de Langaño desde el aire, pinar y roquedo incluidos."
+    },
+    {
+      src: "/assets/donde-langano-2.jpg",
+      alt: "Vista aérea de la playa de Langaño con arena fina entre dos puntas rocosas",
+      caption: "Arena fina entre roquedos: así es Langaño desde arriba."
     }
-  ],
-  credito: {
-    texto: "Foto: Ostiudo (CC0), vía Wikimedia Commons.",
-    url: "https://commons.wikimedia.org/wiki/File:Aldea_de_o_Pozo,_Porto_do_Son.jpg"
-  }
+  ]
 };
 
 export type Paso = {

@@ -794,16 +794,6 @@ html.js .hero-content > *:nth-child(5) {
   margin-top: 36px;
 }
 
-.donde-credit {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.donde-credit a:hover {
-  text-decoration: underline;
-}
-
 /* Pasos para apuntarse: conversación de bocadillos de cómic que baja en
    zigzag como un chat. Cada paso toma su color con --paso-bg (nth-child)
    y los pares se alinean a la derecha con el rabito y el sello espejados. */
