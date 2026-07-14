@@ -20,7 +20,14 @@ export const socials = {
   instagram: "https://www.instagram.com/la_copa_arena",
   tiktok: "https://www.tiktok.com/@copa.arena",
   whatsapp: "https://chat.whatsapp.com/E5NjYuNemm1Egt4D6Sjv7n",
-  camisetas: "https://forms.gle/srcH8rUpNCYmUxgn8"
+  camisetas: "/camisetas/"
+};
+
+export const camisetas = {
+  precio: "12 €",
+  pago: "se pagan al recogerlas en la playa",
+  tallas: ["XS", "S", "M", "L", "XL", "XXL"],
+  url: "/camisetas/"
 };
 
 // Datos de la playa: turismo.gal (recurso 10366, Pozo/Lagaño).

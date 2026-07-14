@@ -1616,7 +1616,10 @@ html.js .reveal.in-view {
 
 .field input[type="text"],
 .field input[type="tel"],
-.field input[type="email"] {
+.field input[type="email"],
+.field input[type="number"],
+.field select,
+.field textarea {
   width: 100%;
   min-width: 0;
   min-height: 50px;
@@ -1630,14 +1633,24 @@ html.js .reveal.in-view {
 
 .field input[type="text"]:focus-visible,
 .field input[type="tel"]:focus-visible,
-.field input[type="email"]:focus-visible {
+.field input[type="email"]:focus-visible,
+.field input[type="number"]:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
   outline: 3px solid var(--coral);
   outline-offset: 2px;
   translate: 2px 2px;
   box-shadow: 1px 1px 0 var(--ink);
 }
 
-.field input[aria-invalid="true"] {
+.field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
   border-color: var(--coral);
   box-shadow: 3px 3px 0 var(--coral);
 }
@@ -1933,6 +1946,76 @@ html.js .reveal.in-view {
   gap: 14px;
 }
 
+.shirts-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.shirts-form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.7fr 0.55fr;
+  gap: 18px;
+}
+
+.shirts-notes {
+  grid-column: 1 / -1;
+}
+
+.shirts-list {
+  display: grid;
+  gap: 14px;
+}
+
+.shirt-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.shirt-card-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.shirt-size {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 54px;
+  height: 46px;
+  padding-inline: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--lime), var(--sun));
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+  color: var(--deep);
+}
+
+.shirt-card h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  color: var(--deep);
+}
+
+.shirt-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.shirt-card .player-remove {
+  margin-left: auto;
+}
+
 /* ------------------------------ media queries ------------------------------ */
 
 @media (max-width: 900px) {
@@ -1984,6 +2067,15 @@ html.js .reveal.in-view {
 
   .teams-list {
     grid-template-columns: 1fr;
+  }
+
+  .shirts-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .shirts-form-grid .field:first-child,
+  .shirts-notes {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2109,7 +2201,10 @@ html.js .reveal.in-view {
 
   .field input[type="text"],
   .field input[type="tel"],
-  .field input[type="email"] {
+  .field input[type="email"],
+  .field input[type="number"],
+  .field select,
+  .field textarea {
     padding-inline: 12px;
   }
 
@@ -2145,6 +2240,27 @@ html.js .reveal.in-view {
 
   .player-remove {
     padding-inline: 12px;
+  }
+
+  .shirts-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shirts-form-grid .field:first-child,
+  .shirts-notes {
+    grid-column: auto;
+  }
+
+  .shirt-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 12px;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .shirt-card .player-remove {
+    margin-left: 0;
   }
 }
 

@@ -83,6 +83,18 @@ import SiteFooter from "../components/SiteFooter.astro";
         </form>
       </div>
     </section>
+
+    <section class="teams-panel shirts-panel reveal" style="--reveal-delay: 340ms" data-auth-logged-in data-shirts hidden>
+      <div>
+        <p class="eyebrow">Camisetas</p>
+        <h2>Camisetas reservadas</h2>
+      </div>
+      <p class="teams-status" data-shirts-status>Cargando camisetas...</p>
+      <div class="shirts-list" data-shirts-list hidden></div>
+      <div class="teams-actions">
+        <a class="button button-primary" href="/camisetas/">Reservar camiseta</a>
+      </div>
+    </section>
   </main>
 
   <SiteFooter />
@@ -123,4 +135,5 @@ import SiteFooter from "../components/SiteFooter.astro";
   <script is:inline src="/assets/site-interactions.js" defer></script>
   <script is:inline src="/assets/auth.js" defer></script>
   <script is:inline src="/assets/my-team.js" defer></script>
+  <script is:inline src="/assets/shirts.js" defer></script>
 </BaseLayout>
