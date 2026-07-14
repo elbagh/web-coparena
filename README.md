@@ -1,6 +1,6 @@
 # La Copa Arena
 
-Web en Astro para La Copa Arena, con Cloudflare Pages Functions para inscripciones, login con Google y gestión privada de equipos.
+Web en Astro para La Copa Arena, con Cloudflare Workers para inscripciones, login con Google y gestión privada de equipos.
 
 ## Desarrollo
 
@@ -15,22 +15,21 @@ npm run dev
 npm run build
 ```
 
-## Despliegue en Cloudflare Pages
+## Despliegue en Cloudflare Workers
 
-En el proyecto de Cloudflare Pages:
+En el proyecto de Cloudflare Workers Builds:
 
 - Build command: `npm run build`
-- Build output directory: `dist`
-- Deploy command: dejar vacío
+- Deploy command: `npm run deploy:worker`
+- Root directory: `/`
+
+El build de Astro genera `dist/`. El deploy compila las funciones de `functions/` a `.worker/` y ejecuta `wrangler deploy`, usando `dist/` como assets estáticos del Worker.
 
 Si despliegas por CLI:
 
 ```bash
-npm run build
-npx wrangler pages deploy dist --project-name web-coparena
+npm run deploy
 ```
-
-No uses `npx wrangler deploy` ni `npx wrangler versions upload` para esta web: esos comandos son de Workers y no publican correctamente las Pages Functions de `functions/`.
 
 ## Recursos de Cloudflare
 
@@ -49,7 +48,7 @@ npx wrangler d1 migrations apply copa-arena-db
 
 ## Variables y secrets
 
-Configura en Cloudflare Pages:
+Configura en Cloudflare Workers:
 
 - `GOOGLE_CLIENT_ID`: ID de cliente OAuth de Google, tipo Web.
 - `SESSION_SECRET`: cadena larga y aleatoria para firmar la sesión.
@@ -58,10 +57,10 @@ Configura en Cloudflare Pages:
 - `GMAIL_CLIENT_SECRET`
 - `GMAIL_REFRESH_TOKEN`
 
-En Google Cloud Console, el cliente OAuth debe permitir el dominio de producción y el dominio preview de Pages si quieres probar login en previews.
+En Google Cloud Console, el cliente OAuth debe permitir el dominio de producción del Worker y el dominio preview si quieres probar login en previews.
 
 ## Notas
 
-- `npm run build` debe terminar con 0 errores antes de desplegar.
-- `dist/` no se commitea; Cloudflare lo genera durante el build.
+- `npm run build:site` valida Astro. En Cloudflare, `npm run build` genera `.worker/index.js` antes del deploy.
+- `dist/` y `.worker/` no se commitean; Cloudflare los genera durante el build/deploy.
 - Cada cuenta de Google solo puede tener un equipo asociado.
