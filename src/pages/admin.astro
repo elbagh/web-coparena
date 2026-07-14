@@ -1,0 +1,87 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+---
+
+<BaseLayout
+  title="Admin | La Copa Arena"
+  description="Panel privado de administración de La Copa Arena."
+  noindex={true}
+>
+  <SiteHeader />
+
+  <main class="legal-page admin-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Privado</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Panel de administración</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Gestión interna de equipos, jugadores y camisetas. Solo las cuentas marcadas como administradoras pueden ver estos datos.
+      </p>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-loading>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Comprobando sesión...</h2>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
+      <p class="eyebrow">Cuenta</p>
+      <h2>Entra con Google</h2>
+      <p>El panel solo se abre si tu usuario está marcado como administrador en la base de datos.</p>
+      <p class="auth-error" data-auth-error hidden></p>
+      <div class="google-login" data-google-login></div>
+    </section>
+
+    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
+      <div class="auth-row">
+        <div>
+          <p class="eyebrow">Cuenta</p>
+          <h2 data-auth-user-name></h2>
+          <p data-auth-user-email></p>
+        </div>
+        <button type="button" class="add-player" data-logout>Cerrar sesión</button>
+      </div>
+    </section>
+
+    <section class="admin-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-admin hidden>
+      <div class="teams-panel" data-admin-loading>
+        <p class="teams-status">Cargando panel...</p>
+      </div>
+
+      <div class="form-banner" role="alert" data-admin-error hidden></div>
+
+      <section class="admin-stats" data-admin-stats hidden aria-label="Resumen del torneo"></section>
+
+      <section class="admin-grid" data-admin-content hidden>
+        <article class="teams-panel admin-panel">
+          <div class="admin-panel-head">
+            <div>
+              <p class="eyebrow">Equipos</p>
+              <h2>Equipos registrados</h2>
+            </div>
+            <button type="button" class="add-player" data-admin-refresh>Actualizar</button>
+          </div>
+          <div class="admin-list" data-admin-teams></div>
+        </article>
+
+        <article class="teams-panel admin-panel">
+          <div class="admin-panel-head">
+            <div>
+              <p class="eyebrow">Camisetas</p>
+              <h2>Reservas</h2>
+            </div>
+          </div>
+          <div class="admin-list" data-admin-shirts></div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <SiteFooter />
+
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/auth.js" defer></script>
+  <script is:inline src="/assets/admin.js" defer></script>
+</BaseLayout>

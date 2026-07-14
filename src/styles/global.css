@@ -2016,6 +2016,118 @@ html.js .reveal.in-view {
   margin-left: auto;
 }
 
+.admin-page {
+  width: min(1180px, calc(100% - 32px));
+}
+
+.admin-shell {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-stat {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.admin-stat strong {
+  font-family: var(--font-display);
+  color: var(--deep);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.admin-stat span {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-panel {
+  align-content: start;
+}
+
+.admin-panel-head,
+.admin-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-list {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-item {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.admin-item h3 {
+  margin: 0;
+  color: var(--deep);
+  font-size: 1.15rem;
+}
+
+.admin-item p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.admin-sublist {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-subitem {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 21, 22, 0.16);
+  border-radius: 8px;
+  background: rgba(231, 218, 181, 0.25);
+}
+
+.admin-subitem strong {
+  color: var(--ink);
+}
+
+.admin-subitem span,
+.admin-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-danger {
+  color: #8c2a18;
+}
+
 /* ------------------------------ media queries ------------------------------ */
 
 @media (max-width: 900px) {
@@ -2076,6 +2188,14 @@ html.js .reveal.in-view {
   .shirts-form-grid .field:first-child,
   .shirts-notes {
     grid-column: 1 / -1;
+  }
+
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2260,6 +2380,23 @@ html.js .reveal.in-view {
   }
 
   .shirt-card .player-remove {
+    margin-left: 0;
+  }
+
+  .admin-page {
+    width: calc(100% - 20px);
+  }
+
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-panel-head,
+  .admin-item-head {
+    display: grid;
+  }
+
+  .admin-danger {
     margin-left: 0;
   }
 }

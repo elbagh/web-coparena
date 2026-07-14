@@ -64,3 +64,9 @@ En Google Cloud Console, el cliente OAuth debe permitir el dominio de producció
 - `dist/` y `.worker/` no se commitean; Cloudflare los genera durante el build/deploy.
 - Cada cuenta de Google solo puede tener un equipo asociado.
 - Las reservas de camisetas quedan ligadas a la cuenta de Google y se consultan desde Mi zona.
+- El panel `/admin/` no está enlazado públicamente y solo carga datos si `usuarios.is_admin = 1`.
+  Para dar acceso a una cuenta ya registrada:
+
+```sql
+UPDATE usuarios SET is_admin = 1 WHERE email = 'tu-correo@gmail.com';
+```
