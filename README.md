@@ -52,7 +52,6 @@ Configura en Cloudflare Workers:
 
 - `GOOGLE_CLIENT_ID`: ID de cliente OAuth de Google, tipo Web.
 - `SESSION_SECRET`: cadena larga y aleatoria para firmar la sesión.
-- `TURNSTILE_SECRET_KEY`: secret de Cloudflare Turnstile.
 - `GMAIL_CLIENT_ID`
 - `GMAIL_CLIENT_SECRET`
 - `GMAIL_REFRESH_TOKEN`

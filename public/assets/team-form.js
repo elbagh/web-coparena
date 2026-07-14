@@ -232,19 +232,9 @@
       return;
     }
 
-    const token =
-      typeof window.turnstile !== "undefined" && window.turnstile.getResponse
-        ? window.turnstile.getResponse() || ""
-        : "";
-    if (!token) {
-      mostrarBanner("Espera un momento a que cargue la verificación anti-bots y vuelve a intentarlo.");
-      return;
-    }
-
     const payload = {
       equipo: limpiar(form.querySelector('[data-field="equipo"]').value),
       consentimiento: true,
-      turnstileToken: token,
       jugadores
     };
 
@@ -286,9 +276,6 @@
       const mensaje = [cuerpo.error || "No se ha podido completar la inscripción. Inténtalo de nuevo.", ...sueltos].join(" ");
       mostrarBanner(mensaje);
       enfocarPrimerError();
-      if (typeof window.turnstile !== "undefined" && window.turnstile.reset) {
-        window.turnstile.reset();
-      }
     } catch {
       mostrarBanner("No hay conexión. Comprueba la red e inténtalo de nuevo.");
     } finally {
