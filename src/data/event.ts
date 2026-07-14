@@ -24,7 +24,7 @@ export const socials = {
 };
 
 export const camisetas = {
-  precio: "12 €",
+  precio: "15 € con reserva / 18 € sin reserva",
   pago: "se pagan al recogerlas en la playa",
   tallas: ["XS", "S", "M", "L", "XL", "XXL"],
   url: "/camisetas/"
