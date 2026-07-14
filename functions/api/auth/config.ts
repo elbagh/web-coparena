@@ -1,11 +1,8 @@
 import { json } from "../../_lib/http";
+import { getGoogleClientId, type GoogleEnv } from "../../_lib/google";
 
-interface Env {
-  GOOGLE_CLIENT_ID: string;
-}
-
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  return json({ googleClientId: env.GOOGLE_CLIENT_ID || "" }, 200, {
+export const onRequestGet: PagesFunction<GoogleEnv> = async ({ env }) => {
+  return json({ googleClientId: getGoogleClientId(env) }, 200, {
     "Cache-Control": "no-store"
   });
 };
