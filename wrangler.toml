@@ -28,7 +28,6 @@ bucket_name = "copa-arena-fotos"
 
 # Required secrets/variables in Cloudflare Workers:
 # - GOOGLE_CLIENT_ID
-# - PUBLIC_GOOGLE_CLIENT_ID (optional build-time fallback; same value as GOOGLE_CLIENT_ID)
 # - SESSION_SECRET
 # - GMAIL_CLIENT_ID
 # - GMAIL_CLIENT_SECRET

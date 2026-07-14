@@ -51,7 +51,6 @@ npx wrangler d1 migrations apply copa-arena-db
 Configura en Cloudflare Workers:
 
 - `GOOGLE_CLIENT_ID`: ID de cliente OAuth de Google, tipo Web.
-- `PUBLIC_GOOGLE_CLIENT_ID`: opcional, mismo valor que `GOOGLE_CLIENT_ID`. Sirve como fallback de build para que el botón de Google pueda pintarse aunque la config dinámica llegue vacía.
 - `SESSION_SECRET`: cadena larga y aleatoria para firmar la sesión.
 - `GMAIL_CLIENT_ID`
 - `GMAIL_CLIENT_SECRET`
