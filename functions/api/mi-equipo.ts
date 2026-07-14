@@ -1,4 +1,5 @@
-import { publicUser, requireUser } from "../_lib/auth";
+import { publicUser, requireUser, type UsuarioSesion } from "../_lib/auth";
+import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { json } from "../_lib/http";
 import { validarRegistro, type RegistroValidado } from "../_lib/validacion";
 
@@ -6,12 +7,6 @@ interface Env {
   DB: D1Database;
   FOTOS?: R2Bucket;
   SESSION_SECRET: string;
-}
-
-interface EquipoRow {
-  id: number;
-  nombre: string;
-  created_at: string;
 }
 
 interface JugadorRow {
@@ -31,7 +26,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (user instanceof Response) return user;
 
   try {
-    const team = await cargarEquipo(env.DB, user.id);
+    const team = await cargarEquipo(env.DB, user);
     return json({ user: publicUser(user), team }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     console.error("Error leyendo mi equipo:", err);
@@ -56,9 +51,19 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    const currentTeam = await equipoDeUsuario(env.DB, user.id);
+    const currentTeam = await equipoDeUsuario(env.DB, user);
     if (!currentTeam) {
       return json({ error: "Todavía no tienes un equipo inscrito." }, 404);
+    }
+
+    if (!registroIncluyeEmailUsuario(resultado.registro, user)) {
+      return json(
+        {
+          error: "Tu equipo debe mantener tu correo de Google en uno de los jugadores.",
+          campos: { email: "Mantén el mismo correo con el que has iniciado sesión." }
+        },
+        400
+      );
     }
 
     const duplicados = await buscarDuplicadosEdicion(env.DB, resultado.registro, currentTeam.id);
@@ -70,7 +75,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
     await reemplazarEquipo(env.DB, currentTeam.id, resultado.registro);
     await limpiarFotos(env.FOTOS, fotoKeys);
 
-    const team = await cargarEquipo(env.DB, user.id);
+    const team = await cargarEquipo(env.DB, user);
     return json({ ok: true, user: publicUser(user), team }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     const conflicto = mapearConflictoUnique(err);
@@ -87,7 +92,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   if (user instanceof Response) return user;
 
   try {
-    const currentTeam = await equipoDeUsuario(env.DB, user.id);
+    const currentTeam = await equipoDeUsuario(env.DB, user);
     if (!currentTeam) {
       return json({ ok: true }, 200, { "Cache-Control": "no-store" });
     }
@@ -95,7 +100,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
     const fotoKeys = await fotosDeEquipo(env.DB, currentTeam.id);
     await env.DB.batch([
       env.DB.prepare("DELETE FROM jugadores WHERE equipo_id = ?1").bind(currentTeam.id),
-      env.DB.prepare("DELETE FROM equipos WHERE id = ?1 AND owner_user_id = ?2").bind(currentTeam.id, user.id)
+      env.DB.prepare("DELETE FROM equipos WHERE id = ?1").bind(currentTeam.id)
     ]);
     await limpiarFotos(env.FOTOS, fotoKeys);
 
@@ -106,8 +111,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   }
 };
 
-async function cargarEquipo(db: D1Database, userId: number) {
-  const team = await equipoDeUsuario(db, userId);
+async function cargarEquipo(db: D1Database, user: UsuarioSesion) {
+  const team = await equipoDeUsuario(db, user);
   if (!team) return null;
 
   const { results } = await db
@@ -136,13 +141,6 @@ async function cargarEquipo(db: D1Database, userId: number) {
       orden: jugador.orden
     }))
   };
-}
-
-async function equipoDeUsuario(db: D1Database, userId: number): Promise<EquipoRow | null> {
-  return await db
-    .prepare("SELECT id, nombre, created_at FROM equipos WHERE owner_user_id = ?1")
-    .bind(userId)
-    .first<EquipoRow>();
 }
 
 async function reemplazarEquipo(db: D1Database, equipoId: number, registro: RegistroValidado): Promise<void> {

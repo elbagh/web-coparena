@@ -1,4 +1,5 @@
 import { getCurrentUser, publicUser } from "../_lib/auth";
+import { equipoDeUsuario } from "../_lib/equipos";
 import { json } from "../_lib/http";
 
 interface Env {
@@ -13,16 +14,19 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       return json({ user: null, team: null }, 200, { "Cache-Control": "no-store" });
     }
 
-    const team = await env.DB
-      .prepare(
-        `SELECT e.id, e.nombre, COUNT(j.id) AS jugadores
-         FROM equipos e
-         LEFT JOIN jugadores j ON j.equipo_id = e.id
-         WHERE e.owner_user_id = ?1
-         GROUP BY e.id`
-      )
-      .bind(user.id)
-      .first<{ id: number; nombre: string; jugadores: number }>();
+    const userTeam = await equipoDeUsuario(env.DB, user);
+    const team = userTeam
+      ? await env.DB
+          .prepare(
+            `SELECT e.id, e.nombre, COUNT(j.id) AS jugadores
+             FROM equipos e
+             LEFT JOIN jugadores j ON j.equipo_id = e.id
+             WHERE e.id = ?1
+             GROUP BY e.id`
+          )
+          .bind(userTeam.id)
+          .first<{ id: number; nombre: string; jugadores: number }>()
+      : null;
 
     return json(
       {
