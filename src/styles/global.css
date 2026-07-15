@@ -607,6 +607,7 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 .hero-dates {
   display: grid;
   justify-items: start;
+  gap: 0.04em;
   margin: 0 0 22px;
   color: var(--ink);
   font-size: min(clamp(3rem, 11vw, 9.5rem), 30vh);
@@ -617,14 +618,14 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 }
 
 .date-line {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.05em 0.18em;
+  display: grid;
+  grid-template-columns: clamp(12rem, 18vw, 16rem) max-content;
+  align-items: center;
+  column-gap: clamp(1rem, 2vw, 2rem);
 }
 
 .date-line-end {
-  margin-left: clamp(1.5rem, 8vw, 7rem);
+  margin-left: 0;
 }
 
 .date-dash {
@@ -645,6 +646,8 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 
 .date-phase-date {
   display: block;
+  line-height: 0.92;
+  white-space: nowrap;
 }
 
 .hero-claims {
@@ -2730,6 +2733,11 @@ html.js .reveal.in-view {
 
   .hero-content {
     padding-top: 108px;
+  }
+
+  .date-line {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
   }
 
   .header-peak {

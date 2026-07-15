@@ -19,7 +19,6 @@ import { event } from "../data/event";
       {
         event.phases.map((phase, index) => (
           <span class={`date-line${index === 1 ? " date-line-end" : ""}`}>
-            {index === 1 && <span class="date-dash" aria-hidden="true">—</span>}
             <span class="date-phase-label">{phase.label}</span>
             <span class="date-phase-date">{phase.dates}</span>
           </span>
