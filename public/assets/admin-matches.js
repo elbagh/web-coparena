@@ -9,12 +9,14 @@
   const matchList = panel.querySelector("[data-match-list]");
   const loadTeamsButton = panel.querySelector("[data-load-teams]");
   const drawButton = panel.querySelector("[data-draw]");
+  const confirmDrawButton = panel.querySelector("[data-confirm-draw]");
   const teamForm = panel.querySelector("[data-team-form]");
   const dialog = document.querySelector("[data-match-dialog]");
   const dialogBody = document.querySelector("[data-dialog-body]");
 
   let teams = [];
   let matches = [];
+  let draftMatches = null;
   let selectedId = null;
   let apiAvailable = true;
 
@@ -49,7 +51,12 @@
   async function loadMatches() {
     try {
       matches = await matchesApi.apiGetMatches();
-      matchesApi.writeLocalMatches(matches);
+      const localMatches = matchesApi.readLocalMatches();
+      if (!matches.length && localMatches.length) {
+        matches = localMatches;
+      } else {
+        matchesApi.writeLocalMatches(matches);
+      }
       apiAvailable = true;
     } catch {
       matches = matchesApi.readLocalMatches();
@@ -60,10 +67,12 @@
   function render() {
     renderTeams();
     renderMatches();
+    renderDrawActions();
   }
 
   function renderTeams() {
     teamPool.textContent = "";
+    const manualNames = new Set(matchesApi.readManualTeams().map((team) => normalizeName(team.name)));
     if (!teams.length) {
       const empty = document.createElement("p");
       empty.className = "teams-status";
@@ -74,15 +83,27 @@
     teams.forEach((team) => {
       const chip = document.createElement("span");
       chip.className = "team-chip";
-      chip.textContent = team.name;
+      const name = document.createElement("span");
+      name.textContent = team.name;
+      chip.appendChild(name);
+      if (manualNames.has(normalizeName(team.name))) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "team-chip-remove";
+        remove.setAttribute("aria-label", `Quitar ${team.name}`);
+        remove.textContent = "x";
+        remove.addEventListener("click", () => removeManualTeam(team.name));
+        chip.appendChild(remove);
+      }
       teamPool.appendChild(chip);
     });
   }
 
   function renderMatches() {
+    const visibleMatches = draftMatches || matches;
     matchList.textContent = "";
     bracket.textContent = "";
-    if (!matches.length) {
+    if (!visibleMatches.length) {
       const empty = document.createElement("p");
       empty.className = "teams-status";
       empty.textContent = "Aun no hay emparejamientos sorteados.";
@@ -90,9 +111,15 @@
       bracket.hidden = true;
       return;
     }
-    matchesApi.renderBracket(bracket, matches, (match) => openMatch(match.id));
+    matchesApi.renderBracket(bracket, visibleMatches, (match) => openMatch(match.id));
     bracket.hidden = false;
-    matches.forEach((match) => matchList.appendChild(matchCard(match)));
+    visibleMatches.forEach((match) => matchList.appendChild(matchCard(match)));
+  }
+
+  function renderDrawActions() {
+    if (!confirmDrawButton) return;
+    confirmDrawButton.hidden = !draftMatches;
+    drawButton.textContent = draftMatches ? "Repetir sorteo" : "Sortear emparejamientos";
   }
 
   function matchCard(match) {
@@ -140,6 +167,7 @@
       try {
         matches = await matchesApi.apiAction(action);
         matchesApi.writeLocalMatches(matches);
+        draftMatches = null;
         render();
         renderDialog();
         return;
@@ -150,13 +178,14 @@
     }
     applyLocal(action);
     matchesApi.writeLocalMatches(matches);
+    draftMatches = null;
     render();
     renderDialog();
   }
 
   function applyLocal(action) {
     if (action.action === "draw") {
-      matches = matchesApi.createDraw(action.equipos);
+      matches = action.partidos ? matchesApi.clone(action.partidos) : matchesApi.createDraw(action.equipos);
       return;
     }
     matches = matches.map((match) => {
@@ -179,6 +208,10 @@
   }
 
   function openMatch(id) {
+    if (draftMatches) {
+      status.textContent = "Confirma el sorteo antes de abrir un partido o poner horarios.";
+      return;
+    }
     selectedId = id;
     renderDialog();
     if (dialog && typeof dialog.showModal === "function") dialog.showModal();
@@ -258,6 +291,13 @@
   }
 
   async function scheduleMatch(id, value) {
+    if (draftMatches) {
+      draftMatches = draftMatches.map((match) =>
+        match.id === id ? { ...match, scheduledAt: value ? new Date(value).toISOString() : null } : match
+      );
+      render();
+      return;
+    }
     await persist({ action: "schedule", id, scheduledAt: value ? new Date(value).toISOString() : null });
   }
 
@@ -265,12 +305,28 @@
     const seen = new Set();
     return items.filter((team) => {
       const name = String(team.name || "").trim();
-      const key = name.toLocaleLowerCase("es");
+      const key = normalizeName(name);
       if (!name || seen.has(key)) return false;
       seen.add(key);
       team.name = name;
       return true;
     });
+  }
+
+  function normalizeName(name) {
+    return String(name || "").trim().toLocaleLowerCase("es");
+  }
+
+  async function removeManualTeam(name) {
+    const key = normalizeName(name);
+    const manual = matchesApi.readManualTeams().filter((team) => normalizeName(team.name) !== key);
+    matchesApi.writeManualTeams(manual);
+    await loadTeams();
+    if (draftMatches) {
+      draftMatches = null;
+      status.textContent = "Equipo eliminado. Repite el sorteo y confirma de nuevo.";
+    }
+    render();
   }
 
   loadTeamsButton.addEventListener("click", async () => {
@@ -283,7 +339,15 @@
       status.textContent = "Necesitas al menos dos equipos para sortear.";
       return;
     }
-    await persist({ action: "draw", equipos: teams });
+    draftMatches = matchesApi.createDraw(teams);
+    status.textContent = "Sorteo preparado. Revisa el cuadro y pulsa Confirmar sorteo para guardarlo.";
+    render();
+  });
+
+  confirmDrawButton?.addEventListener("click", async () => {
+    if (!draftMatches?.length) return;
+    await persist({ action: "draw", partidos: draftMatches });
+    status.textContent = "Sorteo confirmado. Ya aparece en Horario y marcador.";
   });
 
   teamForm.addEventListener("submit", (event) => {

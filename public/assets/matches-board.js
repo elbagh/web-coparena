@@ -11,7 +11,12 @@
     let matches = [];
     try {
       matches = await matchesApi.apiGetMatches();
-      matchesApi.writeLocalMatches(matches);
+      const localMatches = matchesApi.readLocalMatches();
+      if (!matches.length && localMatches.length) {
+        matches = localMatches;
+      } else {
+        matchesApi.writeLocalMatches(matches);
+      }
     } catch {
       matches = matchesApi.readLocalMatches();
     }
