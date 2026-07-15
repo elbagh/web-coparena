@@ -606,9 +606,9 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 
 .hero-dates {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
-  align-items: end;
-  gap: clamp(14px, 2.5vw, 34px);
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: clamp(12px, 2vh, 22px);
   margin: 0 0 22px;
   color: var(--ink);
   line-height: 1;
@@ -2319,7 +2319,7 @@ html.js .reveal.in-view {
 
   .hero-dates {
     margin-bottom: 16px;
-    gap: 18px;
+    gap: 16px;
   }
 
   .date-phase-date {
