@@ -122,6 +122,7 @@
     showLoading(true);
     try {
       const response = await fetch("/api/admin", {
+        cache: "no-store",
         headers: { Accept: "application/json" },
         credentials: "include"
       });
@@ -146,11 +147,13 @@
     try {
       const response = await fetch(`/api/admin?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, {
         method: "DELETE",
+        cache: "no-store",
         headers: { Accept: "application/json" },
         credentials: "include"
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "No se ha podido borrar.");
+      await window.CopaAuth?.refresh?.();
       await loadAdmin();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se ha podido borrar.");

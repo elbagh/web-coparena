@@ -112,7 +112,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     if (type === "equipo") {
-      await borrarEquipo(env, id);
+      const deleted = await borrarEquipo(env, id);
+      if (!deleted) return json({ error: "Ese equipo ya no existe." }, 404, { "Cache-Control": "no-store" });
     } else {
       await env.DB.prepare("DELETE FROM camisetas_reservas WHERE id = ?1").bind(id).run();
     }
@@ -176,7 +177,12 @@ function mapJugador(jugador: JugadorRow) {
   };
 }
 
-async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
+async function borrarEquipo(env: Env, equipoId: number): Promise<boolean> {
+  const equipo = await env.DB.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  if (!equipo) {
+    return false;
+  }
+
   const { results } = await env.DB
     .prepare("SELECT foto_key FROM jugadores WHERE equipo_id = ?1 AND foto_key IS NOT NULL")
     .bind(equipoId)
@@ -187,7 +193,7 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
     env.DB.prepare("DELETE FROM equipos WHERE id = ?1").bind(equipoId)
   ]);
 
-  if (!env.FOTOS) return;
+  if (!env.FOTOS) return true;
   for (const item of results) {
     try {
       await env.FOTOS.delete(item.foto_key);
@@ -195,4 +201,5 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
       // Borrado best-effort: el registro ya está fuera de D1.
     }
   }
+  return true;
 }
