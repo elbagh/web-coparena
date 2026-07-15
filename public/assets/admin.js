@@ -9,6 +9,8 @@
   const teams = root.querySelector("[data-admin-teams]");
   const shirts = root.querySelector("[data-admin-shirts]");
   const refresh = root.querySelector("[data-admin-refresh]");
+  const shirtForm = root.querySelector("[data-admin-shirt-form]");
+  const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
 
   function showLoading(isLoading) {
     loading.hidden = !isLoading;
@@ -37,6 +39,76 @@
     if (className) node.className = className;
     if (value !== undefined) node.textContent = text(value);
     return node;
+  }
+
+  function limpiar(value) {
+    return String(value || "").trim().replace(/\s+/g, " ");
+  }
+
+  function shirtField(name) {
+    return shirtForm?.querySelector(`[data-admin-shirt-field="${name}"]`);
+  }
+
+  function shirtError(name) {
+    return shirtForm?.querySelector(`[data-admin-shirt-error="${name}"]`);
+  }
+
+  function setShirtBanner(message, kind = "error") {
+    const banner = shirtForm?.querySelector("[data-admin-shirt-banner]");
+    if (!banner) return;
+    banner.textContent = message || "";
+    banner.dataset.kind = kind;
+    banner.hidden = !message;
+  }
+
+  function setShirtFieldError(name, message) {
+    const input = shirtField(name);
+    const node = shirtError(name);
+    if (!input || !node) return;
+    node.textContent = message || "";
+    node.hidden = !message;
+    if (message) {
+      input.setAttribute("aria-invalid", "true");
+    } else {
+      input.removeAttribute("aria-invalid");
+    }
+  }
+
+  function clearShirtErrors() {
+    setShirtBanner("");
+    ["nombre", "talla", "cantidad", "notas"].forEach((name) => setShirtFieldError(name, ""));
+  }
+
+  function shirtPayload() {
+    return {
+      nombre: limpiar(shirtField("nombre")?.value),
+      talla: limpiar(shirtField("talla")?.value).toUpperCase(),
+      cantidad: Number(shirtField("cantidad")?.value || 1),
+      notas: limpiar(shirtField("notas")?.value)
+    };
+  }
+
+  function validateShirtForm() {
+    const data = shirtPayload();
+    const errors = {};
+    if (data.nombre.length < 2 || data.nombre.length > 80) {
+      errors.nombre = "Indica el nombre de la persona que recoge la camiseta.";
+    }
+    if (!TALLAS.has(data.talla)) {
+      errors.talla = "Elige una talla válida.";
+    }
+    if (!Number.isInteger(data.cantidad) || data.cantidad < 1 || data.cantidad > 10) {
+      errors.cantidad = "Puedes reservar entre 1 y 10 camisetas.";
+    }
+    if (data.notas.length > 240) {
+      errors.notas = "Las notas no pueden pasar de 240 caracteres.";
+    }
+    Object.entries(errors).forEach(([name, message]) => setShirtFieldError(name, message));
+    return Object.keys(errors).length === 0 ? data : null;
+  }
+
+  function applyShirtServerErrors(campos) {
+    Object.entries(campos || {}).forEach(([name, message]) => setShirtFieldError(name, message));
   }
 
   function renderStats(data) {
@@ -122,6 +194,7 @@
     showLoading(true);
     try {
       const response = await fetch("/api/admin", {
+        cache: "no-store",
         headers: { Accept: "application/json" },
         credentials: "include"
       });
@@ -146,18 +219,69 @@
     try {
       const response = await fetch(`/api/admin?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, {
         method: "DELETE",
+        cache: "no-store",
         headers: { Accept: "application/json" },
         credentials: "include"
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "No se ha podido borrar.");
+      await window.CopaAuth?.refresh?.();
       await loadAdmin();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se ha podido borrar.");
     }
   }
 
+  async function submitShirtReservation(event) {
+    event.preventDefault();
+    clearShirtErrors();
+
+    const data = validateShirtForm();
+    if (!data) {
+      setShirtBanner("Revisa los campos marcados.");
+      return;
+    }
+
+    const submit = shirtForm.querySelector("[data-admin-shirt-submit]");
+    const original = submit?.textContent;
+    if (submit) {
+      submit.disabled = true;
+      submit.setAttribute("aria-busy", "true");
+      submit.textContent = "Guardando...";
+    }
+
+    try {
+      const response = await fetch("/api/admin?type=camiseta", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data)
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        applyShirtServerErrors(body.campos);
+        throw new Error(body.error || "No se ha podido guardar la reserva.");
+      }
+      shirtField("nombre").value = "";
+      shirtField("talla").value = "";
+      shirtField("cantidad").value = "1";
+      shirtField("notas").value = "";
+      setShirtBanner("Reserva de camiseta añadida.", "ok");
+      await loadAdmin();
+    } catch (err) {
+      setShirtBanner(err instanceof Error ? err.message : "No se ha podido guardar la reserva.");
+    } finally {
+      if (submit) {
+        submit.disabled = false;
+        submit.removeAttribute("aria-busy");
+        submit.textContent = original;
+      }
+    }
+  }
+
   refresh?.addEventListener("click", loadAdmin);
+  shirtForm?.addEventListener("submit", submitShirtReservation);
 
   window.addEventListener("copa:auth", (event) => {
     const detail = event.detail || {};

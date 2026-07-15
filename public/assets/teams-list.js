@@ -16,7 +16,10 @@
     reintentar.hidden = true;
 
     try {
-      const respuesta = await fetch("/api/equipos", { headers: { Accept: "application/json" } });
+      const respuesta = await fetch("/api/equipos", {
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
       if (!respuesta.ok) throw new Error(String(respuesta.status));
       const datos = await respuesta.json();
       const equipos = Array.isArray(datos.equipos) ? datos.equipos : [];

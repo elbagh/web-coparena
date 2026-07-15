@@ -211,7 +211,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
          ORDER BY e.created_at ASC, e.id ASC`
       )
       .all<{ nombre: string; jugadores: number }>();
-    return json({ equipos: results }, 200, { "Cache-Control": "public, max-age=60" });
+    return json({ equipos: results }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     console.error("Error leyendo equipos de D1:", err);
     return json({ error: "No se ha podido cargar la lista de equipos." }, 500);

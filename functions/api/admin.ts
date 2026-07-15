@@ -41,6 +41,8 @@ interface CamisetaRow {
   owner_name: string | null;
 }
 
+const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const admin = await requireAdmin(request, env);
   if (admin instanceof Response) return admin;
@@ -99,6 +101,60 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
 };
 
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
+  const url = new URL(request.url);
+  const type = url.searchParams.get("type");
+  if (type !== "camiseta") {
+    return json({ error: "La acción no es válida." }, 400);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Los datos del formulario no son válidos." }, 400);
+  }
+
+  const resultado = validarReservaCamiseta(body);
+  if ("campos" in resultado) {
+    return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
+  }
+
+  try {
+    await env.DB
+      .prepare(
+        `INSERT INTO camisetas_reservas (owner_user_id, nombre, talla, cantidad, notas)
+         VALUES (?1, ?2, ?3, ?4, ?5)`
+      )
+      .bind(
+        admin.id,
+        resultado.reserva.nombre,
+        resultado.reserva.talla,
+        resultado.reserva.cantidad,
+        resultado.reserva.notas
+      )
+      .run();
+
+    return json({ ok: true }, 201, { "Cache-Control": "no-store" });
+  } catch (err) {
+    console.error("Error guardando reserva desde panel admin:", err);
+    if (isMissingShirtsTableError(err)) {
+      return json(
+        {
+          error:
+            "La base de datos no está actualizada: falta la tabla camisetas_reservas. Aplica la migración 0004_camisetas_reservas.sql."
+        },
+        500,
+        { "Cache-Control": "no-store" }
+      );
+    }
+    return json({ error: "No se ha podido guardar la reserva." }, 500, { "Cache-Control": "no-store" });
+  }
+};
+
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   const admin = await requireAdmin(request, env);
   if (admin instanceof Response) return admin;
@@ -112,7 +168,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     if (type === "equipo") {
-      await borrarEquipo(env, id);
+      const deleted = await borrarEquipo(env, id);
+      if (!deleted) return json({ error: "Ese equipo ya no existe." }, 404, { "Cache-Control": "no-store" });
     } else {
       await env.DB.prepare("DELETE FROM camisetas_reservas WHERE id = ?1").bind(id).run();
     }
@@ -176,7 +233,52 @@ function mapJugador(jugador: JugadorRow) {
   };
 }
 
-async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
+function validarReservaCamiseta(raw: unknown):
+  | { reserva: { nombre: string; talla: string; cantidad: number; notas: string | null } }
+  | { campos: Record<string, string> } {
+  const campos: Record<string, string> = {};
+  if (typeof raw !== "object" || raw === null) {
+    return { campos: { nombre: "El formulario ha llegado vacío. Recarga la página e inténtalo de nuevo." } };
+  }
+
+  const body = raw as Record<string, unknown>;
+  const nombre = limpiar(typeof body.nombre === "string" ? body.nombre : "");
+  const talla = limpiar(typeof body.talla === "string" ? body.talla : "").toUpperCase();
+  const cantidad = Number(body.cantidad);
+  const notasRaw = limpiar(typeof body.notas === "string" ? body.notas : "");
+
+  if (nombre.length < 2 || nombre.length > 80) {
+    campos.nombre = "Indica el nombre de la persona que recoge la camiseta.";
+  }
+  if (!TALLAS.has(talla)) {
+    campos.talla = "Elige una talla válida.";
+  }
+  if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 10) {
+    campos.cantidad = "Puedes reservar entre 1 y 10 camisetas.";
+  }
+  if (notasRaw.length > 240) {
+    campos.notas = "Las notas no pueden pasar de 240 caracteres.";
+  }
+
+  if (Object.keys(campos).length > 0) return { campos };
+  return { reserva: { nombre, talla, cantidad, notas: notasRaw || null } };
+}
+
+function limpiar(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isMissingShirtsTableError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err || "");
+  return message.includes("camisetas_reservas") && message.toLowerCase().includes("no such table");
+}
+
+async function borrarEquipo(env: Env, equipoId: number): Promise<boolean> {
+  const equipo = await env.DB.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  if (!equipo) {
+    return false;
+  }
+
   const { results } = await env.DB
     .prepare("SELECT foto_key FROM jugadores WHERE equipo_id = ?1 AND foto_key IS NOT NULL")
     .bind(equipoId)
@@ -187,7 +289,7 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
     env.DB.prepare("DELETE FROM equipos WHERE id = ?1").bind(equipoId)
   ]);
 
-  if (!env.FOTOS) return;
+  if (!env.FOTOS) return true;
   for (const item of results) {
     try {
       await env.FOTOS.delete(item.foto_key);
@@ -195,4 +297,5 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<void> {
       // Borrado best-effort: el registro ya está fuera de D1.
     }
   }
+  return true;
 }

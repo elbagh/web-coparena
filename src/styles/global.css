@@ -2149,6 +2149,21 @@ html.js .reveal.in-view {
   align-content: start;
 }
 
+.admin-shirt-form {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 2px solid rgba(16, 21, 22, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 248, 233, 0.72);
+}
+
+.admin-shirt-form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .admin-panel-head,
 .admin-item-head {
   display: flex;
