@@ -235,7 +235,7 @@ export const competicion = {
   fases: [
     {
       nombre: "Fase de grupos",
-      fechas: "31 Jul – 2 Ago",
+      fechas: event.dateStart,
       badge: "Solo 1 día obligatorio",
       puntos: [
         "Grupos de 4 equipos, todos contra todos.",
@@ -246,7 +246,7 @@ export const competicion = {
     },
     {
       nombre: "Fase final",
-      fechas: "7 – 9 Ago",
+      fechas: event.dateEnd,
       puntos: [
         "Eliminatorias directas: se gana o a casa.",
         "Si tu equipo sigue pasando rondas, vuelves los días siguientes.",
