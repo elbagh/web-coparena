@@ -54,7 +54,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Los datos del formulario no son válidos. Recarga la página e inténtalo de nuevo." }, 400);
   }
 
-  const resultado = validarRegistro(payload);
+  const resultado = validarRegistro(payload, { ownerEmail: user.email });
   if ("campos" in resultado) {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }
@@ -163,6 +163,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (conflicto) {
       return json({ error: "Hay datos que ya están registrados.", campos: conflicto }, 409);
     }
+    const esquema = mapearErrorEsquema(err);
+    if (esquema) {
+      console.error("Base de datos sin migraciones necesarias:", err);
+      return json({ error: esquema }, 500);
+    }
     console.error("Error insertando equipo en D1:", err);
     return json({ error: ERROR_500 }, 500);
   }
@@ -206,7 +211,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
          ORDER BY e.created_at ASC, e.id ASC`
       )
       .all<{ nombre: string; jugadores: number }>();
-    return json({ equipos: results }, 200, { "Cache-Control": "public, max-age=60" });
+    return json({ equipos: results }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     console.error("Error leyendo equipos de D1:", err);
     return json({ error: "No se ha podido cargar la lista de equipos." }, 500);
@@ -286,6 +291,17 @@ function mapearConflictoUnique(err: unknown): Record<string, string> | null {
     return { jugadores: "Alguno de los correos ya está registrado en otra inscripción." };
   }
   return { jugadores: "Hay datos que ya están registrados en otra inscripción." };
+}
+
+function mapearErrorEsquema(err: unknown): string | null {
+  const mensaje = err instanceof Error ? err.message : String(err);
+  if (mensaje.includes("no such table: usuarios")) {
+    return "La base de datos no esta actualizada: falta la tabla usuarios. Aplica la migracion 0003_auth_usuarios.sql.";
+  }
+  if (mensaje.includes("no such column: owner_user_id") || mensaje.includes("table equipos has no column named owner_user_id")) {
+    return "La base de datos no esta actualizada: falta equipos.owner_user_id. Aplica la migracion 0003_auth_usuarios.sql.";
+  }
+  return null;
 }
 
 async function limpiarFotos(bucket: R2Bucket, claves: string[]): Promise<void> {

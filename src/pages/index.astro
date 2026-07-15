@@ -27,7 +27,7 @@ const structuredData = [
     url: site.url,
     image: absoluteUrl(site.defaultImage),
     startDate: "2026-07-31",
-    endDate: "2026-08-05",
+    endDate: "2026-08-09",
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     eventStatus: "https://schema.org/EventScheduled",
     sport: "Beach volleyball",
@@ -84,6 +84,17 @@ const structuredData = [
       </ol>
     </section>
 
+    <section class="band-matches" id="partidos" data-public-matches>
+      <SectionHeading
+        eyebrow="Partidos"
+        title="Horario y marcador"
+        text="Cruces, horas, partidos en juego y resultados cerrados por la organizacion."
+      />
+      <p class="teams-status" data-matches-status aria-live="polite">Cargando calendario...</p>
+      <div class="matches-bracket-wrap" data-matches-bracket hidden></div>
+      <div class="public-match-list" data-matches-list hidden></div>
+    </section>
+
     <section class="band-sand band-venir" id="venir">
       <SectionHeading
         eyebrow="Para el público"
@@ -137,7 +148,7 @@ const structuredData = [
         <h2 id="cta-title" class="cta-title reveal" style="--reveal-delay: 90ms">Quiero jugar</h2>
         <p class="cta-text reveal" style="--reveal-delay: 180ms">
           Inscribe a tu equipo: 30 € por equipo, se pagan en el primer partido.
-          Del {event.dateStart} al {event.dateEnd} en {event.location}.
+          Fechas: {event.dateStart} y {event.dateEnd} en {event.location}.
         </p>
         <div class="hero-actions cta-actions reveal" style="--reveal-delay: 270ms">
           <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
@@ -150,4 +161,6 @@ const structuredData = [
   <SiteFooter />
 
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/match-utils.js" defer></script>
+  <script is:inline src="/assets/matches-board.js" defer></script>
 </BaseLayout>
