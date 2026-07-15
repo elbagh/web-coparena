@@ -1477,6 +1477,404 @@ html.js .hero-content > *:nth-child(5) {
   line-height: 1.75;
 }
 
+/* -------------------------- premios y competición -------------------------- */
+
+.premios-page {
+  width: min(1080px, calc(100% - 32px));
+}
+
+.premios-section {
+  margin-top: clamp(56px, 9vw, 96px);
+}
+
+/* Banner del 100%: la notificación protagonista, arriba del todo. */
+.premio-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 3vw, 30px);
+  margin: 8px 0;
+  padding: clamp(20px, 3.6vw, 34px) clamp(20px, 4vw, 40px);
+  border: 3px solid var(--ink);
+  border-radius: 26px;
+  background: linear-gradient(120deg, var(--coral) 0%, var(--sun) 118%);
+  box-shadow: 8px 8px 0 var(--ink);
+  rotate: -1deg;
+}
+
+.premio-banner-trofeo {
+  flex: 0 0 auto;
+  width: clamp(58px, 15vw, 104px);
+  height: auto;
+  filter: drop-shadow(3px 3px 0 rgba(16, 21, 22, 0.28));
+}
+
+.premio-banner-kicker {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 1000;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.premio-banner-headline {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 5.4vw, 2.9rem);
+  line-height: 1.02;
+}
+
+.premio-banner-headline strong {
+  color: var(--foam);
+  text-shadow: 0.03em 0.03em 0 var(--ink);
+}
+
+.premio-banner-sub {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-weight: 720;
+  line-height: 1.5;
+}
+
+/* Podio: 2 – 1 – 3, con el escalón del campeón más alto. La altura de cada
+   bloque sale de --podio-base * --alt (alt viene de los datos: 1 / 0.66 / 0.46). */
+.podio {
+  --podio-base: clamp(128px, 24vw, 230px);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.podio-steps {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(8px, 2.2vw, 22px);
+  width: min(560px, 100%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.podio-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: clamp(88px, 26vw, 156px);
+}
+
+.podio-cima {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.podio-trofeo {
+  width: clamp(46px, 12vw, 86px);
+  height: auto;
+  filter: drop-shadow(3px 3px 0 rgba(16, 21, 22, 0.25));
+}
+
+.podio-medalla {
+  width: clamp(30px, 8vw, 46px);
+  height: auto;
+}
+
+.medal-disc { fill: var(--sun); }
+.medal-inner { fill: var(--coral); }
+.medal-ribbon { fill: var(--sea); }
+
+.podio-medalla circle,
+.podio-medalla path {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.podio-badge {
+  padding: 5px 13px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 2.6vw, 1.35rem);
+  line-height: 1;
+  box-shadow: 3px 3px 0 var(--ink);
+  rotate: -3deg;
+}
+
+.podio-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  height: calc(var(--podio-base) * var(--alt));
+  padding-top: 14px;
+  border: 2px solid var(--ink);
+  border-radius: 12px 12px 0 0;
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.podio-col[data-place="1"] .podio-block { background: var(--sun); }
+.podio-col[data-place="2"] .podio-block { background: var(--aqua); }
+.podio-col[data-place="3"] .podio-block { background: var(--coral); }
+
+.podio-puesto {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5.2vw, 2.6rem);
+  line-height: 1;
+}
+
+.podio-base {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 9px 18px;
+  border: 2px dashed var(--ink);
+  border-radius: 10px;
+  background: rgba(255, 248, 233, 0.72);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.podio-base-num {
+  color: var(--deep);
+  font-family: var(--font-display);
+}
+
+.podio-ribbon {
+  margin: 2px 0 0;
+  padding: 9px 20px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: linear-gradient(120deg, var(--lime), var(--sun));
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 2.4vw, 1.2rem);
+  box-shadow: 3px 3px 0 var(--ink);
+  rotate: -1.4deg;
+}
+
+.podio-detalle {
+  display: grid;
+  gap: 14px;
+  width: min(660px, 100%);
+  margin: 30px auto 0;
+}
+
+.podio-detalle-item {
+  padding-top: 14px;
+  border-top: 2px solid var(--line);
+}
+
+.podio-detalle dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+}
+
+.podio-detalle-puesto {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sun);
+  font-size: 0.95rem;
+}
+
+.podio-detalle-pct {
+  padding: 3px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  font-size: 0.85rem;
+}
+
+.podio-detalle dd {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* Premios secundarios: tarjetas sticker con el color ciclado. */
+.sec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 2.6vw, 26px);
+  width: min(860px, 100%);
+  margin: 36px auto 0;
+}
+
+.sec-card {
+  position: relative;
+  padding: 24px 22px;
+  border: 2px solid var(--ink);
+  border-radius: 22px;
+  background: var(--sec-bg, var(--sun));
+  box-shadow: 5px 5px 0 var(--ink);
+  rotate: -0.8deg;
+  transition:
+    rotate 200ms ease,
+    translate 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.sec-card:nth-child(even) { rotate: 0.8deg; }
+.sec-card:nth-child(4n + 1) { --sec-bg: var(--sun); }
+.sec-card:nth-child(4n + 2) { --sec-bg: var(--aqua); }
+.sec-card:nth-child(4n + 3) { --sec-bg: var(--coral); }
+.sec-card:nth-child(4n) { --sec-bg: var(--lime); }
+
+.sec-card:hover {
+  rotate: 0deg;
+  translate: 0 -5px;
+  box-shadow: 8px 10px 0 var(--ink);
+}
+
+.sec-card h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+  line-height: 1.05;
+}
+
+.sec-card p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 620;
+  line-height: 1.5;
+}
+
+/* Formato: banda de arena a ancho completo con las dos fases y las reglas. */
+.band-formato {
+  background: linear-gradient(180deg, var(--dune) 0%, var(--cream) 100%);
+}
+
+.fases {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(18px, 3vw, 30px);
+  margin-top: 40px;
+}
+
+.fase-card {
+  position: relative;
+  padding: clamp(24px, 3vw, 34px);
+  border: 2px solid var(--ink);
+  border-radius: 20px;
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.fase-card[data-fase="1"] { background: rgba(104, 214, 207, 0.3); }
+.fase-card[data-fase="2"] { background: rgba(255, 217, 93, 0.32); }
+
+.fase-fechas {
+  margin: 0 0 6px;
+  color: var(--coral);
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2.6vw, 1.5rem);
+}
+
+.fase-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1;
+}
+
+.fase-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  box-shadow: 3px 3px 0 var(--ink);
+  rotate: -1.5deg;
+}
+
+.fase-card ul {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fase-card li {
+  position: relative;
+  padding-left: 26px;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.fase-card li::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--foam);
+}
+
+.reglas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(18px, 3vw, 30px);
+  margin-top: clamp(24px, 4vw, 40px);
+}
+
+.regla-card {
+  padding: clamp(22px, 3vw, 30px);
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: rgba(255, 248, 233, 0.86);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.regla-card--pirata {
+  background: rgba(255, 107, 74, 0.2);
+}
+
+.regla-card h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 2.6vw, 1.55rem);
+  line-height: 1.05;
+}
+
+.regla-card p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
 /* -------------------------------- cursor blob ------------------------------- */
 
 .cursor-blob {
@@ -2476,6 +2874,36 @@ html.js .reveal.in-view {
     font-size: 0.7rem;
   }
 
+  /* premios y competición */
+  .premios-section {
+    margin-top: clamp(48px, 6vw, 72px);
+  }
+
+  .premio-banner {
+    padding: clamp(18px, 2.4vw, 28px) clamp(20px, 3vw, 34px);
+  }
+
+  .podio {
+    --podio-base: clamp(150px, 18vw, 220px);
+    margin-top: 30px;
+  }
+
+  .sec-card {
+    padding: 20px 20px;
+  }
+
+  .sec-card h3 {
+    font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+  }
+
+  .fase-card {
+    padding: clamp(20px, 2.2vw, 28px);
+  }
+
+  .podio-detalle dt {
+    font-size: 1rem;
+  }
+
   /* legales */
   .legal-page {
     padding: 122px 0 32px;
@@ -2680,6 +3108,11 @@ html.js .reveal.in-view {
   }
 
   .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fases,
+  .reglas {
     grid-template-columns: 1fr;
   }
 }
@@ -2892,6 +3325,26 @@ html.js .reveal.in-view {
 
   .admin-danger {
     margin-left: 0;
+  }
+
+  .premio-banner {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    rotate: 0deg;
+  }
+
+  .sec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .podio {
+    --podio-base: clamp(104px, 30vw, 150px);
+    gap: 12px;
+  }
+
+  .podio-col {
+    gap: 8px;
   }
 }
 
