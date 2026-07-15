@@ -617,7 +617,10 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 }
 
 .date-line {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.05em 0.18em;
 }
 
 .date-line-end {
@@ -627,6 +630,21 @@ html.js .header-join:not(:hover):not(:focus-visible) {
 .date-dash {
   margin-right: 0.14em;
   color: var(--coral);
+}
+
+.date-phase-label {
+  font-family: var(--font-body);
+  font-size: 0.18em;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--deep);
+  text-shadow: 0.12em 0.12em 0 var(--foam);
+}
+
+.date-phase-date {
+  display: block;
 }
 
 .hero-claims {

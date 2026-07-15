@@ -3,7 +3,7 @@ export const site = {
   name: "La Copa Arena",
   defaultTitle: "La Copa Arena | Volley playa en Playa O Pozo",
   defaultDescription:
-    "La Copa Arena: torneo informal de volley playa en Playa O Pozo, Porto do Son. Del 31 de julio al 2 de agosto y del 7 al 9 de agosto.",
+    "La Copa Arena: torneo informal de volley playa en Playa O Pozo, Porto do Son. Fase de grupos del 31 de julio al 2 de agosto y fase final del 7 al 9 de agosto.",
   defaultImage: "/assets/copa-arena-hero.png",
   locale: "es_ES"
 };
