@@ -1,0 +1,129 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import SectionHeading from "../components/SectionHeading.astro";
+import SceneForest from "../components/SceneForest.astro";
+import SceneHorizon from "../components/SceneHorizon.astro";
+import Trofeo from "../components/Trofeo.astro";
+import Podio from "../components/Podio.astro";
+import { premiosSecundarios, competicion, inscripcion } from "../data/event";
+---
+
+<BaseLayout
+  title="Premios y Competición | La Copa Arena"
+  description="El 100% de lo recaudado se reparte en premios. Reparto del bote, premios secundarios y formato del torneo: fase de grupos y fase final de La Copa Arena."
+>
+  <SiteHeader />
+
+  <main class="legal-page premios-page">
+    <section class="legal-hero">
+      <p class="eyebrow reveal">Premios y Competición</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Premios y Competición</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Aquí juegas por algo de verdad: el bote entero vuelve a la arena. Esto es qué se gana y
+        cómo funciona el torneo.
+      </p>
+    </section>
+
+    <aside class="premio-banner reveal" style="--reveal-delay: 240ms">
+      <Trofeo class="premio-banner-trofeo" />
+      <div class="premio-banner-text">
+        <p class="premio-banner-kicker">El bote</p>
+        <p class="premio-banner-headline"><strong>El 100%</strong> de lo recaudado va a premios</p>
+        <p class="premio-banner-sub">
+          Ni un euro se queda la organización. Todo lo que se junta se reparte entre quien juega.
+        </p>
+      </div>
+    </aside>
+
+    <section class="premios-section" id="reparto" aria-labelledby="reparto-title">
+      <SectionHeading
+        eyebrow="El reparto"
+        title="Así se reparte el bote"
+        text="Los tres primeros se llevan premio en metálico; el 10% que queda va a los premios secundarios."
+      />
+      <div class="reveal" style="--reveal-delay: 90ms">
+        <Podio />
+      </div>
+    </section>
+
+    <section class="premios-section" id="secundarios" aria-labelledby="secundarios-title">
+      <SectionHeading
+        eyebrow="Premios secundarios"
+        title="No solo gana quien levanta la copa"
+        text="El 10% restante del bote se reparte entre estas categorías. Se entregan en especie, no en dinero."
+      />
+      <div class="sec-grid">
+        {
+          premiosSecundarios.map((premio, index) => (
+            <article class="sec-card reveal" style={`--reveal-delay: ${index * 80}ms`}>
+              <h3>{premio.titulo}</h3>
+              <p>{premio.detalle}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+
+  <SceneForest />
+
+  <section class="band-sand band-formato" id="formato" aria-labelledby="formato-title">
+    <SectionHeading
+      eyebrow="El torneo"
+      title="Cómo se juega"
+      text="Dos fases con fechas distintas. La de grupos está pensada para que solo tengas que venir un día obligatorio."
+    />
+    <div class="fases">
+      {
+        competicion.fases.map((fase, index) => (
+          <article class="fase-card reveal" data-fase={index + 1} style={`--reveal-delay: ${index * 90}ms`}>
+            <p class="fase-fechas">{fase.fechas}</p>
+            <h3>{fase.nombre}</h3>
+            {fase.badge && <span class="fase-badge">{fase.badge}</span>}
+            <ul>
+              {fase.puntos.map((punto) => (
+                <li>{punto}</li>
+              ))}
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="reglas">
+      {
+        competicion.reglas.map((regla, index) => (
+          <div
+            class:list={["regla-card reveal", { "regla-card--pirata": regla.pirata }]}
+            style={`--reveal-delay: ${index * 90}ms`}
+          >
+            <h3>{regla.titulo}</h3>
+            <p>{regla.detalle}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="cta-band" id="jugar" aria-labelledby="cta-title">
+    <SceneHorizon variant="sunset" dunes={false} />
+    <div class="cta-content">
+      <p class="eyebrow reveal">Inscripciones</p>
+      <h2 id="cta-title" class="cta-title reveal" style="--reveal-delay: 90ms">A por el bote</h2>
+      <p class="cta-text reveal" style="--reveal-delay: 180ms">
+        Inscribe a tu equipo: {inscripcion.precio} por equipo, {inscripcion.pago}. El 100% vuelve a
+        la arena en premios.
+      </p>
+      <div class="hero-actions cta-actions reveal" style="--reveal-delay: 270ms">
+        <a class="button button-primary" href={inscripcion.url}>Inscribir equipo</a>
+        <a class="button button-secondary" href="/equipos/">Ver equipos</a>
+      </div>
+    </div>
+  </section>
+
+  <SiteFooter />
+
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+</BaseLayout>

@@ -1,0 +1,32 @@
+---
+// Trofeo dibujado a mano (SVG por paths, coloreado con las variables de marca),
+// al estilo de SceneHorizon/SandDivider. Decorativo: aria-hidden. El tamaño se
+// controla desde CSS con la clase que se le pase.
+const { class: className } = Astro.props;
+---
+
+<svg
+  class:list={["trofeo", className]}
+  viewBox="0 0 120 150"
+  fill="none"
+  aria-hidden="true"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!-- base -->
+  <rect x="34" y="132" width="52" height="14" rx="4" class="trofeo-metal" />
+  <rect x="46" y="116" width="28" height="18" rx="3" class="trofeo-metal" />
+  <!-- pie -->
+  <rect x="53" y="92" width="14" height="26" class="trofeo-metal" />
+  <!-- asas -->
+  <path d="M32 30 C10 30 10 62 36 64" class="trofeo-handle" />
+  <path d="M88 30 C110 30 110 62 84 64" class="trofeo-handle" />
+  <!-- copa -->
+  <path d="M30 24 H90 V44 C90 72 74 94 60 94 C46 94 30 72 30 44 Z" class="trofeo-cup" />
+  <!-- borde superior -->
+  <rect x="24" y="15" width="72" height="13" rx="6.5" class="trofeo-cup" />
+  <!-- estrella -->
+  <path
+    d="M60 39 l4.9 9.9 10.9 1.6 -7.9 7.7 1.9 10.9 -9.8 -5.1 -9.8 5.1 1.9 -10.9 -7.9 -7.7 10.9 -1.6 Z"
+    class="trofeo-star"
+  />
+</svg>

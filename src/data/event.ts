@@ -150,3 +150,121 @@ export const perks: Perk[] = [
     link: { label: "@la_copa_arena", url: "https://www.instagram.com/la_copa_arena" }
   }
 ];
+
+// ------------------------------ Premios y Competición ------------------------------
+// Todo el bote (100% de lo recaudado) se reparte en premios. El reparto en metálico
+// suma 90% (50/25/15 + el 4º honorífico) y el 10% restante va a los premios
+// secundarios, que se entregan en especie. `alt` es el alto relativo del escalón en
+// el podio (1 = el más alto); solo lo usan el 1º, 2º y 3º.
+export type PremioTier = {
+  puesto: string;
+  titulo: string;
+  pct?: string;
+  alt?: number;
+  detalle: string;
+};
+
+export const premios: PremioTier[] = [
+  {
+    puesto: "1º",
+    titulo: "Campeones",
+    pct: "50%",
+    alt: 1,
+    detalle: "La mitad de todo lo recaudado, el trofeo de La Copa Arena y la gloria hasta el año que viene."
+  },
+  {
+    puesto: "2º",
+    titulo: "Finalistas",
+    pct: "25%",
+    alt: 0.66,
+    detalle: "Un cuarto del bote para el equipo que se quedó a un paso."
+  },
+  {
+    puesto: "3º",
+    titulo: "Bronce",
+    pct: "15%",
+    alt: 0.46,
+    detalle: "Un 15% del bote y medallas para cerrar el podio."
+  },
+  {
+    puesto: "4º",
+    titulo: "Las gracias",
+    detalle: "Sin premio en metálico, pero con nuestro cariño y un buen aplauso de la grada."
+  }
+];
+
+export type PremioSecundario = {
+  titulo: string;
+  detalle: string;
+};
+
+// Se llevan el 10% restante del bote, repartido en especie (no en dinero).
+export const premiosSecundarios: PremioSecundario[] = [
+  {
+    titulo: "Rey del muro",
+    detalle: "Para quien meta más bloqueos en toda la Copa."
+  },
+  {
+    titulo: "Favorito del público",
+    detalle: "Al equipo o jugador que se meta a la grada en el bolsillo."
+  },
+  {
+    titulo: "Saque de época",
+    detalle: "Al saque más espectacular del torneo."
+  },
+  {
+    titulo: "…y más",
+    detalle: "Iremos anunciando categorías sorpresa por Instagram."
+  }
+];
+
+export type Fase = {
+  nombre: string;
+  fechas: string;
+  badge?: string;
+  puntos: string[];
+};
+
+export type Regla = {
+  titulo: string;
+  detalle: string;
+  pirata?: boolean;
+};
+
+export const competicion = {
+  fases: [
+    {
+      nombre: "Fase de grupos",
+      fechas: "31 Jul – 2 Ago",
+      badge: "Solo 1 día obligatorio",
+      puntos: [
+        "Grupos de 4 equipos, todos contra todos.",
+        "Pasan los 2 mejores de cada grupo, y puede que algún mejor tercero.",
+        "Tu grupo juega entero el mismo día: de los 3, solo vienes 1 día obligatorio.",
+        "¿Justo ese día no puedes? Pídenos la excepción y lo miramos."
+      ]
+    },
+    {
+      nombre: "Fase final",
+      fechas: "7 – 9 Ago",
+      puntos: [
+        "Eliminatorias directas: se gana o a casa.",
+        "Si tu equipo sigue pasando rondas, vuelves los días siguientes.",
+        "Cuanto más avanzas, más cerca del 50%. Vale la pena."
+      ]
+    }
+  ] as Fase[],
+  reglas: [
+    {
+      titulo: "Equipos de 2 + suplentes",
+      detalle:
+        "Se juega de dos en dos, pero podéis traer varios suplentes para turnaros. Todos pagan lo mismo: 30 €."
+    },
+    {
+      titulo: "Equilibrio (modo pirata)",
+      detalle:
+        "Si un equipo trae un nivelón de escándalo, la organización se reserva el derecho a ser un poco pirata para equilibrar el cuadro. Cuidado con quién te apuntas…",
+      pirata: true
+    }
+  ] as Regla[]
+};
