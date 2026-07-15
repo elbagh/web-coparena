@@ -10,7 +10,7 @@
   const loadTeamsButton = panel.querySelector("[data-load-teams]");
   const drawButton = panel.querySelector("[data-draw]");
   const confirmDrawButton = panel.querySelector("[data-confirm-draw]");
-  const teamForm = panel.querySelector("[data-team-form]");
+  const teamForm = panel.querySelector("[data-match-team-form]");
   const dialog = document.querySelector("[data-match-dialog]");
   const dialogBody = document.querySelector("[data-dialog-body]");
 
