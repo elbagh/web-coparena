@@ -94,7 +94,7 @@ Jugadores inscritos:
 ${lista}
 
 Lo importante:
-- Fechas: del 31 de julio al 5 de agosto, en la Playa O Pozo (Porto do Son).
+- Fechas: del 31 de julio al 2 de agosto y del 7 al 9 de agosto, en la Playa O Pozo (Porto do Son).
 - Inscripción: 30 € por equipo. Se pagan en el primer partido, en mano.
 - El calendario y los horarios se publicarán en nuestro Instagram:
   https://www.instagram.com/la_copa_arena/
