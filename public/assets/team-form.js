@@ -87,6 +87,7 @@
     const primerEmail = cartas()[0]?.querySelector('[data-field="email"]');
     if (primerEmail && !limpiar(primerEmail.value)) {
       primerEmail.value = userEmail;
+      validarCampo(primerEmail);
     }
   }
 
@@ -139,7 +140,8 @@
           ? "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos)."
           : "";
       case "email":
-        return v && (!EMAIL_RE.test(v) || v.length > 120) ? "Ese correo no parece válido." : "";
+        if (!v) return "El correo de cada jugador es obligatorio.";
+        return !EMAIL_RE.test(v) || v.length > 120 ? "Ese correo no parece válido." : "";
       case "redSocial":
         return v && (v.length > 120 || !(HANDLE_RE.test(v) || URL_SOCIAL_RE.test(v)))
           ? "Usa un usuario tipo @nombre o un enlace https://."
@@ -217,6 +219,7 @@
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     limpiarErrores();
+    autocompletarCorreoCuenta();
 
     let valido = true;
     form.querySelectorAll("[data-field]").forEach((input) => {
@@ -232,13 +235,19 @@
 
     const lista = cartas();
     const jugadores = lista.map(datosJugador);
-    if (!jugadores.some((j) => j.email)) {
-      mostrarBanner("Indica al menos un correo en el equipo para poder enviaros la confirmación.");
-      valido = false;
-    }
     const userEmail = usuarioActual()?.email;
-    if (userEmail && !jugadores.some((j) => emailNormalizado(j.email || "") === emailNormalizado(userEmail))) {
-      mostrarBanner("Incluye tu correo de Google en uno de los jugadores para ligar el equipo a tu cuenta.");
+    if (!userEmail) {
+      mostrarBanner("Inicia sesión para que el equipo quede asociado a tu cuenta.");
+      valido = false;
+    } else if (!jugadores.some((j) => emailNormalizado(j.email || "") === emailNormalizado(userEmail))) {
+      const primerEmail = lista[0]?.querySelector('[data-field="email"]');
+      if (primerEmail) {
+        pintarError(
+          primerEmail.closest(".field"),
+          "El correo de tu cuenta debe aparecer en al menos un jugador."
+        );
+      }
+      mostrarBanner(`Uno de los jugadores debe usar el correo con el que has iniciado sesión: ${userEmail}.`);
       valido = false;
     }
 

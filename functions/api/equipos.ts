@@ -54,7 +54,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Los datos del formulario no son válidos. Recarga la página e inténtalo de nuevo." }, 400);
   }
 
-  const resultado = validarRegistro(payload);
+  const resultado = validarRegistro(payload, { ownerEmail: user.email });
   if ("campos" in resultado) {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }

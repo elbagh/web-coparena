@@ -147,15 +147,25 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     setBanner("");
+    const dataToSave = payload();
+    const userEmail = currentUserEmail();
+    if (dataToSave.jugadores.some((player) => !player.email)) {
+      setBanner("El correo de cada jugador es obligatorio.");
+      return;
+    }
+    if (!userEmail) {
+      setBanner("Inicia sesión para guardar los cambios de tu equipo.");
+      return;
+    }
+    if (!payloadIncluyeUsuario(dataToSave)) {
+      setBanner(`Uno de los jugadores debe usar el correo con el que has iniciado sesión: ${userEmail}.`);
+      return;
+    }
     setBusy(true);
     const original = save.textContent;
     save.textContent = "Guardando...";
 
     try {
-      const dataToSave = payload();
-      if (!payloadIncluyeUsuario(dataToSave)) {
-        throw new Error("Mantén tu correo de Google en uno de los jugadores para seguir gestionando este equipo.");
-      }
       const response = await fetch("/api/mi-equipo", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
