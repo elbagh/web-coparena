@@ -16,8 +16,14 @@ import { event } from "../data/event";
     <p class="eyebrow hero-eyebrow"><a href="/donde-estamos/">{event.location}</a></p>
     <p class="hero-name">{event.name}</p>
     <h1 id="hero-title" class="hero-dates">
-      <span class="date-line">{event.dateStart}</span>
-      <span class="date-line date-line-end"><span class="date-dash" aria-hidden="true">—</span>{event.dateEnd}</span>
+      {
+        event.phases.map((phase, index) => (
+          <span class={`date-line${index === 1 ? " date-line-end" : ""}`}>
+            <span class="date-phase-label">{phase.label}</span>
+            <span class="date-phase-date">{phase.dates}</span>
+          </span>
+        ))
+      }
     </h1>
     <div class="hero-claims">
       <p class="hero-claim">{event.claim}</p>
