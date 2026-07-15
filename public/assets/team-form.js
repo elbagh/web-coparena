@@ -219,7 +219,13 @@
   form.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     limpiarErrores();
-    autocompletarCorreoCuenta();
+    try {
+      rellenarEmailGoogle();
+    } catch (err) {
+      console.error("Error preparando el formulario de equipo:", err);
+      mostrarBanner("No hemos podido preparar el formulario. Recarga la pagina e intentalo de nuevo.");
+      return;
+    }
 
     let valido = true;
     form.querySelectorAll("[data-field]").forEach((input) => {
