@@ -41,6 +41,30 @@ import SiteFooter from "../components/SiteFooter.astro";
       <section class="admin-stats" data-admin-stats hidden aria-label="Resumen del torneo"></section>
 
       <section class="admin-grid" data-admin-content hidden>
+        <article class="teams-panel admin-panel admin-panel-wide" data-admin-matches>
+          <div class="admin-panel-head">
+            <div>
+              <p class="eyebrow">Partidos</p>
+              <h2>Sorteo y marcador</h2>
+              <p data-admin-status>Cargando equipos y partidos...</p>
+            </div>
+            <div class="admin-actions">
+              <button class="add-player" type="button" data-load-teams>Actualizar equipos</button>
+              <button class="button button-primary" type="button" data-draw>Sortear emparejamientos</button>
+            </div>
+          </div>
+          <form class="manual-team-form" data-team-form>
+            <label class="field">
+              <span>Equipo manual</span>
+              <input type="text" name="team" placeholder="Nombre del equipo" autocomplete="off" />
+            </label>
+            <button class="add-player" type="submit">Anadir</button>
+          </form>
+          <div class="admin-team-pool" data-team-pool aria-live="polite"></div>
+          <div class="matches-bracket-wrap" data-admin-bracket hidden></div>
+          <div class="admin-match-list" data-match-list></div>
+        </article>
+
         <article class="teams-panel admin-panel">
           <div class="admin-panel-head">
             <div>
@@ -65,9 +89,18 @@ import SiteFooter from "../components/SiteFooter.astro";
     </section>
   </main>
 
+  <dialog class="match-dialog" data-match-dialog>
+    <form method="dialog" class="match-dialog-close">
+      <button type="submit" aria-label="Cerrar">x</button>
+    </form>
+    <div class="match-dialog-body" data-dialog-body></div>
+  </dialog>
+
   <SiteFooter />
 
   <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/match-utils.js" defer></script>
   <script is:inline src="/assets/admin.js" defer></script>
+  <script is:inline src="/assets/admin-matches.js" defer></script>
 </BaseLayout>

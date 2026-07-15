@@ -84,6 +84,17 @@ const structuredData = [
       </ol>
     </section>
 
+    <section class="band-matches" id="partidos" data-public-matches>
+      <SectionHeading
+        eyebrow="Partidos"
+        title="Horario y marcador"
+        text="Cruces, horas, partidos en juego y resultados cerrados por la organizacion."
+      />
+      <p class="teams-status" data-matches-status aria-live="polite">Cargando calendario...</p>
+      <div class="matches-bracket-wrap" data-matches-bracket hidden></div>
+      <div class="public-match-list" data-matches-list hidden></div>
+    </section>
+
     <section class="band-sand band-venir" id="venir">
       <SectionHeading
         eyebrow="Para el público"
@@ -150,4 +161,6 @@ const structuredData = [
   <SiteFooter />
 
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/match-utils.js" defer></script>
+  <script is:inline src="/assets/matches-board.js" defer></script>
 </BaseLayout>
