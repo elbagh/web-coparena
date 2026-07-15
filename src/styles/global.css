@@ -3129,6 +3129,7 @@ button.bracket-match {
 .match-status {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   min-height: 34px;
   padding: 8px 12px;
   border: 2px solid var(--ink);
@@ -3136,6 +3137,27 @@ button.bracket-match {
   background: var(--foam);
   font-size: 0.82rem;
   font-weight: 950;
+}
+
+.team-chip-remove {
+  display: grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--foam);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 1000;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.team-chip-remove:hover {
+  background: var(--coral);
+  color: var(--foam);
 }
 
 .admin-match-card {
@@ -3309,6 +3331,35 @@ button.bracket-match {
   .match-time-field {
     border-top: 2px solid var(--ink);
     border-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .perk-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .perk-card,
+  .perk-list li:nth-child(even) .perk-card {
+    width: 100%;
+    max-width: none;
+    rotate: 0deg;
+  }
+
+  .perk-chip {
+    justify-content: space-between;
+    width: 100%;
+    border-radius: 8px;
+  }
+
+  .perk-body {
+    position: static;
+    width: 100%;
+    max-width: none;
+    margin-top: 10px;
+    border-radius: 8px;
   }
 }
 

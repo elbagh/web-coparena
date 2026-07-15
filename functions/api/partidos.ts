@@ -57,8 +57,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     if (action === "draw") {
+      const partidosConfirmados = extraerPartidos(body.partidos);
       const equipos = extraerEquipos(body.equipos);
-      const partidos = equipos.length > 0 ? crearEmparejamientos(equipos) : await sortearDesdeDb(env.DB);
+      const partidos =
+        partidosConfirmados.length > 0
+          ? partidosConfirmados
+          : equipos.length > 0
+            ? crearEmparejamientos(equipos)
+            : await sortearDesdeDb(env.DB);
       await reemplazarPartidos(env.DB, partidos);
       return json({ partidos: await listarPartidos(env.DB) }, 201);
     }
@@ -129,8 +135,8 @@ async function reemplazarPartidos(db: D1Database, partidos: ReturnType<typeof cr
       db
         .prepare(
           `INSERT INTO partidos (
-             id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, sort_order, created_at, updated_at
-           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)`
+             id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, scheduled_at, sort_order, created_at, updated_at
+           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`
         )
         .bind(
           partido.id,
@@ -139,6 +145,7 @@ async function reemplazarPartidos(db: D1Database, partidos: ReturnType<typeof cr
           partido.teamB.id,
           partido.teamA.name,
           partido.teamB.name,
+          partido.scheduledAt ?? null,
           index,
           now
         )
@@ -151,7 +158,13 @@ function crearEmparejamientos(equipos: Array<{ id: number | null; name: string }
   const mezclados = [...equipos].sort(() => crypto.getRandomValues(new Uint32Array(1))[0] - 2147483648);
   const partidos = [];
   for (let i = 0; i + 1 < mezclados.length; i += 2) {
-    partidos.push({ id: crypto.randomUUID(), ronda: "Sorteo", teamA: mezclados[i], teamB: mezclados[i + 1] });
+    partidos.push({
+      id: crypto.randomUUID(),
+      ronda: "Sorteo",
+      scheduledAt: null,
+      teamA: mezclados[i],
+      teamB: mezclados[i + 1]
+    });
   }
   return partidos;
 }
@@ -266,4 +279,33 @@ function extraerEquipos(value: unknown): Array<{ id: number | null; name: string
       return { id: Number.isFinite(Number(raw.id)) ? Number(raw.id) : null, name };
     })
     .filter((equipo): equipo is { id: number | null; name: string } => Boolean(equipo));
+}
+
+function extraerPartidos(value: unknown): ReturnType<typeof crearEmparejamientos> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((partido) => {
+      if (!partido || typeof partido !== "object") return null;
+      const raw = partido as Record<string, unknown>;
+      const teams = raw.teams && typeof raw.teams === "object" ? (raw.teams as Record<string, unknown>) : {};
+      const teamA = extraerEquipoDePartido(teams.A);
+      const teamB = extraerEquipoDePartido(teams.B);
+      if (!teamA || !teamB) return null;
+      return {
+        id: typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID(),
+        ronda: typeof raw.ronda === "string" && raw.ronda ? raw.ronda : "Sorteo",
+        scheduledAt: typeof raw.scheduledAt === "string" && raw.scheduledAt ? raw.scheduledAt : null,
+        teamA,
+        teamB
+      };
+    })
+    .filter((partido): partido is ReturnType<typeof crearEmparejamientos>[number] => Boolean(partido));
+}
+
+function extraerEquipoDePartido(value: unknown): { id: number | null; name: string } | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const name = String(raw.name || "").trim();
+  if (!name) return null;
+  return { id: Number.isFinite(Number(raw.id)) ? Number(raw.id) : null, name };
 }
