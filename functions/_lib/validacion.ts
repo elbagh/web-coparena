@@ -26,6 +26,8 @@ export interface RegistroValidado {
 
 interface OpcionesValidacion {
   requireConsent?: boolean;
+  ownerEmail?: string;
+  requirePlayerEmail?: boolean;
 }
 
 export const normalizarTexto = (s: string): string =>
@@ -61,6 +63,8 @@ export function validarRegistro(
 ): { registro: RegistroValidado } | { campos: Record<string, string> } {
   const campos: Record<string, string> = {};
   const requireConsent = opciones.requireConsent !== false;
+  const requirePlayerEmail = opciones.requirePlayerEmail !== false;
+  const ownerEmailNormalizado = opciones.ownerEmail ? normalizarEmail(opciones.ownerEmail) : "";
 
   if (typeof raw !== "object" || raw === null) {
     return { campos: { equipo: "El formulario ha llegado vacío. Recarga la página e inténtalo de nuevo." } };
@@ -86,6 +90,7 @@ export function validarRegistro(
 
   const jugadores: JugadorValidado[] = [];
   let hayEmail = false;
+  let hayOwnerEmail = false;
 
   jugadoresRaw.slice(0, MAX_JUGADORES).forEach((item, i) => {
     const j = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
@@ -117,7 +122,12 @@ export function validarRegistro(
         email = emailRaw;
         emailNormalizado = normalizarEmail(emailRaw);
         hayEmail = true;
+        if (emailNormalizado === ownerEmailNormalizado) {
+          hayOwnerEmail = true;
+        }
       }
+    } else if (requirePlayerEmail) {
+      campos[clave("email")] = "El correo de cada jugador es obligatorio.";
     }
 
     let redSocial: string | null = null;
@@ -142,7 +152,7 @@ export function validarRegistro(
     });
   });
 
-  if (!hayEmail && !campos.jugadores) {
+  if (!hayEmail && !requirePlayerEmail && !campos.jugadores) {
     campos.email = "Indica al menos un correo en el equipo para poder enviaros la confirmación.";
   }
 
@@ -172,6 +182,11 @@ export function validarRegistro(
       }
     }
   });
+
+  const hayErroresEmail = Object.keys(campos).some((key) => /^jugadores\.\d+\.email$/.test(key));
+  if (ownerEmailNormalizado && !hayOwnerEmail && !hayErroresEmail && !campos.jugadores) {
+    campos.email = "Uno de los correos de los jugadores debe ser el mismo con el que has iniciado sesión.";
+  }
 
   if (Object.keys(campos).length > 0) {
     return { campos };

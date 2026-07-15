@@ -17,8 +17,8 @@ import { event, inscripcion } from "../data/event";
       <h1 class="reveal" style="--reveal-delay: 90ms">Inscribe a tu equipo</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
         Dos titulares como mínimo y los suplentes que necesitéis. La inscripción son
-        {inscripcion.precio} por equipo y {inscripcion.pago}. Necesitamos al menos un
-        correo del equipo: el tuyo de Google debe aparecer en un jugador para ligar la inscripción.
+        {inscripcion.precio} por equipo y {inscripcion.pago}. El correo de cada jugador
+        es obligatorio y uno debe coincidir con la cuenta de Google con la que inscribes.
       </p>
     </section>
 
@@ -37,7 +37,10 @@ import { event, inscripcion } from "../data/event";
 
     <section class="auth-card reveal" style="--reveal-delay: 40ms" data-auth-no-team hidden>
       <h2>Perfecto, ya puedes inscribir</h2>
-      <p>Has entrado como <strong data-auth-user-email></strong>. Ese correo debe aparecer en uno de los jugadores.</p>
+      <p>
+        Has entrado como <strong data-auth-user-email></strong>. Lo pondremos en el primer
+        jugador automáticamente; ese correo debe aparecer en el equipo para poder inscribirlo.
+      </p>
     </section>
 
     <section class="auth-card reveal" style="--reveal-delay: 40ms" data-auth-team hidden>
@@ -145,8 +148,9 @@ import { event, inscripcion } from "../data/event";
           <p class="field-error" hidden></p>
         </div>
         <div class="field">
-          <label data-label="email">Correo <span class="field-opt">(opcional)</span></label>
-          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
+          <label data-label="email">Correo</label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" required />
+          <p class="field-hint">Obligatorio. Uno de los correos debe ser el de la cuenta con sesión iniciada.</p>
           <p class="field-error" hidden></p>
         </div>
         <div class="field">

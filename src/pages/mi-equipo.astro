@@ -17,7 +17,8 @@ import SiteFooter from "../components/SiteFooter.astro";
       <h1 class="reveal" style="--reveal-delay: 90ms">Entra y gestiona tu equipo</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
         Primero entra con Google. Después podrás gestionar el equipo donde aparezca
-        tu correo, aunque lo haya creado otra persona.
+        tu correo, aunque lo haya creado otra persona. El correo de cada jugador es
+        obligatorio y uno debe coincidir con tu cuenta.
       </p>
     </section>
 
@@ -64,6 +65,9 @@ import SiteFooter from "../components/SiteFooter.astro";
         <div>
           <p class="eyebrow">Equipo</p>
           <h2>Editar inscripción</h2>
+          <p class="teams-status">
+            Cada jugador necesita correo. Al menos uno debe coincidir con la cuenta con la que has iniciado sesión.
+          </p>
         </div>
 
         <div class="form-banner" role="alert" data-my-team-banner hidden></div>
@@ -121,8 +125,8 @@ import SiteFooter from "../components/SiteFooter.astro";
           <input type="tel" data-field="telefono" maxlength="18" autocomplete="off" placeholder="612 345 678" />
         </div>
         <div class="field">
-          <label>Correo <span class="field-opt">(opcional)</span></label>
-          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
+          <label>Correo</label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" required />
         </div>
         <div class="field">
           <label>Instagram u otra red <span class="field-opt">(opcional)</span></label>
