@@ -84,6 +84,42 @@ import SiteFooter from "../components/SiteFooter.astro";
               <h2>Reservas</h2>
             </div>
           </div>
+          <form class="admin-shirt-form" data-admin-shirt-form novalidate>
+            <div class="form-banner" data-admin-shirt-banner hidden></div>
+            <div class="shirts-form-grid">
+              <div class="field">
+                <label for="admin-shirt-name">Nombre</label>
+                <input id="admin-shirt-name" name="nombre" type="text" maxlength="80" autocomplete="name" data-admin-shirt-field="nombre" />
+                <p class="field-error" data-admin-shirt-error="nombre" hidden></p>
+              </div>
+              <div class="field">
+                <label for="admin-shirt-size">Talla</label>
+                <select id="admin-shirt-size" name="talla" data-admin-shirt-field="talla">
+                  <option value="">Elige talla</option>
+                  <option value="XS">XS</option>
+                  <option value="S">S</option>
+                  <option value="M">M</option>
+                  <option value="L">L</option>
+                  <option value="XL">XL</option>
+                  <option value="XXL">XXL</option>
+                </select>
+                <p class="field-error" data-admin-shirt-error="talla" hidden></p>
+              </div>
+              <div class="field">
+                <label for="admin-shirt-quantity">Cantidad</label>
+                <input id="admin-shirt-quantity" name="cantidad" type="number" min="1" max="10" step="1" value="1" data-admin-shirt-field="cantidad" />
+                <p class="field-error" data-admin-shirt-error="cantidad" hidden></p>
+              </div>
+              <div class="field shirts-notes">
+                <label for="admin-shirt-notes">Notas <span class="field-opt">opcional</span></label>
+                <textarea id="admin-shirt-notes" name="notas" rows="3" maxlength="240" data-admin-shirt-field="notas"></textarea>
+                <p class="field-error" data-admin-shirt-error="notas" hidden></p>
+              </div>
+            </div>
+            <div class="admin-shirt-form-actions">
+              <button type="submit" class="form-submit" data-admin-shirt-submit>Añadir reserva</button>
+            </div>
+          </form>
           <div class="admin-list" data-admin-shirts></div>
         </article>
       </section>
