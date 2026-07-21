@@ -8,9 +8,10 @@ export const GET: APIRoute = () => {
 
   const urls = publicPages
     .map(
-      ({ path, priority }) => `  <url>
+      ({ path, priority, changefreq }) => `  <url>
     <loc>${absoluteUrl(path)}</loc>
     <lastmod>${lastmod}</lastmod>
+    <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
   </url>`
     )

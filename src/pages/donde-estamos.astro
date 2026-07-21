@@ -3,11 +3,38 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import { donde } from "../data/event";
+import { breadcrumb, absoluteUrl } from "../data/seo";
+
+const structuredData = [
+  breadcrumb([{ name: "Dónde estamos", path: "/donde-estamos/" }]),
+  {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    name: donde.nombre,
+    description: donde.descripcion,
+    url: absoluteUrl("/donde-estamos/"),
+    hasMap: donde.comoLlegarUrl,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: donde.direccion.streetAddress,
+      postalCode: donde.direccion.postalCode,
+      addressLocality: donde.direccion.addressLocality,
+      addressRegion: donde.direccion.addressRegion,
+      addressCountry: donde.direccion.addressCountry
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: donde.coords.lat,
+      longitude: donde.coords.lon
+    }
+  }
+];
 ---
 
 <BaseLayout
   title="Dónde estamos | La Copa Arena"
   description="La playa de O Pozo (Langaño), en Porto do Son: mapa, dirección y cómo llegar a La Copa Arena en coche o en bus."
+  structuredData={structuredData}
 >
   <SiteHeader />
 

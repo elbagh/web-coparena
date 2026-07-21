@@ -1,13 +1,19 @@
 ---
+import { Picture } from "astro:assets";
 import { event } from "../data/event";
+import heroArt from "../assets/copa-arena-hero-watercolor.png";
 ---
 
 <section class="hero" aria-labelledby="hero-title">
-  <img
+  <Picture
+    src={heroArt}
+    formats={["avif", "webp"]}
     class="hero-art"
-    src="/assets/copa-arena-hero-watercolor.png"
     alt="Partido de volley playa al atardecer en la arena, tratado en acuarela"
+    widths={[640, 1024, 1774]}
+    sizes="100vw"
     loading="eager"
+    fetchpriority="high"
     decoding="async"
   />
   <div class="hero-overlay" aria-hidden="true"></div>

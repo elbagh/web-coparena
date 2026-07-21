@@ -6,8 +6,14 @@ import Hero from "../components/Hero.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
-import { event, perks, pasos } from "../data/event";
+import { event, perks, pasos, inscripcion, donde } from "../data/event";
 import { absoluteUrl, site, sameAs } from "../data/seo";
+
+// Fechas del SportsEvent derivadas de la fuente única (event.phases) para que
+// no puedan divergir del texto visible.
+const eventStart = event.phases[0].startISO;
+const eventEnd = event.phases[event.phases.length - 1].endISO;
+const precioEquipo = String(parseInt(inscripcion.precio, 10));
 
 const structuredData = [
   {
@@ -35,20 +41,35 @@ const structuredData = [
     description: event.claim,
     url: site.url,
     image: absoluteUrl(site.defaultImage),
-    startDate: "2026-07-31",
-    endDate: "2026-08-09",
+    startDate: eventStart,
+    endDate: eventEnd,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     eventStatus: "https://schema.org/EventScheduled",
     sport: "Beach volleyball",
     location: {
       "@type": "Place",
-      name: "Playa de O Pozo",
+      name: donde.nombre,
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Porto do Son",
-        addressRegion: "A Coruña",
-        addressCountry: "ES"
+        streetAddress: donde.direccion.streetAddress,
+        postalCode: donde.direccion.postalCode,
+        addressLocality: donde.direccion.addressLocality,
+        addressRegion: donde.direccion.addressRegion,
+        addressCountry: donde.direccion.addressCountry
+      },
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: donde.coords.lat,
+        longitude: donde.coords.lon
       }
+    },
+    offers: {
+      "@type": "Offer",
+      name: "Inscripción por equipo",
+      price: precioEquipo,
+      priceCurrency: "EUR",
+      availability: "https://schema.org/InStock",
+      url: absoluteUrl(inscripcion.url)
     },
     organizer: {
       "@type": "Organization",
