@@ -8,6 +8,14 @@ export const site = {
   locale: "es_ES"
 };
 
+// Perfiles oficiales de la marca. Se usan como `sameAs` en el JSON-LD de la
+// portada para que Google consolide la entidad "La Copa Arena".
+export const sameAs = [
+  "https://www.instagram.com/la_copa_arena/",
+  "https://www.tiktok.com/@copa.arena",
+  "https://linktr.ee/la.copa.arena"
+];
+
 export const publicPages = [
   { path: "/", priority: "1.0" },
   { path: "/inscripcion/", priority: "0.9" },
