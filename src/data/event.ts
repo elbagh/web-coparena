@@ -1,8 +1,8 @@
 export const event = {
   name: "La Copa Arena",
   claim: "El mejor campeonato de volley playa de O Pozo. Hecho para el disfrute del público.",
-  dateStart: "31 Jul - 2 Ago",
-  dateEnd: "7 Ago - 9 Ago",
+  // Fuente única de las fechas del torneo: las dos fases. Todo lo demás
+  // (Hero, /competicion/, copy de la portada) deriva de aquí para no duplicar.
   phases: [
     { label: "Fase de grupos", dates: "31 Jul - 2 Ago" },
     { label: "Fase final", dates: "7 Ago - 9 Ago" }
@@ -238,8 +238,8 @@ export type Regla = {
 export const competicion = {
   fases: [
     {
-      nombre: "Fase de grupos",
-      fechas: event.dateStart,
+      nombre: event.phases[0].label,
+      fechas: event.phases[0].dates,
       badge: "Solo 1 día obligatorio",
       puntos: [
         "Grupos de 4 equipos, todos contra todos.",
@@ -249,8 +249,8 @@ export const competicion = {
       ]
     },
     {
-      nombre: "Fase final",
-      fechas: event.dateEnd,
+      nombre: event.phases[1].label,
+      fechas: event.phases[1].dates,
       puntos: [
         "Eliminatorias directas: se gana o a casa.",
         "Si tu equipo sigue pasando rondas, vuelves los días siguientes.",

@@ -14,8 +14,10 @@ import { event } from "../data/event";
 
   <div class="hero-content">
     <p class="eyebrow hero-eyebrow"><a href="/donde-estamos/">{event.location}</a></p>
-    <p class="hero-name">{event.name}</p>
-    <h1 id="hero-title" class="hero-dates">
+    <h1 id="hero-title" class="hero-name">
+      {event.name}<span class="sr-only"> — volley playa en {event.location}</span>
+    </h1>
+    <p class="hero-dates">
       {
         event.phases.map((phase, index) => (
           <span class={`date-line${index === 1 ? " date-line-end" : ""}`}>
@@ -24,7 +26,7 @@ import { event } from "../data/event";
           </span>
         ))
       }
-    </h1>
+    </p>
     <div class="hero-claims">
       <p class="hero-claim">{event.claim}</p>
     </div>

@@ -7,9 +7,18 @@ import SectionHeading from "../components/SectionHeading.astro";
 import SceneHorizon from "../components/SceneHorizon.astro";
 import SceneForest from "../components/SceneForest.astro";
 import { event, perks, pasos } from "../data/event";
-import { absoluteUrl, site } from "../data/seo";
+import { absoluteUrl, site, sameAs } from "../data/seo";
 
 const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: site.name,
+    url: site.url,
+    logo: absoluteUrl("/assets/copa-arena-logo-blue-full.png"),
+    email: event.email,
+    sameAs
+  },
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -17,7 +26,7 @@ const structuredData = [
     url: site.url,
     inLanguage: "es",
     description: site.defaultDescription,
-    sameAs: [event.instagram]
+    sameAs
   },
   {
     "@context": "https://schema.org",
@@ -46,7 +55,7 @@ const structuredData = [
       name: event.name,
       url: site.url,
       email: event.email,
-      sameAs: [event.instagram]
+      sameAs
     }
   }
 ];
@@ -148,7 +157,7 @@ const structuredData = [
         <h2 id="cta-title" class="cta-title reveal" style="--reveal-delay: 90ms">Quiero jugar</h2>
         <p class="cta-text reveal" style="--reveal-delay: 180ms">
           Inscribe a tu equipo: 30 € por equipo, se pagan en el primer partido.
-          Fase de grupos: {event.dateStart}. Fase final: {event.dateEnd}. En {event.location}.
+          Fase de grupos: {event.phases[0].dates}. Fase final: {event.phases[1].dates}. En {event.location}.
         </p>
         <div class="hero-actions cta-actions reveal" style="--reveal-delay: 270ms">
           <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
