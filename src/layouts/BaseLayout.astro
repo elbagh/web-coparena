@@ -38,6 +38,8 @@ const structuredDataItems = Array.isArray(structuredData) ? structuredData : [st
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content={String(site.imageWidth)} />
+    <meta property="og:image:height" content={String(site.imageHeight)} />
     <meta property="og:image:alt" content={imageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />

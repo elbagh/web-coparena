@@ -2,10 +2,11 @@ export const event = {
   name: "La Copa Arena",
   claim: "El mejor campeonato de volley playa de O Pozo. Hecho para el disfrute del público.",
   // Fuente única de las fechas del torneo: las dos fases. Todo lo demás
-  // (Hero, /competicion/, copy de la portada) deriva de aquí para no duplicar.
+  // (Hero, /competicion/, copy de la portada, JSON-LD SportsEvent) deriva de
+  // aquí para no duplicar. `startISO`/`endISO` alimentan los datos estructurados.
   phases: [
-    { label: "Fase de grupos", dates: "31 Jul - 2 Ago" },
-    { label: "Fase final", dates: "7 Ago - 9 Ago" }
+    { label: "Fase de grupos", dates: "31 Jul - 2 Ago", startISO: "2026-07-31", endISO: "2026-08-02" },
+    { label: "Fase final", dates: "7 Ago - 9 Ago", startISO: "2026-08-07", endISO: "2026-08-09" }
   ],
   location: "Playa O Pozo, Porto do Son",
   email: "copa.arena.2000@gmail.com",
@@ -39,6 +40,16 @@ export const donde = {
   nombre: "Playa de O Pozo (Langaño)",
   descripcion:
     "480 metros de arena fina en la ría de Muros e Noia, entre Portosín y Porto do Son. Esta es la arena de la Copa.",
+  // Coordenadas y dirección estructurada, reutilizadas por el JSON-LD (Place /
+  // PostalAddress / geo) para reforzar la señal local del evento.
+  coords: { lat: 42.74785, lon: -8.9554 },
+  direccion: {
+    streetAddress: "Praia do Pozo (Langaño), lugar de O Pozo, parroquia de Goiáns",
+    postalCode: "15970",
+    addressLocality: "Porto do Son",
+    addressRegion: "A Coruña",
+    addressCountry: "ES"
+  },
   // Embed oficial de Google Maps (sin API key): vista satélite con marcador
   // en 42°44'52.3"N 8°57'19.4"W (coordenadas de dices.net para Langaño,
   // justo al lado de O Pozo).

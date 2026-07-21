@@ -3,11 +3,15 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import { event, inscripcion } from "../data/event";
+import { breadcrumb } from "../data/seo";
+
+const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/" }])];
 ---
 
 <BaseLayout
   title="Inscripción | La Copa Arena"
   description="Inscribe a tu equipo en La Copa Arena: mínimo dos personas, suplentes los que necesitéis. 30 € por equipo, se pagan en el primer partido."
+  structuredData={structuredData}
 >
   <SiteHeader />
 

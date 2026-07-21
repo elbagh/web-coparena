@@ -1,8 +1,11 @@
 ---
+import { Picture } from "astro:assets";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import { camisetas } from "../data/event";
+import camisetaFrontal from "../assets/camiseta-copa-arena-frontal.png";
+import camisetaTrasera from "../assets/camiseta-copa-arena-trasera.png";
 ---
 
 <BaseLayout
@@ -32,20 +35,22 @@ import { camisetas } from "../data/event";
       </div>
       <div class="shirt-product-figures">
         <figure class="shirt-product-figure">
-          <img
-            src="/assets/camiseta-copa-arena-frontal.png"
+          <Picture
+            src={camisetaFrontal}
+            formats={["avif", "webp"]}
             alt="Camiseta blanca de La Copa Arena vista por delante con el logo en el pecho"
-            width="1400"
-            height="1200"
+            widths={[400, 800, 1376]}
+            sizes="(min-width: 901px) 45vw, 90vw"
             loading="eager"
           />
         </figure>
         <figure class="shirt-product-figure">
-          <img
-            src="/assets/camiseta-copa-arena-trasera.png"
+          <Picture
+            src={camisetaTrasera}
+            formats={["avif", "webp"]}
             alt="Camiseta blanca de La Copa Arena vista por la espalda con diseño turquesa y arena"
-            width="1400"
-            height="1200"
+            widths={[400, 800, 1384]}
+            sizes="(min-width: 901px) 45vw, 90vw"
             loading="eager"
           />
         </figure>
