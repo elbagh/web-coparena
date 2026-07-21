@@ -564,6 +564,12 @@ html.js .header-join:not(:hover):not(:focus-visible) {
   isolation: isolate;
 }
 
+/* El <picture> generado por astro:assets no debe formar caja propia: así el
+   grid de .hero solo ve .hero-content y la imagen (absoluta) queda de fondo. */
+.hero picture {
+  display: contents;
+}
+
 .hero-art {
   position: absolute;
   inset: 0;

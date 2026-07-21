@@ -4,7 +4,10 @@ export const site = {
   defaultTitle: "La Copa Arena | Volley playa en Playa O Pozo",
   defaultDescription:
     "La Copa Arena: torneo informal de volley playa en Playa O Pozo, Porto do Son. Fase de grupos del 31 de julio al 2 de agosto y fase final del 7 al 9 de agosto.",
-  defaultImage: "/assets/copa-arena-hero.png",
+  // Card social 1200x630 optimizado (< 300 KB) para Open Graph / Twitter.
+  defaultImage: "/assets/copa-arena-og.jpg",
+  imageWidth: 1200,
+  imageHeight: 630,
   locale: "es_ES"
 };
 
@@ -17,15 +20,28 @@ export const sameAs = [
 ];
 
 export const publicPages = [
-  { path: "/", priority: "1.0" },
-  { path: "/inscripcion/", priority: "0.9" },
-  { path: "/donde-estamos/", priority: "0.8" },
-  { path: "/competicion/", priority: "0.8" },
-  { path: "/equipos/", priority: "0.7" },
-  { path: "/camisetas/", priority: "0.7" },
-  { path: "/privacidad/", priority: "0.2" },
-  { path: "/cookies/", priority: "0.2" },
-  { path: "/aviso-legal/", priority: "0.2" }
+  { path: "/", priority: "1.0", changefreq: "weekly" },
+  { path: "/inscripcion/", priority: "0.9", changefreq: "weekly" },
+  { path: "/donde-estamos/", priority: "0.8", changefreq: "monthly" },
+  { path: "/competicion/", priority: "0.8", changefreq: "monthly" },
+  { path: "/equipos/", priority: "0.7", changefreq: "daily" },
+  { path: "/camisetas/", priority: "0.7", changefreq: "monthly" },
+  { path: "/privacidad/", priority: "0.2", changefreq: "yearly" },
+  { path: "/cookies/", priority: "0.2", changefreq: "yearly" },
+  { path: "/aviso-legal/", priority: "0.2", changefreq: "yearly" }
 ];
 
 export const absoluteUrl = (path: string) => new URL(path, site.url).toString();
+
+// Genera un BreadcrumbList JSON-LD a partir de una ruta de migas
+// (Inicio siempre primero). Refuerza la estructura del sitio en el SERP.
+export const breadcrumb = (items: { name: string; path: string }[]) => ({
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [{ name: "Inicio", path: "/" }, ...items].map((item, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    name: item.name,
+    item: absoluteUrl(item.path)
+  }))
+});
