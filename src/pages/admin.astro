@@ -72,7 +72,10 @@ import SiteFooter from "../components/SiteFooter.astro";
               <p class="eyebrow">Equipos</p>
               <h2>Equipos registrados</h2>
             </div>
-            <button type="button" class="add-player" data-admin-refresh>Actualizar</button>
+            <div class="admin-actions">
+              <button type="button" class="add-player" data-admin-normalize>Normalizar nombres</button>
+              <button type="button" class="add-player" data-admin-refresh>Actualizar</button>
+            </div>
           </div>
           <div class="admin-list" data-admin-teams></div>
         </article>
