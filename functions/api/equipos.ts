@@ -2,6 +2,7 @@
 // GET  /api/equipos — listado público: nombre de equipo y, por jugador, nombre, apellidos e Instagram.
 
 import { json } from "../_lib/http";
+import { primerApellido } from "../_lib/nombres";
 import { requireUser } from "../_lib/auth";
 import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
@@ -230,7 +231,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       if (fila.jugador_nombre) {
         equipo.jugadores.push({
           nombre: fila.jugador_nombre,
-          apellidos: fila.jugador_apellidos ?? "",
+          apellidos: primerApellido(fila.jugador_apellidos ?? ""),
           instagram: fila.red_social
         });
       }
