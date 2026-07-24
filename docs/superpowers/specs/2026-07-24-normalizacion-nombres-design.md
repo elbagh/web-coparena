@@ -3,7 +3,7 @@
 ## Objetivo
 
 1. Los nombres y apellidos de jugadores guardados en `jugadores` (columnas `nombre`, `apellidos`) deben quedar en Proper Case (`IAGO` → `Iago`), tanto los ya existentes en base de datos como los de altas/ediciones futuras. Cuando el nombre o apellido coincide con una entrada conocida de un diccionario de nombres/apellidos españoles-gallegos frecuentes, se restituye también la tilde correcta (`Garcia` → `García`). Fuera del diccionario, no se inventan tildes.
-2. En cualquier vista donde se muestre el nombre de un participante a terceros, solo se enseña Nombre + primer apellido, nunca el segundo apellido — salvo al propio dueño de esos datos (panel admin y "Mi equipo").
+2. En cualquier vista donde se muestre el nombre de un participante a alguien ajeno a su equipo, solo se enseña Nombre + primer apellido, nunca el segundo apellido. Regla afinada tras revisión: el segundo apellido puede verse dentro del propio equipo (panel admin, "Mi equipo", y el email de confirmación que reciben todos los jugadores del equipo que pusieron su correo) — solo se oculta de fuera del equipo (listado público `/equipos/`).
 
 ## Fuera de alcance
 
@@ -17,7 +17,7 @@
 
 - `capitalizarPropio(texto: string): string` — separa `texto` por espacios; por cada palabra:
   - si coincide (comparando en minúsculas y sin tildes) con una entrada de un diccionario estático embebido de nombres/apellidos españoles-gallegos frecuentes, se sustituye por la forma acentuada canónica del diccionario;
-  - si no, se aplica Proper Case simple: primera letra en mayúscula (también tras cada guion o apóstrofo interno, p. ej. `O'DONNELL` → `O'Donnell`, `JOSE-MARIA` → `Jose-Maria`), el resto en minúsculas. No se inventan tildes fuera del diccionario.
+  - si no, se aplica Proper Case simple: primera letra en mayúscula (también tras cada guion o apóstrofo interno, p. ej. `O'DONNELL` → `O'Donnell`), el resto en minúsculas. No se inventan tildes fuera del diccionario. El diccionario se consulta por cada tramo separado por guion, así `JOSE-MARIA` → `José-María` si ambos tramos están en el diccionario.
 - `primerApellido(apellidos: string): string` — devuelve el primer token (separado por espacio) de la cadena de apellidos.
 - El diccionario (~100-150 entradas) vive embebido en el propio archivo, sin llamadas externas ni dependencias de red.
 
@@ -33,10 +33,11 @@
 - UI: botón "Normalizar nombres" en el panel admin (`admin.astro` + `admin.js`) con una confirmación simple antes de ejecutar, que refresca el listado al terminar.
 - Al ejecutarse dentro del propio Worker, funciona igual contra D1 local (`wrangler pages dev`) o contra producción, sin scripts sueltos ni acceso manual a la base de datos. Es idempotente: se puede volver a pulsar sin efectos secundarios (las filas ya normalizadas no cambian).
 
-### 4. Mostrar solo Nombre + primer apellido a terceros
+### 4. Mostrar solo Nombre + primer apellido fuera del equipo
 
-- Único punto que hoy expone nombres de jugadores a alguien que no sea el propio dueño: `GET /api/equipos` (listado público de `functions/api/equipos.ts`). Ahí se trunca `apellidos` con `primerApellido` antes de construir la respuesta JSON — el recorte ocurre en el servidor, así el segundo apellido nunca sale de la API pública, no es solo un ocultamiento visual en el cliente.
+- Único punto que hoy expone nombres de jugadores fuera del propio equipo: `GET /api/equipos` (listado público de `functions/api/equipos.ts`). Ahí se trunca `apellidos` con `primerApellido` antes de construir la respuesta JSON — el recorte ocurre en el servidor, así el segundo apellido nunca sale de la API pública, no es solo un ocultamiento visual en el cliente.
 - `GET /api/admin` (panel admin) y `GET /api/mi-equipo` ("Mi equipo") **no cambian**: siguen devolviendo `apellidos` completos. Decisión confirmada: el admin los necesita operativamente (verificar identidad el día del evento) y el dueño del equipo ya conoce/gestionó esos datos al darlos de alta.
+- El email de confirmación (`functions/_lib/gmail.ts`, `construirEmailConfirmacion`) también sigue enviando `apellidos` completos, y llega a todos los jugadores del equipo que pusieron su correo, no solo a quien se inscribió. Detectado en la revisión final de la rama y confirmado con el usuario: es la conducta deseada bajo la regla afinada (los compañeros del mismo equipo pueden verse el segundo apellido entre sí), así que se deja sin cambios — no es una fuga, es alcance correcto.
 - No existen más superficies con nombres de jugadores individuales: competición/partidos (`partidos.ts`, `competicion.astro`, `admin-matches.js`) solo usan nombres de equipo; `me.ts` solo expone nombre de equipo y recuento de jugadores.
 
 ## Archivos afectados

@@ -290,7 +290,7 @@ git commit -m "feat: normalizar nombres/apellidos de jugadores a Proper Case"
 
 **Interfaces:**
 - Consumes: `capitalizarPropio` from `./nombres` (Task 1).
-- Produces: `validarRegistro(...).registro.jugadores[i].nombre/apellidos` now Proper Case — `functions/api/equipos.ts` (POST) and `functions/api/mi-equipo.ts` (PUT) already call `validarRegistro` and store its output verbatim, so no change needed in either of those files for this task.
+- Produces: `validarRegistro(...).registro.jugadores[i].nombre/apellidos` now Proper Case — `functions/api/equipos.ts` (POST) and `functions/api/mi-equipo.ts` (PATCH) already call `validarRegistro` and store its output verbatim, so no change needed in either of those files for this task.
 
 - [ ] **Step 1: Write the smoke test**
 

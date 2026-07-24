@@ -1,5 +1,5 @@
 // POST /api/equipos — registra un equipo (multipart: payload JSON + fotos).
-// GET  /api/equipos — listado público: nombre de equipo y, por jugador, nombre, apellidos e Instagram.
+// GET  /api/equipos — listado público: nombre de equipo y, por jugador, nombre, primer apellido e Instagram.
 
 import { json } from "../_lib/http";
 import { primerApellido } from "../_lib/nombres";
