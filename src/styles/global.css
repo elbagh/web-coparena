@@ -75,6 +75,20 @@ h2 {
 
 /* ---------------------------------- header --------------------------------- */
 
+/* Franja fija que cubre el hueco entre el borde superior de la ventana y la
+   píldora del nav: sin ella, al hacer scroll los títulos grandes de la
+   página asoman por encima/alrededor del nav flotante. Mismo tono que la
+   propia píldora (no --cream, que es más saturado) y con un desvanecido
+   final en vez de corte recto, para que no se note como una barra pegada. */
+.header-backdrop {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 15;
+  height: 52px;
+  background: linear-gradient(180deg, #fff8e9 0px, #fff8e9 36px, rgba(255, 248, 233, 0) 52px);
+  pointer-events: none;
+}
+
 .site-header {
   position: fixed;
   top: 34px;
@@ -2737,6 +2751,11 @@ html.js .reveal.in-view {
    bloques max-width de abajo no se solapan con este, el móvil queda intacto. */
 @media (min-width: 901px) {
   /* cabecera */
+  .header-backdrop {
+    height: 44px;
+    background: linear-gradient(180deg, #fff8e9 0px, #fff8e9 28px, rgba(255, 248, 233, 0) 44px);
+  }
+
   .site-header {
     top: 22px;
     min-height: 54px;
@@ -3243,6 +3262,11 @@ html.js .reveal.in-view {
 }
 
 @media (max-width: 560px) {
+  .header-backdrop {
+    height: 40px;
+    background: linear-gradient(180deg, #fff8e9 0px, #fff8e9 24px, rgba(255, 248, 233, 0) 40px);
+  }
+
   .site-header {
     top: 22px;
     width: calc(100% - 20px);
