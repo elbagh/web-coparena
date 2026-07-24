@@ -1,5 +1,5 @@
 // POST /api/equipos — registra un equipo (multipart: payload JSON + fotos).
-// GET  /api/equipos — listado público: solo nombres y nº de jugadores.
+// GET  /api/equipos — listado público: nombre de equipo y, por jugador, nombre, apellidos e Instagram.
 
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
@@ -204,14 +204,39 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   try {
     const { results } = await env.DB
       .prepare(
-        `SELECT e.nombre AS nombre, COUNT(j.id) AS jugadores
+        `SELECT e.id AS equipo_id, e.nombre AS equipo_nombre,
+                j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos, j.red_social AS red_social
          FROM equipos e
          LEFT JOIN jugadores j ON j.equipo_id = e.id
-         GROUP BY e.id
-         ORDER BY e.created_at ASC, e.id ASC`
+         ORDER BY e.created_at ASC, e.id ASC, j.orden ASC`
       )
-      .all<{ nombre: string; jugadores: number }>();
-    return json({ equipos: results }, 200, { "Cache-Control": "no-store" });
+      .all<{
+        equipo_id: number;
+        equipo_nombre: string;
+        jugador_nombre: string | null;
+        jugador_apellidos: string | null;
+        red_social: string | null;
+      }>();
+
+    const equipos: { nombre: string; jugadores: { nombre: string; apellidos: string; instagram: string | null }[] }[] = [];
+    const porId = new Map<number, (typeof equipos)[number]>();
+    for (const fila of results) {
+      let equipo = porId.get(fila.equipo_id);
+      if (!equipo) {
+        equipo = { nombre: fila.equipo_nombre, jugadores: [] };
+        porId.set(fila.equipo_id, equipo);
+        equipos.push(equipo);
+      }
+      if (fila.jugador_nombre) {
+        equipo.jugadores.push({
+          nombre: fila.jugador_nombre,
+          apellidos: fila.jugador_apellidos ?? "",
+          instagram: fila.red_social
+        });
+      }
+    }
+
+    return json({ equipos }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     console.error("Error leyendo equipos de D1:", err);
     return json({ error: "No se ha podido cargar la lista de equipos." }, 500);
