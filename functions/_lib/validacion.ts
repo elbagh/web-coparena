@@ -2,6 +2,8 @@
 // La normalización existe porque la unicidad debe ser insensible a mayúsculas
 // y acentos, y el COLLATE NOCASE de SQLite solo cubre ASCII.
 
+import { capitalizarPropio } from "./nombres";
+
 export const MIN_JUGADORES = 2;
 export const MAX_JUGADORES = 15;
 export const MAX_FOTO_BYTES = 4 * 1024 * 1024;
@@ -96,12 +98,12 @@ export function validarRegistro(
     const j = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
     const clave = (campo: string) => `jugadores.${i}.${campo}`;
 
-    const nombre = limpiar(j.nombre);
+    const nombre = capitalizarPropio(limpiar(j.nombre));
     if (nombre.length < 2 || nombre.length > 60 || !NOMBRE_PATTERN.test(nombre)) {
       campos[clave("nombre")] = "Introduce el nombre (solo letras, entre 2 y 60 caracteres).";
     }
 
-    const apellidos = limpiar(j.apellidos);
+    const apellidos = capitalizarPropio(limpiar(j.apellidos));
     if (apellidos.length < 2 || apellidos.length > 80 || !NOMBRE_PATTERN.test(apellidos)) {
       campos[clave("apellidos")] = "Introduce los apellidos (solo letras, entre 2 y 80 caracteres).";
     }
