@@ -75,6 +75,19 @@ h2 {
 
 /* ---------------------------------- header --------------------------------- */
 
+/* Franja opaca fija que cubre solo el hueco entre el borde superior de la
+   ventana y la píldora del nav: sin ella, al hacer scroll los títulos grandes
+   de la página asoman por encima/alrededor del nav flotante. Termina justo
+   donde empieza la píldora para no tapar el hero (foto) que hay debajo. */
+.header-backdrop {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 15;
+  height: 40px;
+  background: var(--cream);
+  pointer-events: none;
+}
+
 .site-header {
   position: fixed;
   top: 34px;
@@ -2737,6 +2750,10 @@ html.js .reveal.in-view {
    bloques max-width de abajo no se solapan con este, el móvil queda intacto. */
 @media (min-width: 901px) {
   /* cabecera */
+  .header-backdrop {
+    height: 30px;
+  }
+
   .site-header {
     top: 22px;
     min-height: 54px;
@@ -3243,6 +3260,10 @@ html.js .reveal.in-view {
 }
 
 @media (max-width: 560px) {
+  .header-backdrop {
+    height: 26px;
+  }
+
   .site-header {
     top: 22px;
     width: calc(100% - 20px);
