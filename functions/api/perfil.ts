@@ -39,6 +39,8 @@ interface MembresiaRow {
   anio: number | null;
   edicion_nombre: string | null;
   estado: string | null;
+  jugador_nombre: string;
+  jugador_apellidos: string;
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -60,10 +62,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     ]);
 
     const historial = await construirHistorial(env.DB, membresias, emailNormalizado, edicion?.id ?? null);
+    const propio = membresias[0];
+    const jugador = propio ? { nombre: propio.jugador_nombre, apellidos: propio.jugador_apellidos } : null;
 
     return json(
       {
         user: publicUser(user),
+        jugador,
         edicionActual: edicion ? { anio: edicion.anio, nombre: edicion.nombre, estado: edicion.estado } : null,
         perfil: {
           apodo: perfilRow?.apodo ?? null,
@@ -134,7 +139,8 @@ async function cargarMembresias(db: D1Database, emailNormalizado: string): Promi
   const { results } = await db
     .prepare(
       `SELECT e.id AS equipo_id, e.nombre AS equipo_nombre, e.posicion_final AS posicion_final,
-              ed.id AS edicion_id, ed.anio AS anio, ed.nombre AS edicion_nombre, ed.estado AS estado
+              ed.id AS edicion_id, ed.anio AS anio, ed.nombre AS edicion_nombre, ed.estado AS estado,
+              j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos
        FROM jugadores j
        JOIN equipos e ON e.id = j.equipo_id
        LEFT JOIN ediciones ed ON ed.id = e.edicion_id
