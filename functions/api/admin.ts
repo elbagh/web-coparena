@@ -1,6 +1,7 @@
 import { requireAdmin } from "../_lib/admin";
 import { publicUser } from "../_lib/auth";
 import { json } from "../_lib/http";
+import { capitalizarPropio } from "../_lib/nombres";
 
 interface Env {
   DB: D1Database;
@@ -39,6 +40,36 @@ interface CamisetaRow {
   created_at: string;
   owner_email: string | null;
   owner_name: string | null;
+}
+
+interface JugadorNombreRow {
+  id: number;
+  nombre: string;
+  apellidos: string;
+}
+
+export function calcularNombresNormalizados(jugadores: JugadorNombreRow[]): JugadorNombreRow[] {
+  return jugadores.reduce<JugadorNombreRow[]>((cambios, jugador) => {
+    const nombre = capitalizarPropio(jugador.nombre);
+    const apellidos = capitalizarPropio(jugador.apellidos);
+    if (nombre !== jugador.nombre || apellidos !== jugador.apellidos) {
+      cambios.push({ id: jugador.id, nombre, apellidos });
+    }
+    return cambios;
+  }, []);
+}
+
+async function normalizarNombresJugadores(db: D1Database): Promise<Response> {
+  const { results } = await db.prepare("SELECT id, nombre, apellidos FROM jugadores").all<JugadorNombreRow>();
+  const cambios = calcularNombresNormalizados(results);
+  if (cambios.length > 0) {
+    await db.batch(
+      cambios.map((c) =>
+        db.prepare("UPDATE jugadores SET nombre = ?1, apellidos = ?2 WHERE id = ?3").bind(c.nombre, c.apellidos, c.id)
+      )
+    );
+  }
+  return json({ ok: true, actualizados: cambios.length }, 200, { "Cache-Control": "no-store" });
 }
 
 const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
@@ -107,6 +138,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const url = new URL(request.url);
   const type = url.searchParams.get("type");
+
+  if (type === "normalizar-nombres") {
+    try {
+      return await normalizarNombresJugadores(env.DB);
+    } catch (err) {
+      console.error("Error normalizando nombres desde panel admin:", err);
+      return json({ error: "No se ha podido normalizar los nombres." }, 500, { "Cache-Control": "no-store" });
+    }
+  }
+
   if (type !== "camiseta") {
     return json({ error: "La acción no es válida." }, 400);
   }

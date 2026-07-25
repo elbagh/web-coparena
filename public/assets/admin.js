@@ -9,6 +9,7 @@
   const teams = root.querySelector("[data-admin-teams]");
   const shirts = root.querySelector("[data-admin-shirts]");
   const refresh = root.querySelector("[data-admin-refresh]");
+  const normalize = root.querySelector("[data-admin-normalize]");
   const shirtForm = root.querySelector("[data-admin-shirt-form]");
   const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
 
@@ -232,6 +233,24 @@
     }
   }
 
+  async function normalizeNames() {
+    if (!window.confirm("¿Normalizar mayúsculas y tildes en los nombres de todos los jugadores?")) return;
+    try {
+      const response = await fetch("/api/admin?type=normalizar-nombres", {
+        method: "POST",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        credentials: "include"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se ha podido normalizar los nombres.");
+      window.alert(`Nombres actualizados: ${data.actualizados}.`);
+      await loadAdmin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se ha podido normalizar los nombres.");
+    }
+  }
+
   async function submitShirtReservation(event) {
     event.preventDefault();
     clearShirtErrors();
@@ -281,6 +300,7 @@
   }
 
   refresh?.addEventListener("click", loadAdmin);
+  normalize?.addEventListener("click", normalizeNames);
   shirtForm?.addEventListener("submit", submitShirtReservation);
 
   window.addEventListener("copa:auth", (event) => {
