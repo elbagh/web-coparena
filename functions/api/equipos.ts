@@ -4,6 +4,7 @@
 import { json } from "../_lib/http";
 import { primerApellido } from "../_lib/nombres";
 import { requireUser } from "../_lib/auth";
+import { edicionActual } from "../_lib/ediciones";
 import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
@@ -71,7 +72,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     );
   }
 
-  const equipoPropio = await equipoDeUsuario(env.DB, user);
+  const edicion = await edicionActual(env.DB);
+  if (!edicion) {
+    console.error("No hay edicion actual: falta la migracion 0006_perfiles_ediciones.sql.");
+    return json({ error: ERROR_500 }, 500);
+  }
+
+  const equipoPropio = await equipoDeUsuario(env.DB, user, edicion.id);
   if (equipoPropio) {
     return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." }, 409);
   }
@@ -125,19 +132,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const statements = [
       env.DB
         .prepare(
-          "INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id) VALUES (?1, ?2, ?3, ?4)"
+          "INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id) VALUES (?1, ?2, ?3, ?4, ?5)"
         )
-        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString(), user.id),
+        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString(), user.id, edicion.id),
       ...registro.jugadores.map((j, i) =>
         env.DB
           .prepare(
             `INSERT INTO jugadores (
                equipo_id, nombre, apellidos, nombre_completo_normalizado,
                telefono, telefono_normalizado, email, email_normalizado,
-               red_social, foto_key, es_suplente, orden
+               red_social, foto_key, es_suplente, orden, edicion_id
              ) VALUES (
                (SELECT id FROM equipos WHERE nombre_normalizado = ?1),
-               ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
+               ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13
              )`
           )
           .bind(
@@ -152,7 +159,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             j.redSocial,
             fotoKeys.get(i) ?? null,
             i >= 2 ? 1 : 0,
-            i + 1
+            i + 1,
+            edicion.id
           )
       )
     ];
