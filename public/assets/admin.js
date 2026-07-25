@@ -13,6 +13,29 @@
   const shirtForm = root.querySelector("[data-admin-shirt-form]");
   const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
 
+  const teamEditDialog = document.querySelector("[data-team-edit-dialog]");
+  const teamEditForm = teamEditDialog?.querySelector("[data-team-edit-form]");
+  const teamEditPlayers = teamEditDialog?.querySelector("[data-team-edit-players]");
+  const teamEditBanner = teamEditDialog?.querySelector("[data-team-edit-banner]");
+  const teamEditTitle = teamEditDialog?.querySelector("[data-team-edit-title]");
+  const teamEditAdd = teamEditDialog?.querySelector("[data-team-edit-add]");
+  const teamEditDiff = teamEditDialog?.querySelector("[data-team-edit-diff]");
+  const teamEditDiffList = teamEditDialog?.querySelector("[data-team-edit-diff-list]");
+  const teamEditReview = teamEditDialog?.querySelector("[data-team-edit-review]");
+  const teamEditBack = teamEditDialog?.querySelector("[data-team-edit-back]");
+  const teamEditConfirm = teamEditDialog?.querySelector("[data-team-edit-confirm]");
+  const teamEditTemplate = document.getElementById("team-edit-player-template");
+  const MIN_JUGADORES = 2;
+  const MAX_JUGADORES = 15;
+  const MAX_FOTO_BYTES = 4 * 1024 * 1024;
+  const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
+  const NOMBRE_RE = /^[\p{L}\p{M}'’. -]+$/u;
+  const EMAIL_RE = /^\S+@\S+\.\S+$/;
+  const HANDLE_RE = /^@?[a-zA-Z0-9._]{2,30}$/;
+  const URL_SOCIAL_RE = /^https:\/\/\S{5,110}$/;
+
+  let equipoEnEdicion = null;
+
   function showLoading(isLoading) {
     loading.hidden = !isLoading;
     if (isLoading) {
@@ -146,13 +169,27 @@
       titleWrap.append(el("p", "", `Cuenta: ${text(team.ownerEmail)} · Jugadores: ${team.jugadoresTotal || 0}`));
       head.append(titleWrap);
       head.append(dangerButton("Borrar", () => deleteItem("equipo", team.id, `¿Borrar el equipo ${team.nombre}?`)));
+      head.append(editButton(() => openTeamEditDialog(team)));
       card.append(head);
 
       const players = el("div", "admin-sublist");
       (team.jugadores || []).forEach((player) => {
         const item = el("div", "admin-subitem");
-        item.append(el("strong", "", `${player.nombre} ${player.apellidos}`));
-        item.append(el("span", "", `${player.esSuplente ? "Suplente" : "Titular"} · ${text(player.telefono)} · ${text(player.email)}`));
+        const head = el("div", "admin-subitem-head");
+        if (player.tieneFoto) {
+          const img = document.createElement("img");
+          img.className = "admin-photo-thumb";
+          img.alt = "";
+          img.src = `/api/admin?type=foto&jugadorId=${encodeURIComponent(player.id)}`;
+          head.append(img);
+        } else {
+          head.append(el("span", "admin-photo-thumb is-empty"));
+        }
+        const info = el("div", "");
+        info.append(el("strong", "", `${player.nombre} ${player.apellidos}`));
+        info.append(el("span", "", `${player.esSuplente ? "Suplente" : "Titular"} · ${text(player.telefono)} · ${text(player.email)}`));
+        head.append(info);
+        item.append(head);
         players.append(item);
       });
       card.append(players);
@@ -190,6 +227,157 @@
     button.addEventListener("click", onClick);
     return button;
   }
+
+  function editButton(onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "player-remove";
+    button.textContent = "Editar";
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function crearFilaJugador(jugador) {
+    const carta = teamEditTemplate.content.firstElementChild.cloneNode(true);
+    if (jugador && jugador.id) carta.dataset.playerId = String(jugador.id);
+
+    const setValor = (campo, valor) => {
+      const input = carta.querySelector(`[data-field="${campo}"]`);
+      if (input) input.value = valor || "";
+    };
+    setValor("nombre", jugador?.nombre);
+    setValor("apellidos", jugador?.apellidos);
+    setValor("telefono", jugador?.telefono);
+    setValor("email", jugador?.email);
+    setValor("redSocial", jugador?.redSocial);
+
+    const preview = carta.querySelector("[data-photo-preview]");
+    const empty = carta.querySelector("[data-photo-empty]");
+    if (jugador?.tieneFoto && jugador?.id) {
+      preview.src = `/api/admin?type=foto&jugadorId=${encodeURIComponent(jugador.id)}`;
+      preview.hidden = false;
+      empty.hidden = true;
+      carta.dataset.tieneFotoOriginal = "1";
+    } else {
+      preview.hidden = true;
+      empty.hidden = false;
+      carta.dataset.tieneFotoOriginal = "";
+    }
+
+    carta.querySelector("[data-remove]").addEventListener("click", () => {
+      carta.remove();
+      reindexarEdicion();
+    });
+    carta.querySelector("[data-move-up]").addEventListener("click", () => moverJugador(carta, -1));
+    carta.querySelector("[data-move-down]").addEventListener("click", () => moverJugador(carta, 1));
+
+    carta.querySelectorAll("input[data-field]").forEach((input) => {
+      if (input.dataset.field === "foto") return;
+      input.addEventListener("blur", () => validarCampoEdicion(input));
+    });
+
+    const fotoInput = carta.querySelector('[data-field="foto"]');
+    const eliminarFotoInput = carta.querySelector('[data-field="eliminarFoto"]');
+    fotoInput.addEventListener("change", () => {
+      const archivo = fotoInput.files && fotoInput.files[0];
+      if (!archivo) return;
+      if (archivo.size > MAX_FOTO_BYTES || !TIPOS_FOTO.includes(archivo.type)) {
+        pintarErrorEdicion(carta, "foto", "Solo se admiten fotos JPG, PNG o WebP de hasta 4 MB.");
+        fotoInput.value = "";
+        return;
+      }
+      pintarErrorEdicion(carta, "foto", "");
+      eliminarFotoInput.checked = false;
+      preview.src = URL.createObjectURL(archivo);
+      preview.hidden = false;
+      empty.hidden = true;
+    });
+    eliminarFotoInput.addEventListener("change", () => {
+      if (eliminarFotoInput.checked) {
+        fotoInput.value = "";
+        preview.hidden = true;
+        empty.hidden = false;
+      } else if (carta.dataset.tieneFotoOriginal && !fotoInput.files?.[0]) {
+        preview.hidden = false;
+        empty.hidden = true;
+      }
+    });
+
+    return carta;
+  }
+
+  function openTeamEditDialog(team) {
+    if (!teamEditDialog) return;
+    equipoEnEdicion = {
+      id: team.id,
+      nombre: team.nombre,
+      jugadores: (team.jugadores || []).map((j) => ({ ...j }))
+    };
+    teamEditTitle.textContent = team.nombre;
+    teamEditForm.querySelector('[data-team-edit-field="equipo"]').value = team.nombre;
+    teamEditPlayers.innerHTML = "";
+    (team.jugadores || []).forEach((jugador) => {
+      teamEditPlayers.append(crearFilaJugador(jugador));
+    });
+    reindexarEdicion();
+    mostrarPasoEdicion();
+    limpiarBannerEdicion();
+    teamEditDialog.showModal();
+  }
+
+  function reindexarEdicion() {
+    const cartas = Array.from(teamEditPlayers.querySelectorAll("[data-team-edit-player]"));
+    cartas.forEach((carta, i) => {
+      carta.querySelector("[data-dorsal]").textContent = String(i + 1);
+      carta.querySelector("[data-role]").textContent = i < MIN_JUGADORES ? "Titular" : "Suplente";
+      carta.classList.toggle("is-suplente", i >= MIN_JUGADORES);
+      carta.querySelector("[data-remove]").hidden = cartas.length <= MIN_JUGADORES;
+      carta.querySelector("[data-move-up]").disabled = i === 0;
+      carta.querySelector("[data-move-down]").disabled = i === cartas.length - 1;
+    });
+    teamEditAdd.disabled = cartas.length >= MAX_JUGADORES;
+  }
+
+  function moverJugador(carta, delta) {
+    const hermano = delta < 0 ? carta.previousElementSibling : carta.nextElementSibling;
+    if (!hermano) return;
+    if (delta < 0) teamEditPlayers.insertBefore(carta, hermano);
+    else teamEditPlayers.insertBefore(hermano, carta);
+    reindexarEdicion();
+  }
+
+  function pintarErrorEdicion(carta, campo, mensaje) {
+    const p = carta.querySelector(`[data-field-error="${campo}"]`);
+    if (!p) return;
+    p.textContent = mensaje || "";
+    p.hidden = !mensaje;
+  }
+
+  function limpiarBannerEdicion() {
+    teamEditBanner.textContent = "";
+    teamEditBanner.hidden = true;
+  }
+
+  function mostrarPasoEdicion() {
+    teamEditPlayers.hidden = false;
+    teamEditAdd.hidden = false;
+    teamEditDiff.hidden = true;
+    teamEditReview.hidden = false;
+    teamEditBack.hidden = true;
+    teamEditConfirm.hidden = true;
+  }
+
+  teamEditAdd?.addEventListener("click", () => {
+    const carta = crearFilaJugador(null);
+    teamEditPlayers.append(carta);
+    reindexarEdicion();
+    carta.querySelector('[data-field="nombre"]')?.focus();
+  });
+
+  teamEditDialog?.addEventListener("close", () => {
+    equipoEnEdicion = null;
+    teamEditPlayers.innerHTML = "";
+  });
 
   async function loadAdmin() {
     showLoading(true);
