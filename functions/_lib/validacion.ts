@@ -10,6 +10,7 @@ export const MAX_FOTO_BYTES = 4 * 1024 * 1024;
 export const MAX_BODY_BYTES = 30 * 1024 * 1024;
 
 export interface JugadorValidado {
+  id?: number;
   nombre: string;
   apellidos: string;
   nombreCompletoNormalizado: string;
@@ -18,6 +19,7 @@ export interface JugadorValidado {
   email: string | null;
   emailNormalizado: string | null;
   redSocial: string | null;
+  eliminarFoto: boolean;
 }
 
 export interface RegistroValidado {
@@ -142,7 +144,16 @@ export function validarRegistro(
       }
     }
 
+    const idRaw = j.id;
+    const id =
+      typeof idRaw === "number" && Number.isInteger(idRaw) && idRaw > 0
+        ? idRaw
+        : typeof idRaw === "string" && /^\d+$/.test(idRaw)
+          ? Number(idRaw)
+          : undefined;
+
     jugadores.push({
+      id,
       nombre,
       apellidos,
       nombreCompletoNormalizado: normalizarTexto(`${nombre} ${apellidos}`),
@@ -150,7 +161,8 @@ export function validarRegistro(
       telefonoNormalizado,
       email,
       emailNormalizado,
-      redSocial
+      redSocial,
+      eliminarFoto: j.eliminarFoto === true
     });
   });
 
