@@ -288,7 +288,11 @@
       }
       pintarErrorEdicion(carta, "foto", "");
       eliminarFotoInput.checked = false;
+      if (preview.dataset.objectUrl === "1") {
+        URL.revokeObjectURL(preview.src);
+      }
       preview.src = URL.createObjectURL(archivo);
+      preview.dataset.objectUrl = "1";
       preview.hidden = false;
       empty.hidden = true;
     });
@@ -495,6 +499,17 @@
         cambios.push(`Se quita a ${etiquetaJugador(original)}.`);
       }
     });
+
+    const ordenActual = cartas.map((carta) => carta.dataset.playerId ? Number(carta.dataset.playerId) : undefined)
+      .filter((id) => id !== undefined && idsActuales.has(id));
+    const ordenOriginal = equipoEnEdicion.jugadores
+      .map((j) => j.id)
+      .filter((id) => idsActuales.has(id));
+    const ordenCambiado = ordenActual.length !== ordenOriginal.length
+      || ordenActual.some((id, i) => id !== ordenOriginal[i]);
+    if (ordenCambiado) {
+      cambios.push("Cambia el orden de los jugadores (titulares/suplentes).");
+    }
 
     return cambios;
   }
