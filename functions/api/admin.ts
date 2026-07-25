@@ -78,6 +78,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const admin = await requireAdmin(request, env);
   if (admin instanceof Response) return admin;
 
+  const url = new URL(request.url);
+  if (url.searchParams.get("type") === "foto") {
+    return servirFotoJugador(env, url.searchParams.get("jugadorId"));
+  }
+
   try {
     const [equipos, jugadores, camisetas] = await Promise.all([
       cargarEquipos(env.DB),
@@ -339,4 +344,33 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<boolean> {
     }
   }
   return true;
+}
+
+async function servirFotoJugador(env: Env, jugadorIdRaw: string | null): Promise<Response> {
+  const jugadorId = Number(jugadorIdRaw);
+  const noEncontrada = json({ error: "Foto no encontrada." }, 404, { "Cache-Control": "no-store" });
+  if (!Number.isInteger(jugadorId) || jugadorId <= 0 || !env.FOTOS) {
+    return noEncontrada;
+  }
+
+  const jugador = await env.DB
+    .prepare("SELECT foto_key FROM jugadores WHERE id = ?1")
+    .bind(jugadorId)
+    .first<{ foto_key: string | null }>();
+  if (!jugador?.foto_key) {
+    return noEncontrada;
+  }
+
+  const objeto = await env.FOTOS.get(jugador.foto_key);
+  if (!objeto) {
+    return noEncontrada;
+  }
+
+  return new Response(objeto.body, {
+    status: 200,
+    headers: {
+      "Content-Type": objeto.httpMetadata?.contentType || "application/octet-stream",
+      "Cache-Control": "no-store"
+    }
+  });
 }
