@@ -367,6 +367,63 @@
     teamEditConfirm.hidden = true;
   }
 
+  function mensajeCampoEdicion(input) {
+    const campo = input.dataset.field;
+    const v = limpiar(input.value || "");
+    switch (campo) {
+      case "nombre":
+        return v.length < 2 || v.length > 60 || !NOMBRE_RE.test(v)
+          ? "Introduce el nombre (solo letras, entre 2 y 60 caracteres)."
+          : "";
+      case "apellidos":
+        return v.length < 2 || v.length > 80 || !NOMBRE_RE.test(v)
+          ? "Introduce los apellidos (solo letras, entre 2 y 80 caracteres)."
+          : "";
+      case "telefono":
+        return !/^[67]\d{8}$/.test(v.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, ""))
+          ? "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos)."
+          : "";
+      case "email":
+        if (!v) return "El correo de cada jugador es obligatorio.";
+        return !EMAIL_RE.test(v) || v.length > 120 ? "Ese correo no parece válido." : "";
+      case "redSocial":
+        return v && (v.length > 120 || !(HANDLE_RE.test(v) || URL_SOCIAL_RE.test(v)))
+          ? "Usa un usuario tipo @nombre o un enlace https://."
+          : "";
+      default:
+        return "";
+    }
+  }
+
+  function validarCampoEdicion(input) {
+    const carta = input.closest("[data-team-edit-player]");
+    const mensaje = mensajeCampoEdicion(input);
+    pintarErrorEdicion(carta, input.dataset.field, mensaje);
+    return !mensaje;
+  }
+
+  function validarNombreEquipoEdicion() {
+    const input = teamEditForm.querySelector('[data-team-edit-field="equipo"]');
+    const v = limpiar(input.value || "");
+    const mensaje = v.length < 2 || v.length > 60 ? "El nombre del equipo debe tener entre 2 y 60 caracteres." : "";
+    const p = teamEditForm.querySelector('[data-team-edit-error="equipo"]');
+    p.textContent = mensaje;
+    p.hidden = !mensaje;
+    return !mensaje;
+  }
+
+  function validarFormularioEdicion() {
+    let valido = validarNombreEquipoEdicion();
+    const cartas = Array.from(teamEditPlayers.querySelectorAll("[data-team-edit-player]"));
+    cartas.forEach((carta) => {
+      carta.querySelectorAll("input[data-field]").forEach((input) => {
+        if (input.dataset.field === "foto" || input.dataset.field === "eliminarFoto") return;
+        if (!validarCampoEdicion(input)) valido = false;
+      });
+    });
+    return valido;
+  }
+
   teamEditAdd?.addEventListener("click", () => {
     const carta = crearFilaJugador(null);
     teamEditPlayers.append(carta);
