@@ -424,6 +424,198 @@
     return valido;
   }
 
+  function etiquetaJugador(jugador) {
+    const nombre = limpiar(jugador.nombre || "");
+    const apellidos = limpiar(jugador.apellidos || "");
+    return `${nombre} ${apellidos}`.trim() || "Jugador sin nombre";
+  }
+
+  function datosFilaEdicion(carta) {
+    const valor = (campo) => {
+      const input = carta.querySelector(`[data-field="${campo}"]`);
+      return limpiar(input ? input.value : "");
+    };
+    const datos = {
+      id: carta.dataset.playerId ? Number(carta.dataset.playerId) : undefined,
+      nombre: valor("nombre"),
+      apellidos: valor("apellidos"),
+      telefono: valor("telefono"),
+      email: valor("email"),
+      redSocial: valor("redSocial"),
+      eliminarFoto: carta.querySelector('[data-field="eliminarFoto"]').checked
+    };
+    const fotoInput = carta.querySelector('[data-field="foto"]');
+    datos.fotoNueva = fotoInput.files && fotoInput.files[0] ? fotoInput.files[0] : null;
+    return datos;
+  }
+
+  function calcularDiff() {
+    const cambios = [];
+    const nombreEquipoActual = limpiar(teamEditForm.querySelector('[data-team-edit-field="equipo"]').value);
+    if (nombreEquipoActual !== equipoEnEdicion.nombre) {
+      cambios.push(`Nombre del equipo: «${equipoEnEdicion.nombre}» → «${nombreEquipoActual}»`);
+    }
+
+    const cartas = Array.from(teamEditPlayers.querySelectorAll("[data-team-edit-player]"));
+    const idsActuales = new Set();
+    const CAMPOS = [
+      ["nombre", "Nombre"],
+      ["apellidos", "Apellidos"],
+      ["telefono", "Móvil"],
+      ["email", "Correo"],
+      ["redSocial", "Red social"]
+    ];
+
+    cartas.forEach((carta) => {
+      const datos = datosFilaEdicion(carta);
+      if (datos.id === undefined) {
+        cambios.push(`Se añade a ${etiquetaJugador(datos)}.`);
+      } else {
+        idsActuales.add(datos.id);
+        const original = equipoEnEdicion.jugadores.find((j) => j.id === datos.id);
+        if (original) {
+          CAMPOS.forEach(([campo, etiqueta]) => {
+            const antes = limpiar(original[campo] || "");
+            const despues = datos[campo] || "";
+            if (antes !== despues) {
+              cambios.push(`${etiquetaJugador(original)} — ${etiqueta}: «${antes || "—"}» → «${despues || "—"}»`);
+            }
+          });
+          if (datos.fotoNueva) {
+            cambios.push(`${etiquetaJugador(original)}: cambia la foto.`);
+          } else if (datos.eliminarFoto && original.tieneFoto) {
+            cambios.push(`${etiquetaJugador(original)}: se elimina la foto.`);
+          }
+        }
+      }
+    });
+
+    equipoEnEdicion.jugadores.forEach((original) => {
+      if (original.id && !idsActuales.has(original.id)) {
+        cambios.push(`Se quita a ${etiquetaJugador(original)}.`);
+      }
+    });
+
+    return cambios;
+  }
+
+  function mostrarBannerEdicion(mensaje, kind = "error") {
+    teamEditBanner.textContent = mensaje;
+    teamEditBanner.dataset.kind = kind;
+    teamEditBanner.hidden = !mensaje;
+  }
+
+  teamEditReview?.addEventListener("click", () => {
+    limpiarBannerEdicion();
+    if (!validarFormularioEdicion()) {
+      mostrarBannerEdicion("Revisa los campos marcados.");
+      return;
+    }
+    const cambios = calcularDiff();
+    if (cambios.length === 0) {
+      mostrarBannerEdicion("No hay cambios que guardar.");
+      return;
+    }
+    teamEditDiffList.innerHTML = "";
+    cambios.forEach((linea) => {
+      const li = document.createElement("li");
+      li.textContent = linea;
+      teamEditDiffList.append(li);
+    });
+    teamEditPlayers.hidden = true;
+    teamEditAdd.hidden = true;
+    teamEditDiff.hidden = false;
+    teamEditReview.hidden = true;
+    teamEditBack.hidden = false;
+    teamEditConfirm.hidden = false;
+  });
+
+  teamEditBack?.addEventListener("click", () => {
+    mostrarPasoEdicion();
+  });
+
+  function pintarErroresServidorEdicion(campos) {
+    const cartas = Array.from(teamEditPlayers.querySelectorAll("[data-team-edit-player]"));
+    const sueltos = [];
+    Object.entries(campos || {}).forEach(([clave, mensaje]) => {
+      if (clave === "equipo") {
+        const p = teamEditForm.querySelector('[data-team-edit-error="equipo"]');
+        p.textContent = mensaje;
+        p.hidden = false;
+        return;
+      }
+      const partes = clave.match(/^jugadores\.(\d+)\.(\w+)$/);
+      if (partes && cartas[Number(partes[1])]) {
+        pintarErrorEdicion(cartas[Number(partes[1])], partes[2], mensaje);
+        return;
+      }
+      sueltos.push(mensaje);
+    });
+    return sueltos;
+  }
+
+  teamEditConfirm?.addEventListener("click", async () => {
+    const cartas = Array.from(teamEditPlayers.querySelectorAll("[data-team-edit-player]"));
+    const jugadores = cartas.map((carta) => {
+      const datos = datosFilaEdicion(carta);
+      const jugador = {
+        nombre: datos.nombre,
+        apellidos: datos.apellidos,
+        telefono: datos.telefono,
+        eliminarFoto: datos.eliminarFoto
+      };
+      if (datos.id !== undefined) jugador.id = datos.id;
+      if (datos.email) jugador.email = datos.email;
+      if (datos.redSocial) jugador.redSocial = datos.redSocial;
+      return jugador;
+    });
+
+    const payload = {
+      nombre: limpiar(teamEditForm.querySelector('[data-team-edit-field="equipo"]').value),
+      jugadores
+    };
+
+    const datosEnvio = new FormData();
+    datosEnvio.append("payload", JSON.stringify(payload));
+    cartas.forEach((carta, i) => {
+      const fotoInput = carta.querySelector('[data-field="foto"]');
+      if (fotoInput.files && fotoInput.files[0]) {
+        datosEnvio.append(`foto_${i}`, fotoInput.files[0]);
+      }
+    });
+
+    teamEditConfirm.disabled = true;
+    teamEditConfirm.setAttribute("aria-busy", "true");
+    const textoOriginal = teamEditConfirm.textContent;
+    teamEditConfirm.textContent = "Guardando...";
+
+    try {
+      const respuesta = await fetch(`/api/admin?type=equipo&id=${encodeURIComponent(equipoEnEdicion.id)}`, {
+        method: "PATCH",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+        body: datosEnvio
+      });
+      const cuerpo = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok || !cuerpo.ok) {
+        mostrarPasoEdicion();
+        const sueltos = cuerpo.campos ? pintarErroresServidorEdicion(cuerpo.campos) : [];
+        mostrarBannerEdicion([cuerpo.error || "No se ha podido guardar el equipo.", ...sueltos].join(" "));
+        return;
+      }
+      teamEditDialog.close();
+      await loadAdmin();
+    } catch {
+      mostrarPasoEdicion();
+      mostrarBannerEdicion("No hay conexión. Comprueba la red e inténtalo de nuevo.");
+    } finally {
+      teamEditConfirm.disabled = false;
+      teamEditConfirm.removeAttribute("aria-busy");
+      teamEditConfirm.textContent = textoOriginal;
+    }
+  });
+
   teamEditAdd?.addEventListener("click", () => {
     const carta = crearFilaJugador(null);
     teamEditPlayers.append(carta);
