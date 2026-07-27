@@ -2359,9 +2359,9 @@ html.js .reveal.in-view {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  display: block;
+  column-count: 2;
+  column-gap: 14px;
   counter-reset: equipo;
 }
 
@@ -2371,10 +2371,12 @@ html.js .reveal.in-view {
   align-items: flex-start;
   gap: 14px;
   padding: 14px 18px;
+  margin-bottom: 14px;
   border: 2px solid var(--ink);
   border-radius: 8px;
   background: var(--foam);
   box-shadow: 4px 4px 0 var(--ink);
+  break-inside: avoid;
 }
 
 .teams-list > li::before {
@@ -4143,7 +4145,7 @@ html.js .reveal.in-view {
   }
 
   .teams-list {
-    grid-template-columns: 1fr;
+    column-count: 1;
   }
 
   .shirt-product {
