@@ -2,6 +2,8 @@ import { requireAdmin } from "../_lib/admin";
 import { publicUser } from "../_lib/auth";
 import { json } from "../_lib/http";
 import { capitalizarPropio } from "../_lib/nombres";
+import { MAX_BODY_BYTES, validarRegistro, validarFoto } from "../_lib/validacion";
+import { buscarDuplicadosEdicion, mapearConflictoUnicoEdicion } from "../_lib/equipos";
 
 interface Env {
   DB: D1Database;
@@ -74,9 +76,30 @@ async function normalizarNombresJugadores(db: D1Database): Promise<Response> {
 
 const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
 
+const ESTADOS_EDICION = new Set(["proxima", "en_juego", "finalizada"]);
+
+const CONTENT_TYPE_POR_EXT: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp"
+};
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const admin = await requireAdmin(request, env);
   if (admin instanceof Response) return admin;
+
+  const url = new URL(request.url);
+  if (url.searchParams.get("type") === "foto") {
+    return servirFotoJugador(env, url.searchParams.get("jugadorId"));
+  }
+  if (url.searchParams.get("view") === "ediciones") {
+    try {
+      return await cargarPanelEdiciones(env.DB);
+    } catch (err) {
+      console.error("Error leyendo ediciones y resultados:", err);
+      return json({ error: "No se han podido cargar las ediciones." }, 500, { "Cache-Control": "no-store" });
+    }
+  }
 
   try {
     const [equipos, jugadores, camisetas] = await Promise.all([
@@ -148,6 +171,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
+  if (type === "edicion") {
+    try {
+      return await crearEdicion(env.DB, await request.json().catch(() => null));
+    } catch (err) {
+      console.error("Error creando edición desde panel admin:", err);
+      return json({ error: "No se ha podido crear la edición." }, 500, { "Cache-Control": "no-store" });
+    }
+  }
+
   if (type !== "camiseta") {
     return json({ error: "La acción no es válida." }, 400);
   }
@@ -203,7 +235,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
   const type = url.searchParams.get("type");
   const id = Number(url.searchParams.get("id"));
-  if (!Number.isInteger(id) || id <= 0 || !["equipo", "camiseta"].includes(type || "")) {
+  if (!Number.isInteger(id) || id <= 0 || !["equipo", "camiseta", "edicion"].includes(type || "")) {
     return json({ error: "La acción no es válida." }, 400);
   }
 
@@ -211,6 +243,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
     if (type === "equipo") {
       const deleted = await borrarEquipo(env, id);
       if (!deleted) return json({ error: "Ese equipo ya no existe." }, 404, { "Cache-Control": "no-store" });
+    } else if (type === "edicion") {
+      return await borrarEdicion(env.DB, id);
     } else {
       await env.DB.prepare("DELETE FROM camisetas_reservas WHERE id = ?1").bind(id).run();
     }
@@ -220,6 +254,232 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
     console.error("Error borrando desde panel admin:", err);
     return json({ error: "No se ha podido completar la acción." }, 500);
   }
+};
+
+export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
+  const url = new URL(request.url);
+  const type = url.searchParams.get("type");
+  const id = Number(url.searchParams.get("id"));
+
+  if (type === "posicion") {
+    if (!Number.isInteger(id) || id <= 0) return json({ error: "La acción no es válida." }, 400);
+    try {
+      return await fijarPosicionFinal(env.DB, id, await request.json().catch(() => null));
+    } catch (err) {
+      console.error("Error fijando el puesto de un equipo:", err);
+      return json({ error: "No se ha podido guardar el puesto." }, 500, { "Cache-Control": "no-store" });
+    }
+  }
+
+  if (type === "edicion") {
+    if (!Number.isInteger(id) || id <= 0) return json({ error: "La acción no es válida." }, 400);
+    try {
+      return await actualizarEdicion(env.DB, id, await request.json().catch(() => null));
+    } catch (err) {
+      console.error("Error actualizando una edición:", err);
+      return json({ error: "No se ha podido actualizar la edición." }, 500, { "Cache-Control": "no-store" });
+    }
+  }
+
+  const equipoId = id;
+  if (type !== "equipo" || !Number.isInteger(equipoId) || equipoId <= 0) {
+    return json({ error: "La acción no es válida." }, 400);
+  }
+
+  const contentLength = Number(request.headers.get("Content-Length") ?? "0");
+  if (contentLength > MAX_BODY_BYTES) {
+    return json({ error: "La petición es demasiado grande. Cada foto puede ocupar como máximo 4 MB." }, 413);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return json({ error: "El formulario debe enviarse como multipart/form-data." }, 400);
+  }
+
+  const payloadRaw = formData.get("payload");
+  let payload: unknown;
+  try {
+    payload = JSON.parse(typeof payloadRaw === "string" ? payloadRaw : "");
+  } catch {
+    return json({ error: "Los datos del formulario no son válidos." }, 400);
+  }
+
+  const resultado = validarRegistro(payload, { requireConsent: false, requirePlayerEmail: true });
+  if ("campos" in resultado) {
+    return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
+  }
+  const registro = resultado.registro;
+
+  const equipoActual = await env.DB.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  if (!equipoActual) {
+    return json({ error: "Ese equipo ya no existe." }, 404, { "Cache-Control": "no-store" });
+  }
+
+  const { results: jugadoresActuales } = await env.DB
+    .prepare("SELECT id, foto_key FROM jugadores WHERE equipo_id = ?1")
+    .bind(equipoId)
+    .all<{ id: number; foto_key: string | null }>();
+  const actualesPorId = new Map(jugadoresActuales.map((j) => [j.id, j.foto_key]));
+
+  for (const j of registro.jugadores) {
+    if (j.id !== undefined && !actualesPorId.has(j.id)) {
+      return json({ error: "Alguno de los jugadores no pertenece a este equipo." }, 400);
+    }
+  }
+
+  const duplicados = await buscarDuplicadosEdicion(env.DB, registro, equipoId);
+  if (Object.keys(duplicados).length > 0) {
+    return json({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409, { "Cache-Control": "no-store" });
+  }
+
+  // Fotos nuevas: validar por tamaño/tipo/magic bytes antes de tocar R2 o D1.
+  const fotosNuevas = new Map<number, { buffer: ArrayBuffer; ext: "jpg" | "png" | "webp" }>();
+  const camposFoto: Record<string, string> = {};
+  for (let i = 0; i < registro.jugadores.length; i++) {
+    const entrada = formData.get(`foto_${i}`);
+    if (!(entrada instanceof File) || entrada.size === 0) continue;
+    const buffer = await entrada.arrayBuffer();
+    const foto = validarFoto(buffer, entrada.type, entrada.size);
+    if ("error" in foto) {
+      camposFoto[`jugadores.${i}.foto`] = foto.error;
+    } else {
+      fotosNuevas.set(i, { buffer, ext: foto.ext });
+    }
+  }
+  if (Object.keys(camposFoto).length > 0) {
+    return json({ error: "Revisa los campos marcados.", campos: camposFoto }, 400);
+  }
+  if (fotosNuevas.size > 0 && !env.FOTOS) {
+    return json({ error: "No se han podido guardar las fotos." }, 500);
+  }
+
+  // Subida de fotos nuevas a R2 (antes del batch de D1, igual que en equipos.ts).
+  const clavesNuevas: string[] = [];
+  const clavePorIndice = new Map<number, string>();
+  if (env.FOTOS) {
+    const lote = crypto.randomUUID();
+    try {
+      for (const [i, foto] of fotosNuevas) {
+        const key = `equipos/${lote}/jugador-${i + 1}.${foto.ext}`;
+        await env.FOTOS.put(key, foto.buffer, { httpMetadata: { contentType: CONTENT_TYPE_POR_EXT[foto.ext] } });
+        clavesNuevas.push(key);
+        clavePorIndice.set(i, key);
+      }
+    } catch (err) {
+      console.error("Error subiendo foto a R2 desde admin:", err);
+      await limpiarFotos(env.FOTOS, clavesNuevas);
+      return json({ error: "No se han podido guardar las fotos." }, 500);
+    }
+  }
+
+  // Diff: jugadores actuales cuyo id no viene en el payload se borran.
+  const idsEnviados = new Set(registro.jugadores.filter((j) => j.id !== undefined).map((j) => j.id as number));
+  const idsABorrar = jugadoresActuales.filter((j) => !idsEnviados.has(j.id)).map((j) => j.id);
+  const clavesABorrar: string[] = jugadoresActuales
+    .filter((j) => idsABorrar.includes(j.id) && j.foto_key)
+    .map((j) => j.foto_key as string);
+
+  const statements = [
+    env.DB
+      .prepare("UPDATE equipos SET nombre = ?1, nombre_normalizado = ?2 WHERE id = ?3")
+      .bind(registro.equipo, registro.equipoNormalizado, equipoId)
+  ];
+
+  if (idsABorrar.length > 0) {
+    statements.push(
+      env.DB.prepare(`DELETE FROM jugadores WHERE id IN (${idsABorrar.map(() => "?").join(",")})`).bind(...idsABorrar)
+    );
+  }
+
+  registro.jugadores.forEach((j, i) => {
+    const esSuplente = i >= 2 ? 1 : 0;
+    const orden = i + 1;
+    const fotoNueva = clavePorIndice.get(i);
+
+    if (j.id !== undefined) {
+      const fotoActual = actualesPorId.get(j.id) ?? null;
+      let fotoKey: string | null;
+      if (fotoNueva) {
+        fotoKey = fotoNueva;
+        if (fotoActual) clavesABorrar.push(fotoActual);
+      } else if (j.eliminarFoto) {
+        fotoKey = null;
+        if (fotoActual) clavesABorrar.push(fotoActual);
+      } else {
+        fotoKey = fotoActual;
+      }
+      statements.push(
+        env.DB
+          .prepare(
+            `UPDATE jugadores SET nombre = ?1, apellidos = ?2, nombre_completo_normalizado = ?3,
+               telefono = ?4, telefono_normalizado = ?5, email = ?6, email_normalizado = ?7,
+               red_social = ?8, foto_key = ?9, es_suplente = ?10, orden = ?11
+             WHERE id = ?12`
+          )
+          .bind(
+            j.nombre,
+            j.apellidos,
+            j.nombreCompletoNormalizado,
+            j.telefono,
+            j.telefonoNormalizado,
+            j.email,
+            j.emailNormalizado,
+            j.redSocial,
+            fotoKey,
+            esSuplente,
+            orden,
+            j.id
+          )
+      );
+    } else {
+      statements.push(
+        env.DB
+          .prepare(
+            `INSERT INTO jugadores (
+               equipo_id, nombre, apellidos, nombre_completo_normalizado,
+               telefono, telefono_normalizado, email, email_normalizado,
+               red_social, foto_key, es_suplente, orden
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`
+          )
+          .bind(
+            equipoId,
+            j.nombre,
+            j.apellidos,
+            j.nombreCompletoNormalizado,
+            j.telefono,
+            j.telefonoNormalizado,
+            j.email,
+            j.emailNormalizado,
+            j.redSocial,
+            fotoNueva ?? null,
+            esSuplente,
+            orden
+          )
+      );
+    }
+  });
+
+  try {
+    await env.DB.batch(statements);
+  } catch (err) {
+    await limpiarFotos(env.FOTOS, clavesNuevas);
+    const conflicto = mapearConflictoUnicoEdicion(err);
+    if (conflicto) {
+      return json({ error: "Hay datos que ya están registrados.", campos: conflicto }, 409, { "Cache-Control": "no-store" });
+    }
+    console.error("Error actualizando equipo desde panel admin:", err);
+    return json({ error: "No se ha podido guardar el equipo." }, 500, { "Cache-Control": "no-store" });
+  }
+
+  await limpiarFotos(env.FOTOS, clavesABorrar);
+
+  const equipo = await cargarEquipoConJugadores(env.DB, equipoId);
+  return json({ ok: true, equipo }, 200, { "Cache-Control": "no-store" });
 };
 
 async function cargarEquipos(db: D1Database) {
@@ -258,6 +518,48 @@ async function cargarCamisetas(db: D1Database) {
     )
     .all<CamisetaRow>();
   return results;
+}
+
+async function cargarEquipoConJugadores(db: D1Database, equipoId: number) {
+  const equipo = await db
+    .prepare(
+      `SELECT e.id, e.nombre, e.created_at, u.email AS owner_email, u.nombre AS owner_name
+       FROM equipos e
+       LEFT JOIN usuarios u ON u.id = e.owner_user_id
+       WHERE e.id = ?1`
+    )
+    .bind(equipoId)
+    .first<{ id: number; nombre: string; created_at: string; owner_email: string | null; owner_name: string | null }>();
+  if (!equipo) return null;
+
+  const { results: jugadores } = await db
+    .prepare(
+      `SELECT id, equipo_id, nombre, apellidos, telefono, email, red_social, foto_key, es_suplente, orden
+       FROM jugadores WHERE equipo_id = ?1 ORDER BY orden ASC, id ASC`
+    )
+    .bind(equipoId)
+    .all<JugadorRow>();
+
+  return {
+    id: equipo.id,
+    nombre: equipo.nombre,
+    createdAt: equipo.created_at,
+    ownerEmail: equipo.owner_email,
+    ownerName: equipo.owner_name,
+    jugadores: jugadores.map(mapJugador),
+    jugadoresTotal: jugadores.length
+  };
+}
+
+async function limpiarFotos(bucket: R2Bucket | undefined, claves: string[]): Promise<void> {
+  if (!bucket) return;
+  for (const key of claves) {
+    try {
+      await bucket.delete(key);
+    } catch {
+      // Borrado best-effort: si falla queda un objeto huérfano inofensivo.
+    }
+  }
 }
 
 function mapJugador(jugador: JugadorRow) {
@@ -331,12 +633,233 @@ async function borrarEquipo(env: Env, equipoId: number): Promise<boolean> {
   ]);
 
   if (!env.FOTOS) return true;
-  for (const item of results) {
-    try {
-      await env.FOTOS.delete(item.foto_key);
-    } catch {
-      // Borrado best-effort: el registro ya está fuera de D1.
+  await limpiarFotos(env.FOTOS, results.map((item) => item.foto_key));
+  return true;
+}
+
+async function servirFotoJugador(env: Env, jugadorIdRaw: string | null): Promise<Response> {
+  const jugadorId = Number(jugadorIdRaw);
+  const noEncontrada = json({ error: "Foto no encontrada." }, 404, { "Cache-Control": "no-store" });
+  if (!Number.isInteger(jugadorId) || jugadorId <= 0 || !env.FOTOS) {
+    return noEncontrada;
+  }
+
+  const jugador = await env.DB
+    .prepare("SELECT foto_key FROM jugadores WHERE id = ?1")
+    .bind(jugadorId)
+    .first<{ foto_key: string | null }>();
+  if (!jugador?.foto_key) {
+    return noEncontrada;
+  }
+
+  const objeto = await env.FOTOS.get(jugador.foto_key);
+  if (!objeto) {
+    return noEncontrada;
+  }
+
+  return new Response(objeto.body, {
+    status: 200,
+    headers: {
+      "Content-Type": objeto.httpMetadata?.contentType || "application/octet-stream",
+      "Cache-Control": "no-store"
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Ediciones y resultados (Fase 3): ciclo de vida de las ediciones y puesto
+// final de cada equipo, que es lo que alimenta el palmarés de la ficha.
+// ---------------------------------------------------------------------------
+
+interface EdicionPanelRow {
+  id: number;
+  anio: number;
+  nombre: string;
+  estado: string;
+  es_actual: number;
+  equipos: number;
+}
+
+interface EquipoPuestoRow {
+  id: number;
+  nombre: string;
+  edicion_id: number | null;
+  posicion_final: number | null;
+  edicion_anio: number | null;
+}
+
+async function cargarPanelEdiciones(db: D1Database): Promise<Response> {
+  const [ediciones, equipos] = await Promise.all([
+    db
+      .prepare(
+        `SELECT ed.id, ed.anio, ed.nombre, ed.estado, ed.es_actual,
+                (SELECT COUNT(*) FROM equipos e WHERE e.edicion_id = ed.id) AS equipos
+         FROM ediciones ed
+         ORDER BY ed.anio DESC, ed.id DESC`
+      )
+      .all<EdicionPanelRow>(),
+    db
+      .prepare(
+        `SELECT e.id, e.nombre, e.edicion_id, e.posicion_final, ed.anio AS edicion_anio
+         FROM equipos e
+         LEFT JOIN ediciones ed ON ed.id = e.edicion_id
+         ORDER BY (e.posicion_final IS NULL) ASC, e.posicion_final ASC, e.nombre COLLATE NOCASE ASC`
+      )
+      .all<EquipoPuestoRow>()
+  ]);
+
+  return json(
+    {
+      ediciones: ediciones.results.map((e) => ({
+        id: e.id,
+        anio: e.anio,
+        nombre: e.nombre,
+        estado: e.estado,
+        esActual: e.es_actual === 1,
+        equipos: e.equipos
+      })),
+      equipos: equipos.results.map((e) => ({
+        id: e.id,
+        nombre: e.nombre,
+        edicionId: e.edicion_id,
+        edicionAnio: e.edicion_anio,
+        posicionFinal: e.posicion_final
+      }))
+    },
+    200,
+    { "Cache-Control": "no-store" }
+  );
+}
+
+async function crearEdicion(db: D1Database, raw: unknown): Promise<Response> {
+  const body = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const campos: Record<string, string> = {};
+
+  const anio = Number(body.anio);
+  if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+    campos.anio = "Indica un año entre 2000 y 2100.";
+  }
+  const nombre = limpiar(typeof body.nombre === "string" ? body.nombre : "");
+  if (nombre.length < 2 || nombre.length > 60) {
+    campos.nombre = "El nombre debe tener entre 2 y 60 caracteres.";
+  }
+  if (Object.keys(campos).length > 0) {
+    return json({ error: "Revisa los campos marcados.", campos }, 400, { "Cache-Control": "no-store" });
+  }
+
+  const existe = await db.prepare("SELECT 1 FROM ediciones WHERE anio = ?1").bind(anio).first();
+  if (existe) {
+    return json(
+      { error: "Ya hay una edición con ese año.", campos: { anio: "Ya existe una edición de ese año." } },
+      409,
+      { "Cache-Control": "no-store" }
+    );
+  }
+
+  await db
+    .prepare("INSERT INTO ediciones (anio, nombre, estado, es_actual) VALUES (?1, ?2, 'proxima', 0)")
+    .bind(anio, nombre)
+    .run();
+  return cargarPanelEdiciones(db);
+}
+
+async function actualizarEdicion(db: D1Database, id: number, raw: unknown): Promise<Response> {
+  const edicion = await db
+    .prepare("SELECT id, es_actual FROM ediciones WHERE id = ?1")
+    .bind(id)
+    .first<{ id: number; es_actual: number }>();
+  if (!edicion) {
+    return json({ error: "Esa edición ya no existe." }, 404, { "Cache-Control": "no-store" });
+  }
+
+  const body = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const campos: Record<string, string> = {};
+  const sets: string[] = [];
+  const binds: (string | number)[] = [];
+
+  if (body.nombre !== undefined) {
+    const nombre = limpiar(typeof body.nombre === "string" ? body.nombre : "");
+    if (nombre.length < 2 || nombre.length > 60) campos.nombre = "El nombre debe tener entre 2 y 60 caracteres.";
+    else {
+      sets.push(`nombre = ?${binds.length + 1}`);
+      binds.push(nombre);
     }
   }
-  return true;
+  if (body.estado !== undefined) {
+    const estado = String(body.estado);
+    if (!ESTADOS_EDICION.has(estado)) campos.estado = "Estado no válido.";
+    else {
+      sets.push(`estado = ?${binds.length + 1}`);
+      binds.push(estado);
+    }
+  }
+  if (Object.keys(campos).length > 0) {
+    return json({ error: "Revisa los campos marcados.", campos }, 400, { "Cache-Control": "no-store" });
+  }
+
+  const statements: D1PreparedStatement[] = [];
+  if (sets.length > 0) {
+    binds.push(id);
+    statements.push(db.prepare(`UPDATE ediciones SET ${sets.join(", ")} WHERE id = ?${binds.length}`).bind(...binds));
+  }
+  // Marcar como actual: solo puede haber una (índice UNIQUE parcial). Se limpian
+  // primero las demás y luego se marca esta, en ese orden dentro del batch.
+  if (body.esActual === true && edicion.es_actual !== 1) {
+    statements.push(db.prepare("UPDATE ediciones SET es_actual = 0 WHERE es_actual = 1"));
+    statements.push(db.prepare("UPDATE ediciones SET es_actual = 1 WHERE id = ?1").bind(id));
+  }
+
+  if (statements.length === 0) {
+    return json({ error: "No hay cambios que guardar." }, 400, { "Cache-Control": "no-store" });
+  }
+
+  await db.batch(statements);
+  return cargarPanelEdiciones(db);
+}
+
+async function borrarEdicion(db: D1Database, id: number): Promise<Response> {
+  const edicion = await db
+    .prepare("SELECT id, es_actual FROM ediciones WHERE id = ?1")
+    .bind(id)
+    .first<{ id: number; es_actual: number }>();
+  if (!edicion) {
+    return json({ error: "Esa edición ya no existe." }, 404, { "Cache-Control": "no-store" });
+  }
+  if (edicion.es_actual === 1) {
+    return json({ error: "No puedes borrar la edición actual. Marca otra como actual primero." }, 409, {
+      "Cache-Control": "no-store"
+    });
+  }
+  const enUso = await db.prepare("SELECT 1 FROM equipos WHERE edicion_id = ?1 LIMIT 1").bind(id).first();
+  if (enUso) {
+    return json({ error: "No puedes borrar una edición con equipos vinculados." }, 409, { "Cache-Control": "no-store" });
+  }
+
+  await db.prepare("DELETE FROM ediciones WHERE id = ?1").bind(id).run();
+  return json({ ok: true }, 200, { "Cache-Control": "no-store" });
+}
+
+async function fijarPosicionFinal(db: D1Database, equipoId: number, raw: unknown): Promise<Response> {
+  const equipo = await db.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  if (!equipo) {
+    return json({ error: "Ese equipo ya no existe." }, 404, { "Cache-Control": "no-store" });
+  }
+
+  const body = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const valor = body.posicionFinal;
+  let posicion: number | null = null;
+  if (valor !== null && valor !== undefined && valor !== "") {
+    const n = Number(valor);
+    if (!Number.isInteger(n) || n < 1 || n > 99) {
+      return json(
+        { error: "El puesto debe estar entre 1 y 99.", campos: { posicionFinal: "Entre 1 y 99, o vacío." } },
+        400,
+        { "Cache-Control": "no-store" }
+      );
+    }
+    posicion = n;
+  }
+
+  await db.prepare("UPDATE equipos SET posicion_final = ?1 WHERE id = ?2").bind(posicion, equipoId).run();
+  return json({ ok: true, equipoId, posicionFinal: posicion }, 200, { "Cache-Control": "no-store" });
 }

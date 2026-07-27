@@ -2742,6 +2742,7 @@ html.js .reveal.in-view {
   color: #8c2a18;
 }
 
+
 /* ------------------------------ mi zona: ficha ----------------------------- */
 
 /* "Mi zona" es una ficha de jugador tipo cromo coleccionable: foto enmarcada,
@@ -3254,6 +3255,406 @@ html.js .reveal.in-view {
 
   .historial-titulos {
     margin-right: 0;
+  }
+}
+
+
+.admin-photo-thumb {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--foam);
+  flex-shrink: 0;
+}
+
+.admin-photo-thumb.is-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(16, 21, 22, 0.08),
+    rgba(16, 21, 22, 0.08) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.admin-subitem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-edit-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+}
+
+.admin-photo-field {
+  grid-column: 1 / -1;
+}
+
+.admin-photo-label {
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.admin-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.admin-photo-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-photo-upload {
+  cursor: pointer;
+  text-align: center;
+}
+
+.admin-photo-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.admin-player-order {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-player-order button {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-player-order button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-diff {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(231, 218, 181, 0.35);
+}
+
+.admin-diff h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--deep);
+}
+
+.admin-diff ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+}
+
+/* --------------------- admin: ediciones y resultados ----------------------- */
+
+/* Panel de Fase 3: a la izquierda el ciclo de vida de las ediciones; a la
+   derecha, los puestos de los equipos de la edición seleccionada. El puesto
+   1/2/3 se tiñe con las mismas medallas (oro/plata/bronce) que el palmarés de
+   la ficha, para que "resultado en admin" y "medalla en el cromo" se lean como
+   lo mismo. */
+
+.ediciones-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  margin-top: 6px;
+}
+
+.ediciones-col {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.ediciones-subtitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--deep);
+}
+
+.ediciones-hint {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.ediciones-list {
+  display: grid;
+  gap: 10px;
+}
+
+.edicion-item {
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  overflow: hidden;
+}
+
+.edicion-item.is-actual {
+  background: linear-gradient(160deg, rgba(198, 226, 92, 0.28), var(--foam));
+}
+
+.edicion-item.is-selected {
+  box-shadow: 3px 3px 0 var(--coral);
+  border-color: var(--coral);
+}
+
+.edicion-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+
+.edicion-anio {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--sea);
+}
+
+.edicion-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.edicion-nombre {
+  font-size: 0.98rem;
+  color: var(--deep);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edicion-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.edicion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.edicion-estado,
+.edicion-actual-chip {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  white-space: nowrap;
+}
+
+.edicion-estado--proxima {
+  background: #e7edf2;
+  color: #33566b;
+}
+
+.edicion-estado--en_juego {
+  background: var(--lime);
+  color: #24371a;
+}
+
+.edicion-estado--finalizada {
+  background: var(--dune);
+  color: #5a4a2b;
+}
+
+.edicion-actual-chip {
+  background: var(--coral);
+  color: #fff;
+}
+
+.edicion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 14px 12px;
+}
+
+.edicion-estado-select {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.edicion-actual-btn {
+  padding-block: 6px;
+}
+
+.edicion-borrar {
+  margin-left: auto;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.edicion-nueva {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 2px dashed var(--ink);
+  border-radius: 12px;
+  background: rgba(231, 218, 181, 0.28);
+}
+
+.edicion-nueva-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 10px;
+}
+
+.edicion-nueva .add-player {
+  justify-self: start;
+}
+
+.resultados-list {
+  display: grid;
+  gap: 8px;
+}
+
+.resultado-item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.resultado-item--oro {
+  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+}
+
+.resultado-item--plata {
+  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+}
+
+.resultado-item--bronce {
+  background: linear-gradient(160deg, #f2c79b, #d98f52);
+}
+
+.resultado-rango {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  text-align: center;
+  color: var(--deep);
+}
+
+.resultado-nombre {
+  font-weight: 800;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resultado-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resultado-control-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.resultado-input {
+  width: 68px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-weight: 800;
+  text-align: center;
+  background: #fff;
+}
+
+.resultado-input:disabled {
+  opacity: 0.5;
+}
+
+@media (min-width: 901px) {
+  .ediciones-layout {
+    grid-template-columns: minmax(0, 340px) 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 560px) {
+  .edicion-head {
+    grid-template-columns: auto 1fr;
+  }
+
+  .edicion-chips {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .resultado-item {
+    grid-template-columns: 40px 1fr;
+  }
+
+  .resultado-control {
+    grid-column: 1 / -1;
+    justify-content: space-between;
   }
 }
 
