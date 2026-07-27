@@ -1,0 +1,68 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  titulo="Ediciones"
+  seccion="ediciones"
+  lede="Ciclo de vida de cada edición y puesto final de sus equipos. Solo una edición puede ser la actual."
+>
+  <span class="admin-count" slot="acciones" data-admin-contador></span>
+
+  <div class="ediciones-layout" data-admin-ediciones>
+    <section class="ediciones-col">
+      <h2 class="ediciones-subtitle">Ediciones de la Copa</h2>
+      <div class="ediciones-list" data-ediciones-list aria-live="polite"></div>
+
+      <form class="edicion-nueva" data-edicion-form novalidate>
+        <p class="ediciones-subtitle">Crear una edición nueva</p>
+        <div class="edicion-nueva-grid">
+          <div class="admin-field">
+            <label for="edicion-anio">Año</label>
+            <input
+              id="edicion-anio"
+              class="admin-input"
+              name="anio"
+              type="number"
+              min="2000"
+              max="2100"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              data-edicion-field="anio"
+            />
+            <p class="admin-field-error" data-edicion-error="anio" hidden></p>
+          </div>
+          <div class="admin-field">
+            <label for="edicion-nombre">Nombre</label>
+            <input
+              id="edicion-nombre"
+              class="admin-input"
+              name="nombre"
+              type="text"
+              maxlength="60"
+              placeholder="Copa Arena 2027"
+              autocomplete="off"
+              data-edicion-field="nombre"
+            />
+            <p class="admin-field-error" data-edicion-error="nombre" hidden></p>
+          </div>
+        </div>
+        <button type="submit" class="admin-btn admin-btn--primary" data-edicion-submit>Crear edición</button>
+      </form>
+    </section>
+
+    <section class="ediciones-col ediciones-col--wide">
+      <h2 class="ediciones-subtitle">
+        Puestos · <span data-resultados-edicion>edición actual</span>
+      </h2>
+      <p class="ediciones-hint">
+        Escribe el puesto final de cada equipo. El 1º, 2º y 3º forman el podio que aparece en la ficha de cada
+        jugador. Deja el puesto vacío mientras la edición siga en juego.
+      </p>
+      <div class="resultados-list" data-resultados-list aria-live="polite"></div>
+    </section>
+  </div>
+
+  <script is:inline slot="scripts" src="/assets/admin/ediciones.js" defer></script>
+</AdminLayout>

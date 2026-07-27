@@ -1,0 +1,420 @@
+/* ============================================================================
+   admin · armazón
+   ----------------------------------------------------------------------------
+   Barra lateral fija + área de trabajo. La barra es de color pino y no se
+   mueve: es la única pieza que persiste entre secciones, y su pie lleva
+   siempre la edición activa, porque casi toda escritura de esta base está
+   acotada a una edición y equivocarse de año estropea datos en silencio.
+   Base móvil (una columna, la barra pasa a tira horizontal); a 901px se abre
+   a dos columnas.
+   ========================================================================== */
+
+.admin-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+  color: var(--adm-ink);
+}
+
+.admin-app :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--adm-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------- barra lateral ---------------------------- */
+
+.admin-side {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, var(--adm-sidebar), var(--adm-sidebar-2));
+  color: var(--adm-on-dark);
+}
+
+.admin-side :is(a, button):focus-visible {
+  outline-color: var(--sun);
+}
+
+.admin-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Titan One aparece una sola vez en todo el panel, aquí. Es el único guiño a
+   la identidad del sitio público; el resto es Inter y monoespaciada. */
+.admin-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--adm-on-dark);
+}
+
+.admin-brand-tag {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.admin-nav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--adm-radius);
+  color: var(--adm-on-dark-dim);
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-nav-link:hover {
+  background: rgba(238, 243, 239, 0.1);
+  color: var(--adm-on-dark);
+}
+
+.admin-nav-link.is-current {
+  background: rgba(238, 243, 239, 0.16);
+  color: var(--adm-on-dark);
+  box-shadow: inset 3px 0 0 var(--lime);
+}
+
+.admin-nav-count {
+  font-family: var(--adm-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--adm-on-dark-dim);
+}
+
+.admin-side-foot {
+  display: grid;
+  gap: 10px;
+  align-content: end;
+}
+
+/* Bloque de contexto: qué edición se está tocando. Siempre visible. */
+.admin-context {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid rgba(238, 243, 239, 0.2);
+  border-radius: var(--adm-radius);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.admin-context-label {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--adm-on-dark-dim);
+}
+
+.admin-context-edicion {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-context-anio {
+  font-family: var(--adm-mono);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lime);
+}
+
+.admin-context-nombre {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--adm-on-dark-dim);
+}
+
+.admin-context-cifras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--adm-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--adm-on-dark-dim);
+}
+
+.admin-side-exit {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--adm-on-dark-dim);
+}
+
+.admin-side-exit:hover {
+  color: var(--adm-on-dark);
+  text-decoration: underline;
+}
+
+/* ------------------------------ área de trabajo --------------------------- */
+
+.admin-main {
+  display: grid;
+  align-content: start;
+  gap: var(--adm-gap);
+  min-width: 0;
+  padding: 18px 16px 64px;
+}
+
+.admin-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--adm-line);
+}
+
+.admin-title {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--adm-ink);
+}
+
+.admin-lede {
+  margin: 4px 0 0;
+  max-width: 62ch;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--adm-muted);
+}
+
+.admin-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-content {
+  display: grid;
+  align-content: start;
+  gap: var(--adm-gap);
+  min-width: 0;
+}
+
+/* --------------------------------- tarjetas ------------------------------- */
+
+.admin-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: var(--adm-pad);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+}
+
+.admin-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-card-title {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--adm-ink);
+}
+
+.admin-hint,
+.admin-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--adm-muted);
+}
+
+.admin-danger {
+  color: var(--adm-danger);
+}
+
+/* ------------------------- estados de página y avisos --------------------- */
+
+.admin-gate {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  max-width: 46rem;
+  padding: var(--adm-pad);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+}
+
+.admin-gate h2 {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.admin-alert {
+  padding: 10px 14px;
+  border: 1px solid var(--adm-danger);
+  border-left-width: 4px;
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-danger-soft);
+  color: var(--adm-danger);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.admin-alert--ok {
+  border-color: var(--adm-ok);
+  background: rgba(47, 107, 52, 0.09);
+  color: var(--adm-ok);
+}
+
+.admin-alert[hidden] {
+  display: none;
+}
+
+.admin-loading {
+  padding: 14px 0;
+  color: var(--adm-muted);
+  font-size: 0.86rem;
+}
+
+/* --------------------------------- cifras --------------------------------- */
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.admin-stat {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+}
+
+.admin-stat strong {
+  font-family: var(--adm-mono);
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--adm-ink);
+}
+
+.admin-stat span {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+a.admin-stat:hover {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent-soft);
+}
+
+/* ------------------------------ media queries ----------------------------- */
+
+@media (min-width: 901px) {
+  .admin-app {
+    grid-template-columns: var(--adm-side-w) minmax(0, 1fr);
+  }
+
+  .admin-side {
+    position: sticky;
+    top: 0;
+    align-content: start;
+    height: 100vh;
+    padding: 20px 14px;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .admin-nav {
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    overflow-x: visible;
+  }
+
+  .admin-nav-link {
+    justify-content: space-between;
+  }
+
+  .admin-main {
+    padding: 24px 28px 72px;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-side {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+  }
+
+  .admin-brand {
+    grid-row: 1;
+  }
+
+  .admin-nav {
+    grid-column: 1 / -1;
+    padding-bottom: 2px;
+  }
+
+  /* En móvil el contexto de edición se resume en una línea: sigue visible,
+     pero no roba media pantalla al listado. */
+  .admin-side-foot {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .admin-context {
+    padding: 6px 10px;
+  }
+
+  .admin-context-label,
+  .admin-context-cifras {
+    display: none;
+  }
+
+  .admin-context-anio {
+    font-size: 1rem;
+  }
+}

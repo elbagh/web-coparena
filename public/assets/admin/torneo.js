@@ -1,8 +1,20 @@
+/*
+ * /admin/torneo/ — sorteo, horarios y marcador en vivo.
+ *
+ * Se apoya en window.CopaArenaMatches (public/assets/match-utils.js), que
+ * comparte con el tablero público de la portada: reglas de set, cuadro y
+ * formatos de fecha están ahí y no se duplican aquí.
+ *
+ * Mantiene el respaldo en localStorage cuando /api/partidos no responde, que
+ * es lo que permite arbitrar sin cobertura a pie de pista.
+ */
 (() => {
   const panel = document.querySelector("[data-admin-matches]");
-  if (!panel || !window.CopaArenaMatches) return;
+  if (!panel || !window.CopaArenaMatches || !window.CopaAdmin) return;
 
   const matchesApi = window.CopaArenaMatches;
+  const { onReady, el } = window.CopaAdmin;
+
   const status = panel.querySelector("[data-admin-status]");
   const teamPool = panel.querySelector("[data-team-pool]");
   const bracket = panel.querySelector("[data-admin-bracket]");
@@ -19,12 +31,18 @@
   let draftMatches = null;
   let selectedId = null;
   let apiAvailable = true;
+  let relojIniciado = false;
 
-  async function boot() {
+  onReady(async () => {
     await Promise.all([loadTeams(), loadMatches()]);
     render();
-    window.setInterval(renderDialog, 1000);
-  }
+    if (!relojIniciado) {
+      // El marcador en vivo tiene cronómetro: se repinta cada segundo mientras
+      // el diálogo está abierto.
+      window.setInterval(renderDialog, 1000);
+      relojIniciado = true;
+    }
+  });
 
   async function loadTeams() {
     const manual = matchesApi.readManualTeams();
@@ -43,8 +61,8 @@
     } catch {
       teams = dedupeTeams(manual);
       status.textContent = teams.length
-        ? `${teams.length} equipos manuales disponibles. La API de equipos no responde en local.`
-        : "Anade equipos manualmente o activa /api/equipos para poder sortear.";
+        ? `${teams.length} equipos manuales disponibles. La API de equipos no responde.`
+        : "Añade equipos a mano o arregla /api/equipos para poder sortear.";
     }
   }
 
@@ -52,11 +70,8 @@
     try {
       matches = await matchesApi.apiGetMatches();
       const localMatches = matchesApi.readLocalMatches();
-      if (!matches.length && localMatches.length) {
-        matches = localMatches;
-      } else {
-        matchesApi.writeLocalMatches(matches);
-      }
+      if (!matches.length && localMatches.length) matches = localMatches;
+      else matchesApi.writeLocalMatches(matches);
       apiAvailable = true;
     } catch {
       matches = matchesApi.readLocalMatches();
@@ -74,28 +89,22 @@
     teamPool.textContent = "";
     const manualNames = new Set(matchesApi.readManualTeams().map((team) => normalizeName(team.name)));
     if (!teams.length) {
-      const empty = document.createElement("p");
-      empty.className = "teams-status";
-      empty.textContent = "Todavia no hay equipos cargados.";
-      teamPool.appendChild(empty);
+      teamPool.append(el("p", "admin-hint", "Todavía no hay equipos cargados."));
       return;
     }
     teams.forEach((team) => {
-      const chip = document.createElement("span");
-      chip.className = "team-chip";
-      const name = document.createElement("span");
-      name.textContent = team.name;
-      chip.appendChild(name);
+      const chip = el("span", "team-chip");
+      chip.append(el("span", "", team.name));
       if (manualNames.has(normalizeName(team.name))) {
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "team-chip-remove";
         remove.setAttribute("aria-label", `Quitar ${team.name}`);
-        remove.textContent = "x";
+        remove.textContent = "×";
         remove.addEventListener("click", () => removeManualTeam(team.name));
-        chip.appendChild(remove);
+        chip.append(remove);
       }
-      teamPool.appendChild(chip);
+      teamPool.append(chip);
     });
   }
 
@@ -104,16 +113,13 @@
     matchList.textContent = "";
     bracket.textContent = "";
     if (!visibleMatches.length) {
-      const empty = document.createElement("p");
-      empty.className = "teams-status";
-      empty.textContent = "Aun no hay emparejamientos sorteados.";
-      matchList.appendChild(empty);
+      matchList.append(el("p", "admin-hint", "Aún no hay emparejamientos sorteados."));
       bracket.hidden = true;
       return;
     }
     matchesApi.renderBracket(bracket, visibleMatches, (match) => openMatch(match.id));
     bracket.hidden = false;
-    visibleMatches.forEach((match) => matchList.appendChild(matchCard(match)));
+    visibleMatches.forEach((match) => matchList.append(matchCard(match)));
   }
 
   function renderDrawActions() {
@@ -123,44 +129,38 @@
   }
 
   function matchCard(match) {
-    const card = document.createElement("article");
-    card.className = `admin-match-card is-${match.status}`;
+    const card = el("article", `admin-match-card is-${match.status}`);
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "match-open";
     button.addEventListener("click", () => openMatch(match.id));
 
-    const meta = document.createElement("span");
-    meta.className = "match-meta";
-    meta.textContent = `${matchesApi.statusLabel(match.status)} · ${matchesApi.formatDateTime(match.scheduledAt)}`;
-
-    const title = document.createElement("strong");
-    title.textContent = `${winnerPrefix(match, "A")}${match.teams.A.name} vs ${winnerPrefix(match, "B")}${match.teams.B.name}`;
-
-    const score = document.createElement("span");
-    score.className = "match-scoreline";
-    score.textContent = `${match.sets.A}-${match.sets.B} sets · ${match.points.A}-${match.points.B}`;
-
+    const meta = el(
+      "span",
+      "match-meta",
+      `${matchesApi.statusLabel(match.status)} · ${matchesApi.formatDateTime(match.scheduledAt)}`
+    );
+    const title = el(
+      "strong",
+      "",
+      `${winnerPrefix(match, "A")}${match.teams.A.name} vs ${winnerPrefix(match, "B")}${match.teams.B.name}`
+    );
+    const score = el("span", "match-scoreline", `${match.sets.A}-${match.sets.B} sets · ${match.points.A}-${match.points.B}`);
     button.append(meta, title, score);
 
-    const field = document.createElement("label");
-    field.className = "match-time-field";
-    const label = document.createElement("span");
-    label.textContent = "Hora";
+    const field = el("label", "match-time-field");
     const input = document.createElement("input");
     input.type = "datetime-local";
     input.value = match.scheduledAt ? match.scheduledAt.slice(0, 16) : "";
     input.addEventListener("change", () => scheduleMatch(match.id, input.value));
-    field.append(label, input);
+    field.append(el("span", "", "Hora"), input);
 
     card.append(button, field);
     return card;
   }
 
-  function winnerPrefix(match, team) {
-    return match.winner === team ? "\\u2655 " : "";
-  }
+  const winnerPrefix = (match, team) => (match.winner === team ? "♕ " : "");
 
   async function persist(action) {
     if (apiAvailable) {
@@ -173,7 +173,7 @@
         return;
       } catch {
         apiAvailable = false;
-        status.textContent = "La API no responde; guardando en este navegador.";
+        status.textContent = "La API no responde; guardando solo en este navegador.";
       }
     }
     applyLocal(action);
@@ -223,33 +223,28 @@
     if (!match) return;
 
     dialogBody.textContent = "";
-    const head = document.createElement("div");
-    head.className = "match-dialog-head";
-    const statusBadge = document.createElement("span");
-    statusBadge.className = `match-status is-${match.status}`;
-    statusBadge.textContent = matchesApi.statusLabel(match.status);
-    const title = document.createElement("h2");
-    title.textContent = `${match.teams.A.name} vs ${match.teams.B.name}`;
-    const time = document.createElement("p");
-    time.textContent = matchesApi.formatDateTime(match.scheduledAt);
-    head.append(statusBadge, title, time);
 
-    const clock = document.createElement("div");
-    clock.className = "match-clock";
-    clock.textContent = matchesApi.formatClock(matchesApi.elapsed(match));
+    const head = el("div", "match-dialog-head");
+    head.append(
+      el("span", `match-status is-${match.status}`, matchesApi.statusLabel(match.status)),
+      el("h2", "", `${match.teams.A.name} vs ${match.teams.B.name}`),
+      el("p", "", matchesApi.formatDateTime(match.scheduledAt))
+    );
 
-    const board = document.createElement("div");
-    board.className = "score-board";
+    const clock = el("div", "match-clock", matchesApi.formatClock(matchesApi.elapsed(match)));
+
+    const board = el("div", "score-board");
     board.append(scoreTeam(match, "A"), scoreTeam(match, "B"));
 
-    const history = document.createElement("p");
-    history.className = "set-history";
-    history.textContent = match.history.length
-      ? `Sets cerrados: ${match.history.map((set) => `${set.a}-${set.b}`).join(" · ")}`
-      : "Set en juego. Los sets 1 y 2 van a 21; el tercero a 15. Siempre con diferencia de 2.";
+    const history = el(
+      "p",
+      "set-history",
+      match.history.length
+        ? `Sets cerrados: ${match.history.map((set) => `${set.a}-${set.b}`).join(" · ")}`
+        : "Set en juego. Los sets 1 y 2 van a 21; el tercero a 15. Siempre con diferencia de 2."
+    );
 
-    const controls = document.createElement("div");
-    controls.className = "match-controls";
+    const controls = el("div", "match-controls");
     const start = controlButton("Iniciar partido", () => persist({ action: "start", id: match.id }));
     start.disabled = match.status !== "scheduled";
     const finish = controlButton("Terminar partido", () => persist({ action: "finish", id: match.id }));
@@ -260,45 +255,42 @@
   }
 
   function scoreTeam(match, team) {
-    const wrap = document.createElement("section");
-    wrap.className = `score-team ${match.winner === team ? "is-winner" : ""}`;
-    const name = document.createElement("h3");
-    name.textContent = match.teams[team].name;
-    const points = document.createElement("strong");
-    points.textContent = match.points[team];
-    const sets = document.createElement("span");
-    sets.textContent = `${match.sets[team]} sets`;
-    const actions = document.createElement("div");
-    actions.className = "score-actions";
+    const wrap = el("section", `score-team ${match.winner === team ? "is-winner" : ""}`);
+    const actions = el("div", "score-actions");
     actions.append(
-      controlButton("-", () => persist({ action: "point", id: match.id, team, delta: -1 })),
+      controlButton("−", () => persist({ action: "point", id: match.id, team, delta: -1 })),
       controlButton("+", () => persist({ action: "point", id: match.id, team, delta: 1 }))
     );
     actions.querySelectorAll("button").forEach((button) => {
       button.disabled = match.status === "finished";
     });
-    wrap.append(name, points, sets, actions);
+
+    wrap.append(
+      el("h3", "", match.teams[team].name),
+      el("strong", "", match.points[team]),
+      el("span", "", `${match.sets[team]} sets`),
+      actions
+    );
     return wrap;
   }
 
-  function controlButton(text, onClick) {
+  function controlButton(texto, onClick) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "add-player";
-    button.textContent = text;
+    button.className = "admin-btn";
+    button.textContent = texto;
     button.addEventListener("click", onClick);
     return button;
   }
 
   async function scheduleMatch(id, value) {
+    const iso = value ? new Date(value).toISOString() : null;
     if (draftMatches) {
-      draftMatches = draftMatches.map((match) =>
-        match.id === id ? { ...match, scheduledAt: value ? new Date(value).toISOString() : null } : match
-      );
+      draftMatches = draftMatches.map((match) => (match.id === id ? { ...match, scheduledAt: iso } : match));
       render();
       return;
     }
-    await persist({ action: "schedule", id, scheduledAt: value ? new Date(value).toISOString() : null });
+    await persist({ action: "schedule", id, scheduledAt: iso });
   }
 
   function dedupeTeams(items) {
@@ -313,14 +305,11 @@
     });
   }
 
-  function normalizeName(name) {
-    return String(name || "").trim().toLocaleLowerCase("es");
-  }
+  const normalizeName = (name) => String(name || "").trim().toLocaleLowerCase("es");
 
   async function removeManualTeam(name) {
     const key = normalizeName(name);
-    const manual = matchesApi.readManualTeams().filter((team) => normalizeName(team.name) !== key);
-    matchesApi.writeManualTeams(manual);
+    matchesApi.writeManualTeams(matchesApi.readManualTeams().filter((team) => normalizeName(team.name) !== key));
     await loadTeams();
     if (draftMatches) {
       draftMatches = null;
@@ -329,28 +318,28 @@
     render();
   }
 
-  loadTeamsButton.addEventListener("click", async () => {
+  loadTeamsButton?.addEventListener("click", async () => {
     await loadTeams();
     render();
   });
 
-  drawButton.addEventListener("click", async () => {
+  drawButton?.addEventListener("click", () => {
     if (teams.length < 2) {
       status.textContent = "Necesitas al menos dos equipos para sortear.";
       return;
     }
     draftMatches = matchesApi.createDraw(teams);
-    status.textContent = "Sorteo preparado. Revisa el cuadro y pulsa Confirmar sorteo para guardarlo.";
+    status.textContent = "Sorteo preparado. Revisa el cuadro y pulsa «Confirmar sorteo» para guardarlo.";
     render();
   });
 
   confirmDrawButton?.addEventListener("click", async () => {
     if (!draftMatches?.length) return;
     await persist({ action: "draw", partidos: draftMatches });
-    status.textContent = "Sorteo confirmado. Ya aparece en Horario y marcador.";
+    status.textContent = "Sorteo confirmado. Ya aparece en la portada.";
   });
 
-  teamForm.addEventListener("submit", (event) => {
+  teamForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const input = teamForm.elements.team;
     const name = input.value.trim();
@@ -361,6 +350,4 @@
     input.value = "";
     loadTeams().then(render);
   });
-
-  boot();
 })();

@@ -1,0 +1,25 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  titulo="Resumen"
+  seccion="resumen"
+  lede="Estado de la edición activa. Cada cifra lleva a su sección."
+>
+  <div class="admin-stats" data-admin-resumen></div>
+
+  <section class="admin-card">
+    <div class="admin-card-head">
+      <h2 class="admin-card-title">Atajos</h2>
+    </div>
+    <div class="admin-toolbar">
+      <a class="admin-btn" href="/admin/equipos/">Equipos y jugadores</a>
+      <a class="admin-btn" href="/admin/camisetas/">Reservas de camiseta</a>
+      <a class="admin-btn" href="/admin/torneo/">Sorteo y marcador</a>
+      <a class="admin-btn" href="/admin/ediciones/">Ediciones y puestos</a>
+    </div>
+  </section>
+
+  <script is:inline slot="scripts" src="/assets/admin/resumen.js" defer></script>
+</AdminLayout>

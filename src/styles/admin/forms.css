@@ -1,0 +1,421 @@
+/* ============================================================================
+   admin · controles y formularios
+   ----------------------------------------------------------------------------
+   Controles compactos propios del panel (.admin-btn, .admin-input, …). El
+   editor de equipo sigue reutilizando .field / .player-card / .button de
+   global.css, que AdminLayout carga igualmente; aquí solo viven las piezas
+   que no existen en el sitio público.
+   ========================================================================== */
+
+/* --------------------------------- botones -------------------------------- */
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.admin-btn:hover:not(:disabled) {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent-soft);
+}
+
+.admin-btn:disabled,
+.admin-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-btn--primary {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent);
+  color: #fff;
+}
+
+.admin-btn--primary:hover:not(:disabled) {
+  background: var(--deep);
+  border-color: var(--deep);
+  color: #fff;
+}
+
+.admin-btn--danger {
+  border-color: var(--adm-danger);
+  color: var(--adm-danger);
+}
+
+.admin-btn--danger:hover:not(:disabled) {
+  border-color: var(--adm-danger);
+  background: var(--adm-danger-soft);
+}
+
+.admin-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--adm-muted);
+}
+
+.admin-btn--ghost:hover:not(:disabled) {
+  border-color: var(--adm-line-strong);
+  background: var(--adm-surface-alt);
+  color: var(--adm-ink);
+}
+
+.admin-btn--sm {
+  min-height: 28px;
+  padding: 3px 9px;
+  font-size: 0.78rem;
+}
+
+/* --------------------------------- campos --------------------------------- */
+
+.admin-input,
+.admin-select,
+.admin-textarea {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.admin-textarea {
+  min-height: 76px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.admin-input:focus,
+.admin-select:focus,
+.admin-textarea:focus {
+  border-color: var(--adm-accent);
+  outline: 2px solid var(--adm-accent);
+  outline-offset: -1px;
+}
+
+.admin-input[type="number"],
+.admin-input[type="datetime-local"],
+.admin-input[type="tel"] {
+  font-family: var(--adm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-input:disabled,
+.admin-select:disabled,
+.admin-textarea:disabled {
+  background: var(--adm-surface-alt);
+  color: var(--adm-faint);
+  cursor: not-allowed;
+}
+
+.admin-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-field > label,
+.admin-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+.admin-field-hint {
+  font-size: 0.76rem;
+  color: var(--adm-faint);
+}
+
+.admin-field-error {
+  min-height: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--adm-danger);
+}
+
+.admin-field.has-error .admin-input,
+.admin-field.has-error .admin-select,
+.admin-field.has-error .admin-textarea {
+  border-color: var(--adm-danger);
+}
+
+.admin-form {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.admin-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--adm-ink);
+}
+
+.admin-check input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--adm-accent);
+}
+
+/* ------------------------------ widget de foto ---------------------------- */
+
+/* Reutilizado por el editor de equipo (foto por jugador) y, desde la Fase 2,
+   por la foto de equipo. */
+
+.admin-photo-thumb {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  object-fit: cover;
+  background: var(--adm-surface-alt);
+  flex-shrink: 0;
+}
+
+.admin-photo-thumb.is-empty {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(16, 21, 22, 0.07),
+      rgba(16, 21, 22, 0.07) 5px,
+      transparent 5px,
+      transparent 10px
+    );
+}
+
+.admin-edit-photo {
+  width: 72px;
+  height: 72px;
+}
+
+.admin-subitem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-photo-field {
+  grid-column: 1 / -1;
+}
+
+.admin-photo-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+.admin-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.admin-photo-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-photo-upload {
+  cursor: pointer;
+  text-align: center;
+}
+
+.admin-photo-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--adm-muted);
+}
+
+.admin-player-order {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-player-order button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.admin-player-order button:hover:not(:disabled) {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent-soft);
+}
+
+.admin-player-order button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ------------------- editor de equipo dentro del diálogo ------------------- */
+
+/*
+ * El editor reutiliza el markup del formulario público de inscripción
+ * (.player-card, .field, .players). Esos estilos están calibrados para una
+ * página a pantalla completa —borde de 2px, sombra dura, controles de 46px— y
+ * dentro de un diálogo denso desbordan. Aquí se recomponen a la escala del
+ * panel, sin tocar global.css para no alterar /inscripcion/ ni /mi-equipo/.
+ */
+
+.admin-dialog .players {
+  gap: 10px;
+}
+
+.admin-dialog .player-card {
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface-alt);
+  box-shadow: none;
+}
+
+.admin-dialog .player-head {
+  gap: 10px;
+}
+
+.admin-dialog .player-dorsal {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  box-shadow: none;
+  font-family: var(--adm-mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.admin-dialog .player-card.is-suplente .player-dorsal {
+  background: var(--adm-surface-alt);
+  color: var(--adm-muted);
+}
+
+.admin-dialog .player-role {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.admin-dialog .admin-player-order {
+  margin-left: auto;
+}
+
+.admin-dialog .player-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 12px;
+}
+
+.admin-dialog .field {
+  gap: 4px;
+}
+
+.admin-dialog .field > label,
+.admin-dialog .field > label[data-label] {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+.admin-dialog .field input[type="text"],
+.admin-dialog .field input[type="tel"],
+.admin-dialog .field input[type="email"],
+.admin-dialog .field input[type="number"],
+.admin-dialog .field select,
+.admin-dialog .field textarea {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  box-shadow: none;
+  font-size: 0.86rem;
+}
+
+.admin-dialog .field input[type="tel"] {
+  font-family: var(--adm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dialog .field input[aria-invalid="true"],
+.admin-dialog .field select[aria-invalid="true"] {
+  border-color: var(--adm-danger);
+}
+
+.admin-dialog .field-error {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--adm-danger);
+}
+
+.admin-dialog .field-opt {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--adm-faint);
+}
+
+/* ------------------------- formulario de reserva --------------------------- */
+
+.admin-shirt-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface-alt);
+}
+
+.admin-shirt-form-actions {
+  display: flex;
+  justify-content: flex-start;
+}

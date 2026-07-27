@@ -6,6 +6,7 @@ import {
   buscarDuplicadosEdicion,
   mapearConflictoUnicoEdicion
 } from "../_lib/equipos";
+import { limpiarFotos } from "../_lib/fotos";
 import { json } from "../_lib/http";
 import { validarRegistro, type RegistroValidado } from "../_lib/validacion";
 
@@ -193,15 +194,4 @@ async function fotosDeEquipo(db: D1Database, equipoId: number): Promise<string[]
     .bind(equipoId)
     .all<{ foto_key: string }>();
   return results.map((item) => item.foto_key);
-}
-
-async function limpiarFotos(bucket: R2Bucket | undefined, claves: string[]): Promise<void> {
-  if (!bucket) return;
-  for (const key of claves) {
-    try {
-      await bucket.delete(key);
-    } catch {
-      // Borrado best-effort: el registro ya se ha actualizado.
-    }
-  }
 }
