@@ -2,6 +2,8 @@
 # Workers Builds:
 #   Build command: npm run build
 #   Deploy command: npm run deploy:worker
+#   (deploy:worker runs "predeploy:worker" first, which applies pending D1
+#   migrations to production via `npm run db:migrate` before the code ships)
 #
 # CLI deploy, if needed:
 #   npm run deploy
