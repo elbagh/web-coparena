@@ -48,6 +48,14 @@
     const body = document.createElement("div");
     body.className = "team-body";
 
+    const header = document.createElement("div");
+    header.className = "team-header";
+
+    const badge = document.createElement("span");
+    badge.className = "team-badge";
+    badge.setAttribute("aria-hidden", "true");
+    badge.textContent = String(indice + 1);
+
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "team-toggle";
@@ -82,7 +90,8 @@
       jugadoresList.hidden = expandido;
     });
 
-    body.append(toggle, jugadoresList);
+    header.append(badge, toggle);
+    body.append(header, jugadoresList);
     item.appendChild(body);
     return item;
   }

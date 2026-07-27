@@ -2359,28 +2359,36 @@ html.js .reveal.in-view {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: block;
-  column-count: 2;
-  column-gap: 14px;
-  counter-reset: equipo;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .teams-list > li {
-  counter-increment: equipo;
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
   padding: 14px 18px;
-  margin-bottom: 14px;
   border: 2px solid var(--ink);
   border-radius: 8px;
   background: var(--foam);
   box-shadow: 4px 4px 0 var(--ink);
-  break-inside: avoid;
 }
 
-.teams-list > li::before {
-  content: counter(equipo);
+.team-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.team-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.team-badge {
   display: grid;
   place-items: center;
   flex: none;
@@ -2395,18 +2403,12 @@ html.js .reveal.in-view {
   font-size: 1.15rem;
 }
 
-.team-body {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 10px;
-}
-
 .team-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 40px;
   padding: 0;
   border: none;
@@ -4058,7 +4060,7 @@ html.js .reveal.in-view {
     padding: 12px 15px;
   }
 
-  .teams-list > li::before {
+  .team-badge {
     min-width: 34px;
     height: 34px;
     font-size: 1rem;
@@ -4145,7 +4147,7 @@ html.js .reveal.in-view {
   }
 
   .teams-list {
-    column-count: 1;
+    grid-template-columns: 1fr;
   }
 
   .shirt-product {
