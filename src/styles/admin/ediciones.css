@@ -1,0 +1,284 @@
+/* ============================================================================
+   admin · ediciones y resultados
+   ----------------------------------------------------------------------------
+   A la izquierda el ciclo de vida de las ediciones; a la derecha, los puestos
+   de los equipos de la edición seleccionada. El puesto 1/2/3 se tiñe con las
+   mismas medallas (oro/plata/bronce) que el palmarés del cromo público, para
+   que "resultado en el panel" y "medalla en la ficha" se lean como lo mismo.
+   Los nombres de clase se conservan tal cual estaban en global.css: el JS de
+   la sección no cambia.
+   ========================================================================== */
+
+.ediciones-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--adm-gap);
+  align-items: start;
+}
+
+.ediciones-col {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.ediciones-subtitle {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--adm-ink);
+}
+
+.ediciones-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--adm-muted);
+}
+
+.ediciones-list {
+  display: grid;
+  gap: 8px;
+}
+
+.edicion-item {
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+  overflow: hidden;
+}
+
+.edicion-item.is-actual {
+  border-color: var(--adm-accent);
+}
+
+.edicion-item.is-selected {
+  box-shadow: inset 3px 0 0 var(--adm-accent);
+}
+
+.edicion-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--adm-ink);
+}
+
+.edicion-head:hover {
+  background: var(--adm-accent-soft);
+}
+
+.edicion-anio {
+  font-family: var(--adm-mono);
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--adm-accent);
+}
+
+.edicion-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.edicion-nombre {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--adm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edicion-sub {
+  font-size: 0.76rem;
+  color: var(--adm-muted);
+}
+
+.edicion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.edicion-estado,
+.edicion-actual-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.edicion-estado--proxima {
+  background: #eaeff3;
+  color: #33566b;
+}
+
+.edicion-estado--en_juego {
+  border-color: var(--adm-ok);
+  background: rgba(47, 107, 52, 0.12);
+  color: var(--adm-ok);
+}
+
+.edicion-estado--finalizada {
+  background: var(--adm-surface-alt);
+  color: var(--adm-muted);
+}
+
+.edicion-actual-chip {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent);
+  color: #fff;
+}
+
+.edicion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 0 12px 10px;
+}
+
+.edicion-borrar {
+  margin-left: auto;
+}
+
+.edicion-nueva {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--adm-line-strong);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface-alt);
+}
+
+.edicion-nueva-grid {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+}
+
+/* --------------------------------- puestos -------------------------------- */
+
+.resultados-list {
+  display: grid;
+  gap: 6px;
+}
+
+.resultado-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+}
+
+.resultado-item--oro {
+  border-color: #d9ac2c;
+  background: linear-gradient(100deg, rgba(255, 217, 93, 0.42), var(--adm-surface) 65%);
+}
+
+.resultado-item--plata {
+  border-color: #a9b2b9;
+  background: linear-gradient(100deg, rgba(199, 208, 214, 0.5), var(--adm-surface) 65%);
+}
+
+.resultado-item--bronce {
+  border-color: #bd7c40;
+  background: linear-gradient(100deg, rgba(217, 143, 82, 0.36), var(--adm-surface) 65%);
+}
+
+.resultado-rango {
+  font-family: var(--adm-mono);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+  color: var(--adm-ink);
+}
+
+.resultado-nombre {
+  font-weight: 700;
+  color: var(--adm-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultado-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resultado-control-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+.resultado-input {
+  width: 64px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface);
+  font: inherit;
+  font-family: var(--adm-mono);
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
+.resultado-input:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------ media queries ----------------------------- */
+
+@media (min-width: 901px) {
+  .ediciones-layout {
+    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .edicion-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .edicion-chips {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .resultado-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .resultado-control {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+}

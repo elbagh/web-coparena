@@ -1,0 +1,82 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { camisetas } from "../../data/event";
+---
+
+<AdminLayout
+  titulo="Camisetas"
+  seccion="camisetas"
+  lede="Reservas de camiseta de todas las cuentas. Las que crees aquí quedan a tu nombre."
+>
+  <span class="admin-count" slot="acciones" data-admin-contador></span>
+
+  <section class="admin-card">
+    <div class="admin-card-head">
+      <h2 class="admin-card-title">Añadir una reserva</h2>
+      <p class="admin-hint">Para apuntar a alguien que no la ha reservado desde su cuenta.</p>
+    </div>
+
+    <form class="admin-form" data-admin-shirt-form novalidate>
+      <p class="admin-alert" role="alert" data-admin-shirt-banner hidden></p>
+
+      <div class="admin-form-grid">
+        <div class="admin-field">
+          <label for="shirt-nombre">Nombre de quien la recoge</label>
+          <input
+            id="shirt-nombre"
+            class="admin-input"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            data-admin-shirt-field="nombre"
+          />
+          <p class="admin-field-error" data-admin-shirt-error="nombre" hidden></p>
+        </div>
+
+        <div class="admin-field">
+          <label for="shirt-talla">Talla</label>
+          <select id="shirt-talla" class="admin-select" data-admin-shirt-field="talla">
+            <option value="">Elige una talla</option>
+            {camisetas.tallas.map((talla) => <option value={talla}>{talla}</option>)}
+          </select>
+          <p class="admin-field-error" data-admin-shirt-error="talla" hidden></p>
+        </div>
+
+        <div class="admin-field">
+          <label for="shirt-cantidad">Unidades</label>
+          <input
+            id="shirt-cantidad"
+            class="admin-input"
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            value="1"
+            inputmode="numeric"
+            data-admin-shirt-field="cantidad"
+          />
+          <p class="admin-field-error" data-admin-shirt-error="cantidad" hidden></p>
+        </div>
+      </div>
+
+      <div class="admin-field">
+        <label for="shirt-notas">Notas <span class="admin-field-hint">(opcional)</span></label>
+        <textarea
+          id="shirt-notas"
+          class="admin-textarea"
+          maxlength="240"
+          data-admin-shirt-field="notas"
+        ></textarea>
+        <p class="admin-field-error" data-admin-shirt-error="notas" hidden></p>
+      </div>
+
+      <div class="admin-form-actions">
+        <button type="submit" class="admin-btn admin-btn--primary" data-admin-shirt-submit>Añadir reserva</button>
+      </div>
+    </form>
+  </section>
+
+  <div data-admin-camisetas></div>
+
+  <script is:inline slot="scripts" src="/assets/admin/camisetas.js" defer></script>
+</AdminLayout>

@@ -1,0 +1,291 @@
+/* ============================================================================
+   admin · tablas de datos
+   ----------------------------------------------------------------------------
+   Todo el panel lee igual: barra de filtros, tabla densa, estado vacío. Las
+   columnas de datos duros (id, teléfono, fecha, marcador, talla) llevan
+   .is-num y se componen en monoespaciada con cifras tabulares para que
+   alineen en vertical y el ojo pueda comparar filas de un vistazo.
+   Por debajo de 720px la tabla se rompe en fichas apiladas: cada celda usa su
+   data-label como etiqueta, así que el markup no cambia.
+   ========================================================================== */
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-toolbar-sep {
+  flex: 1 1 auto;
+}
+
+.admin-search {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 340px;
+}
+
+.admin-count {
+  font-family: var(--adm-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--adm-muted);
+  white-space: nowrap;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: var(--adm-row-pad);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--adm-line-strong);
+  background: var(--adm-surface-alt);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+  white-space: nowrap;
+}
+
+.admin-table tbody tr {
+  border-top: 1px solid var(--adm-line);
+}
+
+.admin-table tbody tr:hover {
+  background: var(--adm-accent-soft);
+}
+
+.admin-table tbody tr.is-selected {
+  background: var(--adm-accent-soft);
+  box-shadow: inset 3px 0 0 var(--adm-accent);
+}
+
+.admin-table .is-num {
+  font-family: var(--adm-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-table .is-shrink {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.admin-table .is-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-table .is-strong {
+  font-weight: 700;
+}
+
+/* Celdas largas (nombres de equipo, notas, correos) no deben empujar la tabla
+   a un scroll horizontal eterno. */
+.admin-table .is-clip {
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-table a {
+  color: var(--adm-accent);
+  font-weight: 700;
+}
+
+.admin-table a:hover {
+  text-decoration: underline;
+}
+
+.admin-row-actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* --------------------------------- etiquetas ------------------------------ */
+
+.admin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-tag--ok {
+  border-color: var(--adm-ok);
+  background: rgba(47, 107, 52, 0.1);
+  color: var(--adm-ok);
+}
+
+.admin-tag--warn {
+  border-color: var(--adm-warn);
+  background: rgba(138, 106, 18, 0.12);
+  color: var(--adm-warn);
+}
+
+.admin-tag--info {
+  border-color: var(--adm-accent);
+  background: var(--adm-accent-soft);
+  color: var(--deep);
+}
+
+.admin-tag--mute {
+  color: var(--adm-muted);
+}
+
+/* -------------------------------- miniaturas ------------------------------ */
+
+.admin-thumb {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--adm-line-strong);
+  border-radius: var(--adm-radius-sm);
+  background: var(--adm-surface-alt);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-thumb.is-empty {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(16, 21, 22, 0.07),
+      rgba(16, 21, 22, 0.07) 5px,
+      transparent 5px,
+      transparent 10px
+    );
+}
+
+.admin-cell-media {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* ------------------------------ estados vacíos ---------------------------- */
+
+.admin-empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 28px 20px;
+  color: var(--adm-muted);
+  font-size: 0.88rem;
+}
+
+.admin-empty strong {
+  color: var(--adm-ink);
+  font-size: 0.95rem;
+}
+
+/* ------------------------------ media queries ----------------------------- */
+
+@media (max-width: 720px) {
+  .admin-table-wrap {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .admin-table,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-table tbody tr {
+    margin-bottom: 10px;
+    border: 1px solid var(--adm-line);
+    border-radius: var(--adm-radius);
+    background: var(--adm-surface);
+  }
+
+  .admin-table tbody tr:hover {
+    background: var(--adm-surface);
+  }
+
+  .admin-table td {
+    display: grid;
+    grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 12px;
+  }
+
+  .admin-table td + td {
+    border-top: 1px solid var(--adm-line);
+  }
+
+  .admin-table td::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--adm-muted);
+  }
+
+  .admin-table td:empty {
+    display: none;
+  }
+
+  .admin-table .is-clip {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-table .is-actions,
+  .admin-table .is-shrink {
+    width: auto;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .admin-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

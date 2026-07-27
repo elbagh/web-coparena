@@ -1,0 +1,19 @@
+/* ============================================================================
+   admin · hoja de entrada
+   ----------------------------------------------------------------------------
+   Único punto de importación del CSS del panel, cargado por AdminLayout justo
+   después de global.css (de donde salen :root, el reset y la tipografía).
+
+   El panel es noindex y solo lo ve el administrador: su CSS denso de tablas no
+   se sirve al visitante público, y por eso vive fuera de global.css. El orden
+   importa: tokens primero, y las secciones concretas al final para que puedan
+   apoyarse en las piezas genéricas.
+   ========================================================================== */
+
+@import "./tokens.css";
+@import "./layout.css";
+@import "./tables.css";
+@import "./forms.css";
+@import "./dialog.css";
+@import "./ediciones.css";
+@import "./torneo.css";

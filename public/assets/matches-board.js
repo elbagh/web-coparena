@@ -71,7 +71,7 @@
   }
 
   function winnerPrefix(match, team) {
-    return match.winner === team ? "\\u2655 " : "";
+    return match.winner === team ? "♕ " : "";
   }
 
   load();

@@ -5,6 +5,7 @@ import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
 import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
+import { limpiarFotos, subirFoto, type ExtensionFoto } from "../_lib/fotos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
@@ -24,12 +25,6 @@ interface Env {
 
 const ERROR_500 =
   "Algo ha fallado al guardar la inscripción. Inténtalo de nuevo en un momento o escríbenos a copa.arena.2000@gmail.com.";
-
-const CONTENT_TYPE_POR_EXT: Record<string, string> = {
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp"
-};
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const user = await requireUser(request, env);
@@ -83,7 +78,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // Fotos: validación por tamaño, content-type y magic bytes.
-  const fotos = new Map<number, { buffer: ArrayBuffer; ext: string }>();
+  const fotos = new Map<number, { buffer: ArrayBuffer; ext: ExtensionFoto }>();
   const camposFoto: Record<string, string> = {};
   for (let i = 0; i < registro.jugadores.length; i++) {
     const entrada = formData.get(`foto_${i}`);
@@ -113,9 +108,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     for (const [i, foto] of fotos) {
       const key = `equipos/${lote}/jugador-${i + 1}.${foto.ext}`;
-      await env.FOTOS.put(key, foto.buffer, {
-        httpMetadata: { contentType: CONTENT_TYPE_POR_EXT[foto.ext] }
-      });
+      await subirFoto(env.FOTOS, key, foto.buffer, foto.ext);
       claves.push(key);
       fotoKeys.set(i, key);
     }
@@ -335,14 +328,4 @@ function mapearErrorEsquema(err: unknown): string | null {
     return "La base de datos no esta actualizada: falta equipos.owner_user_id. Aplica la migracion 0003_auth_usuarios.sql.";
   }
   return null;
-}
-
-async function limpiarFotos(bucket: R2Bucket, claves: string[]): Promise<void> {
-  for (const key of claves) {
-    try {
-      await bucket.delete(key);
-    } catch {
-      // Borrado best-effort: si falla queda un objeto huérfano inofensivo.
-    }
-  }
 }

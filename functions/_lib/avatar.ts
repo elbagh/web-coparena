@@ -4,18 +4,12 @@
 // siembra copiando la foto que el usuario subio al inscribirse, si la hay.
 
 import type { UsuarioSesion } from "./auth";
+import { contentTypePorClave } from "./fotos";
 import { normalizarEmail } from "./validacion";
 
-const CONTENT_TYPE_POR_EXT: Record<string, string> = {
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp"
-};
-
-export function contentTypePorClave(key: string): string {
-  const ext = key.split(".").pop()?.toLowerCase() ?? "";
-  return CONTENT_TYPE_POR_EXT[ext] ?? "application/octet-stream";
-}
+// Se reexporta para no romper a quien ya lo importaba desde aquí; la
+// implementación vive en _lib/fotos.ts junto al resto de helpers de R2.
+export { contentTypePorClave };
 
 export async function upsertAvatarKey(db: D1Database, usuarioId: number, key: string | null): Promise<void> {
   await db
