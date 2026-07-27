@@ -125,6 +125,55 @@ import SiteFooter from "../components/SiteFooter.astro";
           </form>
           <div class="admin-list" data-admin-shirts></div>
         </article>
+
+        <article class="teams-panel admin-panel admin-panel-wide" data-admin-ediciones hidden>
+          <div class="admin-panel-head">
+            <div>
+              <p class="eyebrow">Ediciones</p>
+              <h2>Ediciones y resultados</h2>
+              <p data-ediciones-status>Cargando ediciones...</p>
+            </div>
+          </div>
+
+          <div class="form-banner" role="alert" data-ediciones-error hidden></div>
+
+          <div class="ediciones-layout">
+            <section class="ediciones-col">
+              <h3 class="ediciones-subtitle">Ediciones de la Copa</h3>
+              <div class="ediciones-list" data-ediciones-list aria-live="polite"></div>
+
+              <form class="edicion-nueva" data-edicion-form novalidate>
+                <p class="ediciones-subtitle">Crear una edición nueva</p>
+                <div class="edicion-nueva-grid">
+                  <div class="field">
+                    <label for="edicion-anio">Año</label>
+                    <input id="edicion-anio" name="anio" type="number" min="2000" max="2100" step="1"
+                      inputmode="numeric" autocomplete="off" data-edicion-field="anio" />
+                    <p class="field-error" data-edicion-error="anio" hidden></p>
+                  </div>
+                  <div class="field">
+                    <label for="edicion-nombre">Nombre</label>
+                    <input id="edicion-nombre" name="nombre" type="text" maxlength="60"
+                      placeholder="Copa Arena 2027" autocomplete="off" data-edicion-field="nombre" />
+                    <p class="field-error" data-edicion-error="nombre" hidden></p>
+                  </div>
+                </div>
+                <button type="submit" class="add-player" data-edicion-submit>Crear edición</button>
+              </form>
+            </section>
+
+            <section class="ediciones-col ediciones-col--wide">
+              <h3 class="ediciones-subtitle">
+                Puestos · <span data-resultados-edicion>edición actual</span>
+              </h3>
+              <p class="ediciones-hint">
+                Escribe el puesto final de cada equipo. 1º, 2º y 3º forman el podio que aparece en la ficha de cada jugador.
+                Deja el puesto vacío mientras la edición sigue en juego.
+              </p>
+              <div class="resultados-list" data-resultados-list aria-live="polite"></div>
+            </section>
+          </div>
+        </article>
       </section>
     </section>
   </main>
@@ -239,4 +288,5 @@ import SiteFooter from "../components/SiteFooter.astro";
   <script is:inline src="/assets/match-utils.js" defer></script>
   <script is:inline src="/assets/admin.js" defer></script>
   <script is:inline src="/assets/admin-matches.js" defer></script>
+  <script is:inline src="/assets/admin-ediciones.js" defer></script>
 </BaseLayout>
