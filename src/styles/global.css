@@ -2742,6 +2742,7 @@ html.js .reveal.in-view {
   color: #8c2a18;
 }
 
+
 /* ------------------------------ mi zona: ficha ----------------------------- */
 
 /* "Mi zona" es una ficha de jugador tipo cromo coleccionable: foto enmarcada,
@@ -3255,6 +3256,119 @@ html.js .reveal.in-view {
   .historial-titulos {
     margin-right: 0;
   }
+}
+
+
+.admin-photo-thumb {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--foam);
+  flex-shrink: 0;
+}
+
+.admin-photo-thumb.is-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(16, 21, 22, 0.08),
+    rgba(16, 21, 22, 0.08) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.admin-subitem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-edit-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+}
+
+.admin-photo-field {
+  grid-column: 1 / -1;
+}
+
+.admin-photo-label {
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.admin-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.admin-photo-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-photo-upload {
+  cursor: pointer;
+  text-align: center;
+}
+
+.admin-photo-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.admin-player-order {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-player-order button {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-player-order button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-diff {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(231, 218, 181, 0.35);
+}
+
+.admin-diff h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--deep);
+}
+
+.admin-diff ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
 }
 
 /* ------------------------------ media queries ------------------------------ */
