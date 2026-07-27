@@ -1,0 +1,57 @@
+/* ============================================================================
+   admin · tokens
+   ----------------------------------------------------------------------------
+   El panel comparte la paleta de :root (global.css) pero invierte su peso: el
+   sitio público es cream y juguetón, la consola es densa y de sala de máquinas.
+   Aquí solo viven las variables propias del panel; ningún color se inventa
+   fuera de las que ya define global.css salvo los grises de tabla, que no
+   existen en la marca porque el sitio público no tiene tablas.
+   ========================================================================== */
+
+/* Los tokens cuelgan del <body>, no de .admin-app: los <dialog> se montan
+   fuera del armazón (showModal() no abre un diálogo con un ancestro [hidden],
+   y el de confirmación lo crea core.js colgando de document.body), así que
+   dentro de .admin-app no llegarían y las superficies saldrían transparentes. */
+body.is-admin {
+  /* superficies */
+  --adm-bg: #fcfaf5;
+  --adm-surface: #ffffff;
+  --adm-surface-alt: #f6f3ea;
+  --adm-sidebar: var(--pine);
+  --adm-sidebar-2: #10332f;
+
+  /* texto */
+  --adm-ink: var(--ink);
+  --adm-muted: var(--muted);
+  --adm-faint: #7d8b88;
+  --adm-on-dark: #eef3ef;
+  --adm-on-dark-dim: rgba(238, 243, 239, 0.62);
+
+  /* trazos */
+  --adm-line: rgba(16, 21, 22, 0.14);
+  --adm-line-strong: rgba(16, 21, 22, 0.3);
+  --adm-radius: 6px;
+  --adm-radius-sm: 4px;
+
+  /* intención */
+  --adm-accent: var(--sea);
+  --adm-accent-soft: rgba(28, 143, 148, 0.1);
+  --adm-danger: #a92d18;
+  --adm-danger-soft: rgba(169, 45, 24, 0.09);
+  --adm-warn: #8a6a12;
+  --adm-ok: #2f6b34;
+
+  /* ritmo */
+  --adm-gap: 16px;
+  --adm-pad: 20px;
+  --adm-row-pad: 9px 12px;
+  --adm-side-w: 232px;
+
+  /* tipografía de datos: ids, teléfonos, fechas y marcadores tienen que
+     alinear en columna, así que van en monoespaciada con cifras tabulares. */
+  --adm-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* El panel no hereda el degradado radial ni el papel crema del sitio
+     público: con tablas densas, ese fondo resta legibilidad. */
+  background: var(--adm-bg);
+}

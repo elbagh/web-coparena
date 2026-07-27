@@ -1,0 +1,53 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  titulo="Torneo"
+  seccion="torneo"
+  lede="Sorteo del cuadro, horarios y marcador en vivo. El sorteo se previsualiza antes de guardarse."
+>
+  <div class="admin-actions" slot="acciones">
+    <button class="admin-btn" type="button" data-load-teams>Actualizar equipos</button>
+    <button class="admin-btn admin-btn--primary" type="button" data-draw>Sortear emparejamientos</button>
+    <button class="admin-btn admin-btn--primary" type="button" data-confirm-draw hidden>Confirmar sorteo</button>
+  </div>
+
+  <section class="admin-card" data-admin-matches>
+    <div class="admin-card-head">
+      <h2 class="admin-card-title">Equipos en el sorteo</h2>
+      <p class="admin-hint" data-admin-status>Cargando equipos y partidos…</p>
+    </div>
+
+    <form class="manual-team-form" data-match-team-form>
+      <div class="admin-field">
+        <label for="torneo-equipo-manual">Equipo suelto</label>
+        <input
+          id="torneo-equipo-manual"
+          class="admin-input"
+          type="text"
+          name="team"
+          placeholder="Nombre del equipo"
+          autocomplete="off"
+        />
+      </div>
+      <button class="admin-btn" type="submit">Añadir</button>
+    </form>
+
+    <div class="admin-team-pool" data-team-pool aria-live="polite"></div>
+    <div class="matches-bracket-wrap" data-admin-bracket hidden></div>
+    <div class="admin-match-list" data-match-list></div>
+  </section>
+
+  <dialog class="match-dialog" slot="dialogos" data-match-dialog>
+    <form method="dialog" class="match-dialog-close">
+      <button type="submit" aria-label="Cerrar">×</button>
+    </form>
+    <div class="match-dialog-body" data-dialog-body></div>
+  </dialog>
+
+  <Fragment slot="scripts">
+    <script is:inline src="/assets/match-utils.js" defer></script>
+    <script is:inline src="/assets/admin/torneo.js" defer></script>
+  </Fragment>
+</AdminLayout>

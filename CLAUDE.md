@@ -12,12 +12,13 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 - `npm run build` — runs `astro check` (TypeScript/type checking) then `astro build`; this is the only verification step, there are no tests or linter
 - `npm run preview` — serve the built `dist/`
 - `npx wrangler d1 migrations apply DB --local` — apply D1 migrations to the local database
-- `npx wrangler pages dev dist --port 8788` — serve `dist/` plus the Pages Functions in `functions/` with the local D1 binding (build first)
+- `npx wrangler dev --port 8788` — serve the built site plus `functions/` with the local D1/R2 bindings (run `npm run build` first). **Not** `wrangler pages dev`: the project is a Worker with static assets (`main = ".worker/index.js"` + `[assets]` in wrangler.toml), not a Pages project.
 
 ## Architecture
 
 - Static output (`output: "static"`, directory-format URLs in [astro.config.mjs](astro.config.mjs)). No frameworks, no islands — plain `.astro` components only.
-- All styling lives in a single stylesheet, [src/styles/global.css](src/styles/global.css), imported once by `BaseLayout`. Components do not use scoped `<style>` blocks; add new styles to global.css using the existing CSS custom properties (`--sea`, `--cream`, `--lime`, `--coral`, `--dune`, `--pine`, `--dusk`, etc.) defined in `:root`.
+- All styling for the **public site** lives in a single stylesheet, [src/styles/global.css](src/styles/global.css), imported once by `BaseLayout`. Components do not use scoped `<style>` blocks; add new styles to global.css using the existing CSS custom properties (`--sea`, `--cream`, `--lime`, `--coral`, `--dune`, `--pine`, `--dusk`, etc.) defined in `:root`.
+- **Exception — the admin panel.** `/admin/*` styles live in [src/styles/admin/](src/styles/admin/), split by responsibility (`tokens`, `layout`, `tables`, `forms`, `dialog`, `ediciones`, `torneo`) and pulled in by `index.css`, which `AdminLayout` imports after global.css. The panel is noindex and admin-only, so its dense table CSS is not served to public visitors. Its own tokens (`--adm-*`) hang off `body.is-admin`, **not** off `.admin-app`: the `<dialog>`s mount outside the shell (`showModal()` won't open a dialog with a `[hidden]` ancestor) and would otherwise render with no surface colour.
 - Display typography is Titan One (npm package `@fontsource/titan-one`, imported by `BaseLayout`), exposed as `--font-display` and used for h1/h2, the giant hero dates and the nav "Inscribirse" sticker button. It echoes the rounded chunky lettering of the Copa Arena logo; headings are Title Case (no uppercase transform). Body text stays Inter/system.
 - Two layouts: `BaseLayout.astro` (HTML shell, meta, fonts, global CSS) and `LegalLayout.astro` (wraps BaseLayout with header/footer and hero for the legal pages `aviso-legal`, `cookies`, `privacidad`).
 - Editable event content (dates, claim, contact, social links, location/"Dónde estamos" data, perks) is centralized in [src/data/event.ts](src/data/event.ts) rather than hardcoded in pages. Real socials come from the Copa Arena linktree (https://linktr.ee/la.copa.arena).
@@ -37,7 +38,15 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 - [functions/api/equipos.ts](functions/api/equipos.ts) is the real registration endpoint: `POST /api/equipos` (multipart: `payload` JSON + optional `foto_0..n`; Turnstile check, validation with per-field Spanish errors keyed `jugadores.<i>.<campo>`, R2 photo upload, transactional `DB.batch` insert, confirmation email) and `GET /api/equipos` (public list: team names + player count only, for privacy). Shared helpers live in [functions/_lib/](functions/_lib/) (`http`, `validacion`, `turnstile`, `gmail`) — `_lib` files don't become routes. Client validation in [public/assets/team-form.js](public/assets/team-form.js) mirrors `functions/_lib/validacion.ts`: keep both in sync.
 - Confirmation email is sent from copa.arena.2000@gmail.com via Gmail API OAuth (plain-text MIME). Secrets: `TURNSTILE_SECRET_KEY`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` (production: `wrangler pages secret put`; local: `.dev.vars`, gitignored). Email failure never rolls back a registration (201 with `emailEnviado: false`).
 - Frontend pages: `/inscripcion/` (form, dynamic player cards, min 2 players + subs up to 15, RGPD consent, Turnstile widget — site key in `src/data/event.ts` `inscripcion.turnstileSiteKey`, currently the always-passing test key) and `/equipos/` (client-side fetch list). The old `POST /api/inscripciones` endpoint is obsolete but kept.
-- `astro dev` does not serve `/api`; test the full flow with `npm run build` + `npx wrangler pages dev dist --port 8788`.
+- `astro dev` does not serve `/api`; test the full flow with `npm run build` + `npx wrangler dev --port 8788`.
+
+## Admin panel (`/admin/*`)
+
+- One page per entity under [src/pages/admin/](src/pages/admin/) (`index`, `equipos`, `camisetas`, `torneo`, `ediciones`), all on [src/layouts/AdminLayout.astro](src/layouts/AdminLayout.astro): fixed sidebar, page header, and the shared auth gate. Add a section by creating the page, its script, and an entry in the layout's `secciones` array.
+- Backend is one file per entity under [functions/api/admin/](functions/api/admin/) (`index` = summary, plus `equipos`, `jugadores`, `camisetas`, `ediciones`, `fotos`). Actions that aren't plain CRUD go in a `?accion=` query param (`equipos?accion=posicion`, `jugadores?accion=normalizar-nombres`). Every export starts with `requireAdmin`; shared helpers are in `_lib/admin.ts` (`jsonAdmin`, `idDeQuery`, `mapJugador`…) and `_lib/fotos.ts` (R2: `subirFoto`, `limpiarFotos`, `servirFoto`).
+- Client JS is one IIFE per page in [public/assets/admin/](public/assets/admin/), all on top of `core.js`, which exposes `window.CopaAdmin`: `api()`/`apiJson()` (throw an `Error` carrying `.campos` and `.status`), `onReady()`/`recargar()` for the load cycle, `tabla()` for the data table, and `confirmar()` for destructive dialogs. Don't use `window.confirm`.
+- The payload key for the team editor is **`equipo`**, not `nombre` — that's what `validarRegistro` in `_lib/validacion.ts` reads, same as `/inscripcion/` and `/mi-equipo/`.
+- Player photos stay private: they are only ever served by `GET /api/admin/fotos?jugador=N`, and the API exposes `tieneFoto`, never the R2 key.
 
 ## Frontend changes
 

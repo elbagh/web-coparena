@@ -53,7 +53,9 @@ const NOMBRE_PATTERN = /^[\p{L}\p{M}'’. -]+$/u;
 const HANDLE_PATTERN = /^@?[a-zA-Z0-9._]{2,30}$/;
 const URL_SOCIAL_PATTERN = /^https:\/\/\S{5,110}$/;
 
-const limpiar = (v: unknown): string =>
+/** Recorta y colapsa espacios. Exportado porque los endpoints del panel
+ *  saneian igual sus campos de texto libre (nombre de edición, notas…). */
+export const limpiar = (v: unknown): string =>
   typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
 
 /**

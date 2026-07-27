@@ -11,7 +11,8 @@ const {
   image = site.defaultImage,
   imageAlt = "La Copa Arena, torneo de volley playa en Playa O Pozo",
   type = "website",
-  structuredData = []
+  structuredData = [],
+  bodyClass = ""
 } = Astro.props;
 
 const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || "";
@@ -52,7 +53,7 @@ const structuredDataItems = Array.isArray(structuredData) ? structuredData : [st
     }
     <title>{title}</title>
   </head>
-  <body>
+  <body class={bodyClass || undefined}>
     <slot />
     <script is:inline src="/assets/auth.js" defer></script>
   </body>

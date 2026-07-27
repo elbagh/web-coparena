@@ -1,0 +1,99 @@
+---
+// Armazón común de /admin/*: barra lateral fija, cabecera de página y la
+// puerta de autenticación. Cada página del panel solo aporta su contenido, sus
+// acciones de cabecera, sus diálogos y su script.
+//
+// El CSS del panel vive fuera de global.css (src/styles/admin/): es noindex,
+// solo lo ve el administrador y su hoja densa de tablas no tiene por qué
+// servirse al visitante público.
+import BaseLayout from "./BaseLayout.astro";
+import "../styles/admin/index.css";
+
+const { titulo, seccion, lede } = Astro.props;
+
+// Solo se listan las secciones que ya existen; cada fase añade la suya.
+const secciones = [
+  { clave: "resumen", nombre: "Resumen", href: "/admin/" },
+  { clave: "equipos", nombre: "Equipos", href: "/admin/equipos/" },
+  { clave: "camisetas", nombre: "Camisetas", href: "/admin/camisetas/" },
+  { clave: "torneo", nombre: "Torneo", href: "/admin/torneo/" },
+  { clave: "ediciones", nombre: "Ediciones", href: "/admin/ediciones/" }
+];
+---
+
+<BaseLayout title={`${titulo} | Panel | La Copa Arena`} noindex={true} bodyClass="is-admin">
+  <div class="admin-app">
+    <aside class="admin-side">
+      <a class="admin-brand" href="/">
+        <span class="admin-brand-name">Copa Arena</span>
+        <span class="admin-brand-tag">Panel</span>
+      </a>
+
+      <nav class="admin-nav" aria-label="Secciones del panel">
+        {
+          secciones.map((item) => (
+            <a
+              class:list={["admin-nav-link", { "is-current": item.clave === seccion }]}
+              href={item.href}
+              aria-current={item.clave === seccion ? "page" : undefined}
+            >
+              <span>{item.nombre}</span>
+              <span class="admin-nav-count" data-admin-count={item.clave}></span>
+            </a>
+          ))
+        }
+      </nav>
+
+      <div class="admin-side-foot">
+        {/* Casi toda escritura de esta base está acotada a una edición: saber
+            sobre cuál se está operando no puede depender de recordarlo. */}
+        <div class="admin-context" data-admin-context hidden>
+          <span class="admin-context-label">Edición activa</span>
+          <span class="admin-context-edicion">
+            <span class="admin-context-anio" data-admin-context-anio>—</span>
+            <span class="admin-context-nombre" data-admin-context-nombre></span>
+          </span>
+          <span class="admin-context-cifras" data-admin-context-cifras></span>
+        </div>
+        <a class="admin-side-exit" href="/">← Volver al sitio</a>
+      </div>
+    </aside>
+
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <div>
+          <h1 class="admin-title">{titulo}</h1>
+          {lede && <p class="admin-lede">{lede}</p>}
+        </div>
+        <div class="admin-topbar-actions">
+          <slot name="acciones" />
+        </div>
+      </header>
+
+      <p class="admin-loading" data-auth-loading>Comprobando la sesión…</p>
+
+      <section class="admin-gate" data-auth-logged-out hidden>
+        <h2>Esta zona es privada</h2>
+        <p class="admin-hint">Inicia sesión con la cuenta de Google que tiene permisos de administración.</p>
+        <div data-google-login></div>
+        <p class="admin-alert" data-auth-error hidden></p>
+      </section>
+
+      <div data-auth-logged-in hidden>
+        <p class="admin-loading" data-admin-loading>Cargando…</p>
+        <p class="admin-alert" data-admin-error hidden></p>
+        <div class="admin-content" data-admin-content hidden>
+          <slot />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Los diálogos van fuera de la zona con [hidden]: showModal() no abre un
+      <dialog> que cuelgue de un ancestro oculto. */}
+  <slot name="dialogos" />
+
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
+  <script is:inline src="/assets/admin/core.js" defer></script>
+  <slot name="scripts" />
+</BaseLayout>
