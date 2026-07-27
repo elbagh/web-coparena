@@ -8,7 +8,6 @@ import { publicUser, requireUser } from "../_lib/auth";
 import { claveAvatar } from "../_lib/avatar";
 import { edicionActual } from "../_lib/ediciones";
 import { json } from "../_lib/http";
-import { primerApellido } from "../_lib/nombres";
 import { normalizarEmail } from "../_lib/validacion";
 
 interface Env {
@@ -198,7 +197,7 @@ async function cargarCompaneros(
   for (const fila of results) {
     if (fila.email_normalizado === emailNormalizado) continue; // no incluir al propio usuario
     const lista = mapa.get(fila.equipo_id) ?? [];
-    lista.push({ nombre: fila.nombre, apellido: primerApellido(fila.apellidos ?? "") });
+    lista.push({ nombre: fila.nombre, apellido: fila.apellidos ?? "" });
     mapa.set(fila.equipo_id, lista);
   }
   return mapa;
