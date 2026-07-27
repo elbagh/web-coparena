@@ -1,4 +1,5 @@
 import { requireUser } from "../_lib/auth";
+import { edicionActual } from "../_lib/ediciones";
 import { json } from "../_lib/http";
 
 interface Env {
@@ -47,17 +48,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
+    const edicion = await edicionActual(env.DB);
     await env.DB
       .prepare(
-        `INSERT INTO camisetas_reservas (owner_user_id, nombre, talla, cantidad, notas)
-         VALUES (?1, ?2, ?3, ?4, ?5)`
+        `INSERT INTO camisetas_reservas (owner_user_id, nombre, talla, cantidad, notas, edicion_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
       )
       .bind(
         user.id,
         resultado.reserva.nombre,
         resultado.reserva.talla,
         resultado.reserva.cantidad,
-        resultado.reserva.notas
+        resultado.reserva.notas,
+        edicion?.id ?? null
       )
       .run();
 
