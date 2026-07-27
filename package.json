@@ -8,6 +8,8 @@
     "build:site": "astro check && astro build",
     "build:worker": "wrangler pages functions build --outdir=.worker",
     "build": "npm run build:site && npm run build:worker",
+    "db:migrate": "wrangler d1 migrations apply copa-arena-db --remote",
+    "predeploy:worker": "npm run db:migrate",
     "deploy:worker": "wrangler deploy",
     "deploy": "npm run build && npm run deploy:worker",
     "preview": "astro preview --host 127.0.0.1"
