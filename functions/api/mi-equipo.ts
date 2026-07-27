@@ -1,4 +1,5 @@
 import { publicUser, requireUser, type UsuarioSesion } from "../_lib/auth";
+import { edicionActual } from "../_lib/ediciones";
 import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { json } from "../_lib/http";
 import { validarRegistro, type RegistroValidado } from "../_lib/validacion";
@@ -26,7 +27,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (user instanceof Response) return user;
 
   try {
-    const team = await cargarEquipo(env.DB, user);
+    const edicion = await edicionActual(env.DB);
+    const team = await cargarEquipo(env.DB, user, edicion?.id);
     return json({ user: publicUser(user), team }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
     console.error("Error leyendo mi equipo:", err);
@@ -51,9 +53,10 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    const currentTeam = await equipoDeUsuario(env.DB, user);
+    const edicion = await edicionActual(env.DB);
+    const currentTeam = await equipoDeUsuario(env.DB, user, edicion?.id);
     if (!currentTeam) {
-      return json({ error: "Todavía no tienes un equipo inscrito." }, 404);
+      return json({ error: "Todavía no tienes un equipo inscrito en la edición actual." }, 404);
     }
 
     if (!registroIncluyeEmailUsuario(resultado.registro, user)) {
@@ -92,7 +95,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   if (user instanceof Response) return user;
 
   try {
-    const currentTeam = await equipoDeUsuario(env.DB, user);
+    const edicion = await edicionActual(env.DB);
+    const currentTeam = await equipoDeUsuario(env.DB, user, edicion?.id);
     if (!currentTeam) {
       return json({ ok: true }, 200, { "Cache-Control": "no-store" });
     }
@@ -111,8 +115,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   }
 };
 
-async function cargarEquipo(db: D1Database, user: UsuarioSesion) {
-  const team = await equipoDeUsuario(db, user);
+async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: number) {
+  const team = await equipoDeUsuario(db, user, edicionId);
   if (!team) return null;
 
   const { results } = await db
@@ -155,8 +159,11 @@ async function reemplazarEquipo(db: D1Database, equipoId: number, registro: Regi
           `INSERT INTO jugadores (
              equipo_id, nombre, apellidos, nombre_completo_normalizado,
              telefono, telefono_normalizado, email, email_normalizado,
-             red_social, foto_key, es_suplente, orden
-           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11)`
+             red_social, foto_key, es_suplente, orden, edicion_id
+           ) VALUES (
+             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11,
+             (SELECT edicion_id FROM equipos WHERE id = ?1)
+           )`
         )
         .bind(
           equipoId,

@@ -6,19 +6,18 @@ import SiteFooter from "../components/SiteFooter.astro";
 
 <BaseLayout
   title="Mi zona | La Copa Arena"
-  description="Entra con Google para crear o gestionar tu equipo de La Copa Arena."
+  description="Tu ficha de jugador: foto, palmarés, equipo actual y camisetas de La Copa Arena."
   noindex
 >
   <SiteHeader />
 
-  <main class="legal-page registro-page">
+  <main class="legal-page perfil-page">
     <section class="legal-hero">
       <p class="eyebrow reveal">Mi zona</p>
-      <h1 class="reveal" style="--reveal-delay: 90ms">Entra y gestiona tu equipo</h1>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Tu ficha de jugador</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
-        Primero entra con Google. Después podrás gestionar el equipo donde aparezca
-        tu correo, aunque lo haya creado otra persona. El correo de cada jugador es
-        obligatorio y uno debe coincidir con tu cuenta.
+        Entra con Google para ver tu cromo: foto, palmarés y estadísticas. Desde aquí
+        gestionas tu equipo de la edición en juego y tus camisetas reservadas.
       </p>
     </section>
 
@@ -30,12 +29,12 @@ import SiteFooter from "../components/SiteFooter.astro";
     <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-out hidden>
       <p class="eyebrow">Cuenta</p>
       <h2>Primero entra con Google</h2>
-      <p>Así encontramos tu equipo por el correo de Google que figure entre los jugadores.</p>
+      <p>Así montamos tu ficha con el correo de Google que figure entre los jugadores.</p>
       <p class="auth-error" data-auth-error hidden></p>
       <div class="google-login" data-google-login></div>
     </section>
 
-    <section class="auth-card reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
+    <section class="auth-card perfil-account reveal" style="--reveal-delay: 220ms" data-auth-logged-in hidden>
       <div class="auth-row">
         <div>
           <p class="eyebrow">Cuenta</p>
@@ -46,58 +45,151 @@ import SiteFooter from "../components/SiteFooter.astro";
       </div>
     </section>
 
-    <section class="my-team-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-my-team hidden>
-      <div class="teams-panel" data-my-team-loading>
-        <p class="teams-status">Cargando tu equipo...</p>
+    <!-- Ficha (cromo) + pestañas: solo con sesión iniciada -->
+    <section class="perfil-shell reveal" style="--reveal-delay: 280ms" data-auth-logged-in data-perfil hidden>
+      <div class="cromo-wrap" data-cromo>
+        <p class="cromo-loading">Montando tu ficha...</p>
       </div>
 
-      <div class="teams-panel" data-my-team-empty hidden>
-        <p class="eyebrow">Equipo</p>
-        <h2>Aún no tienes equipo inscrito</h2>
-        <p class="teams-status">Cuando tu correo aparezca en una inscripción, el equipo aparecerá aquí para poder editarlo.</p>
-        <div class="teams-actions">
-          <a class="button button-primary" href="/inscripcion/">Crear equipo</a>
-          <a class="button button-secondary" href="/equipos/">Ver equipos</a>
-        </div>
-      </div>
-
-      <div class="form-card" data-my-team-editor hidden>
-        <div>
-          <p class="eyebrow">Equipo</p>
-          <h2>Editar inscripción</h2>
-          <p class="teams-status">
-            Cada jugador necesita correo. Al menos uno debe coincidir con la cuenta con la que has iniciado sesión.
-          </p>
+      <div class="perfil-tabs" data-tabs>
+        <div class="perfil-tablist" role="tablist" aria-label="Secciones de tu ficha">
+          <button type="button" id="tab-equipo" class="perfil-tab" role="tab" aria-selected="true" aria-controls="panel-equipo" data-tab="equipo">Equipo actual</button>
+          <button type="button" id="tab-historial" class="perfil-tab" role="tab" aria-selected="false" aria-controls="panel-historial" data-tab="historial" tabindex="-1">Historial</button>
+          <button type="button" id="tab-camisetas" class="perfil-tab" role="tab" aria-selected="false" aria-controls="panel-camisetas" data-tab="camisetas" tabindex="-1">Camisetas</button>
+          <button type="button" id="tab-ficha" class="perfil-tab" role="tab" aria-selected="false" aria-controls="panel-ficha" data-tab="ficha" tabindex="-1">Editar ficha</button>
         </div>
 
-        <div class="form-banner" role="alert" data-my-team-banner hidden></div>
-
-        <form data-my-team-form novalidate>
-          <div class="field">
-            <label for="mi-equipo-nombre">Nombre del equipo</label>
-            <input id="mi-equipo-nombre" type="text" data-field="equipo" maxlength="60" autocomplete="off" />
+        <!-- Panel: equipo actual (hooks de my-team.js) -->
+        <div id="panel-equipo" class="perfil-panel" role="tabpanel" aria-labelledby="tab-equipo" data-panel="equipo" data-my-team>
+          <div class="teams-panel" data-my-team-loading>
+            <p class="teams-status">Cargando tu equipo...</p>
           </div>
 
-          <div class="players" data-my-team-players></div>
-
-          <div class="my-team-actions">
-            <button type="button" class="add-player" data-my-team-add-player>+ Añadir suplente</button>
-            <button type="submit" class="button button-primary form-submit" data-my-team-save>Guardar cambios</button>
-            <button type="button" class="button button-secondary danger-button" data-my-team-delete>Borrar equipo</button>
+          <div class="teams-panel" data-my-team-empty hidden>
+            <p class="eyebrow">Equipo</p>
+            <h2>Aún no tienes equipo en la edición actual</h2>
+            <p class="teams-status">Cuando tu correo aparezca en una inscripción de este año, el equipo aparecerá aquí para editarlo.</p>
+            <div class="teams-actions">
+              <a class="button button-primary" href="/inscripcion/">Crear equipo</a>
+              <a class="button button-secondary" href="/equipos/">Ver equipos</a>
+            </div>
           </div>
-        </form>
-      </div>
-    </section>
 
-    <section class="teams-panel shirts-panel reveal" style="--reveal-delay: 340ms" data-auth-logged-in data-shirts hidden>
-      <div>
-        <p class="eyebrow">Camisetas</p>
-        <h2>Camisetas reservadas</h2>
-      </div>
-      <p class="teams-status" data-shirts-status>Cargando camisetas...</p>
-      <div class="shirts-list" data-shirts-list hidden></div>
-      <div class="teams-actions">
-        <a class="button button-primary" href="/camisetas/">Reservar camiseta</a>
+          <div class="form-card" data-my-team-editor hidden>
+            <div>
+              <p class="eyebrow">Equipo de la edición en juego</p>
+              <h2>Editar inscripción</h2>
+              <p class="teams-status">
+                Cada jugador necesita correo. Al menos uno debe coincidir con la cuenta con la que has iniciado sesión.
+              </p>
+            </div>
+
+            <div class="form-banner" role="alert" data-my-team-banner hidden></div>
+
+            <form data-my-team-form novalidate>
+              <div class="field">
+                <label for="mi-equipo-nombre">Nombre del equipo</label>
+                <input id="mi-equipo-nombre" type="text" data-field="equipo" maxlength="60" autocomplete="off" />
+              </div>
+
+              <div class="players" data-my-team-players></div>
+
+              <div class="my-team-actions">
+                <button type="button" class="add-player" data-my-team-add-player>+ Añadir suplente</button>
+                <button type="submit" class="button button-primary form-submit" data-my-team-save>Guardar cambios</button>
+                <button type="button" class="button button-secondary danger-button" data-my-team-delete>Borrar equipo</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Panel: historial (lo pinta perfil.js) -->
+        <div id="panel-historial" class="perfil-panel" role="tabpanel" aria-labelledby="tab-historial" data-panel="historial" hidden>
+          <div class="teams-panel" data-historial>
+            <p class="teams-status">Cargando tu historial...</p>
+          </div>
+        </div>
+
+        <!-- Panel: camisetas (hooks de shirts.js) -->
+        <div id="panel-camisetas" class="perfil-panel" role="tabpanel" aria-labelledby="tab-camisetas" data-panel="camisetas" hidden data-shirts>
+          <div class="teams-panel shirts-panel">
+            <div>
+              <p class="eyebrow">Camisetas</p>
+              <h2>Tus camisetas reservadas</h2>
+            </div>
+            <p class="teams-status" data-shirts-status>Cargando camisetas...</p>
+            <div class="shirts-list" data-shirts-list hidden></div>
+            <div class="teams-actions">
+              <a class="button button-primary" href="/camisetas/">Reservar camiseta</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel: editar ficha (perfil.js gestiona el submit) -->
+        <div id="panel-ficha" class="perfil-panel" role="tabpanel" aria-labelledby="tab-ficha" data-panel="ficha" hidden>
+          <form class="form-card" data-ficha-form novalidate>
+            <div>
+              <p class="eyebrow">Tu ficha</p>
+              <h2>Personaliza tu cromo</h2>
+              <p class="teams-status">Estos datos son tuyos y decoran tu ficha. Las estadísticas de juego son tu propia valoración.</p>
+            </div>
+
+            <div class="form-banner" role="alert" data-ficha-banner hidden></div>
+
+            <div class="ficha-grid">
+              <div class="field">
+                <label for="ficha-apodo">Apodo <span class="field-opt">(opcional)</span></label>
+                <input id="ficha-apodo" type="text" data-ficha-field="apodo" maxlength="40" autocomplete="off" placeholder="El Muro" />
+                <p class="field-error" data-ficha-error="apodo" hidden></p>
+              </div>
+              <div class="field">
+                <label for="ficha-dorsal">Dorsal <span class="field-opt">(opcional)</span></label>
+                <input id="ficha-dorsal" type="number" data-ficha-field="dorsal" min="0" max="99" inputmode="numeric" placeholder="7" />
+                <p class="field-error" data-ficha-error="dorsal" hidden></p>
+              </div>
+              <div class="field">
+                <label for="ficha-posicion">Posición <span class="field-opt">(opcional)</span></label>
+                <select id="ficha-posicion" data-ficha-field="posicion">
+                  <option value="">Sin definir</option>
+                  <option value="Bloqueo">Bloqueo</option>
+                  <option value="Defensa">Defensa</option>
+                  <option value="Todoterreno">Todoterreno</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="ficha-mano">Mano dominante <span class="field-opt">(opcional)</span></label>
+                <select id="ficha-mano" data-ficha-field="mano">
+                  <option value="">Sin definir</option>
+                  <option value="Diestro">Diestro</option>
+                  <option value="Zurdo">Zurdo</option>
+                  <option value="Ambidiestro">Ambidiestro</option>
+                </select>
+              </div>
+              <div class="field ficha-grid-wide">
+                <label for="ficha-lema">Lema <span class="field-opt">(opcional)</span></label>
+                <input id="ficha-lema" type="text" data-ficha-field="lema" maxlength="80" autocomplete="off" placeholder="La red es mía" />
+                <p class="field-error" data-ficha-error="lema" hidden></p>
+              </div>
+            </div>
+
+            <div class="ficha-foto">
+              <p class="eyebrow">Foto de la ficha</p>
+              <p class="field-hint">JPG, PNG o WebP, hasta 4 MB. Solo la ves tú.</p>
+              <div class="field">
+                <input type="file" data-ficha-avatar accept="image/jpeg,image/png,image/webp" />
+                <p class="field-error" data-ficha-error="avatar" hidden></p>
+              </div>
+              <button type="button" class="add-player danger-button" data-ficha-avatar-delete hidden>Quitar foto</button>
+            </div>
+
+            <fieldset class="ficha-atributos">
+              <legend class="eyebrow">Tu juego (1 a 5, tu valoración)</legend>
+              <div class="atributos-grid" data-ficha-atributos></div>
+            </fieldset>
+
+            <button type="submit" class="button button-primary form-submit" data-ficha-save>Guardar ficha</button>
+          </form>
+        </div>
       </div>
     </section>
   </main>
@@ -138,6 +230,7 @@ import SiteFooter from "../components/SiteFooter.astro";
 
   <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/perfil.js" defer></script>
   <script is:inline src="/assets/my-team.js" defer></script>
   <script is:inline src="/assets/shirts.js" defer></script>
 </BaseLayout>

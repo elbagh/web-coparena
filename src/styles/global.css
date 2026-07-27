@@ -2742,6 +2742,521 @@ html.js .reveal.in-view {
   color: #8c2a18;
 }
 
+/* ------------------------------ mi zona: ficha ----------------------------- */
+
+/* "Mi zona" es una ficha de jugador tipo cromo coleccionable: foto enmarcada,
+   palmarés y autovaloración en clave de videojuego, todo con el lenguaje visual
+   de la casa (borde tinta grueso, sombra dura desplazada, Titan One, paleta de
+   playa). Base móvil (apilada); a 901px el cuerpo del cromo pasa a 2 columnas. */
+
+.perfil-page {
+  width: min(1080px, calc(100% - 32px));
+}
+
+.perfil-shell {
+  display: grid;
+  gap: 26px;
+}
+
+.cromo-loading {
+  margin: 0;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.cromo {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: linear-gradient(165deg, var(--foam) 0%, var(--dune) 100%);
+  box-shadow: 10px 10px 0 var(--ink);
+}
+
+.cromo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 3px solid var(--ink);
+  background: linear-gradient(100deg, var(--coral), var(--sun));
+}
+
+.cromo-edicion {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.cromo-dorsal {
+  display: grid;
+  place-items: center;
+  min-width: 46px;
+  height: 46px;
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+
+.cromo-body {
+  display: block;
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.cromo-foto-col {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin-bottom: 22px;
+}
+
+.cromo-foto {
+  position: relative;
+  width: min(240px, 72%);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: linear-gradient(150deg, var(--aqua), var(--lime));
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.cromo-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cromo-inicial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 3.4rem;
+  color: var(--foam);
+  text-shadow: 2px 2px 0 rgba(16, 21, 22, 0.35);
+}
+
+/* Brillo diagonal de cromo: estático, sutil, no se anima (evita el aire "IA"). */
+.cromo-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.32) 49%, transparent 57%);
+}
+
+.cromo-posicion {
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sun);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 950;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cromo-info {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.cromo-nombre {
+  margin: 0;
+  color: var(--deep);
+  font-size: clamp(1.7rem, 6vw, 2.3rem);
+  line-height: 1;
+}
+
+.cromo-apodo {
+  margin: -4px 0 0;
+  color: var(--coral);
+  font-weight: 950;
+  font-style: italic;
+}
+
+.cromo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cromo-chip {
+  padding: 5px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 900;
+  font-size: 0.8rem;
+}
+
+.cromo-lema {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.cromo-block {
+  display: grid;
+  gap: 10px;
+}
+
+.cromo-block-label {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sea);
+}
+
+.cromo-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: 10px;
+}
+
+.stat-tile {
+  display: grid;
+  gap: 3px;
+  place-items: center;
+  padding: 12px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  text-align: center;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.stat-label {
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stat-tile--oro {
+  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+}
+
+.stat-tile--plata {
+  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+}
+
+.stat-tile--bronce {
+  background: linear-gradient(160deg, #f2c79b, #d98f52);
+}
+
+.atributos-view {
+  display: grid;
+  gap: 8px;
+}
+
+.atributo-row {
+  display: grid;
+  grid-template-columns: minmax(74px, auto) 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.atributo-label {
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.atributo-pips {
+  display: flex;
+  gap: 5px;
+}
+
+.pip {
+  width: 22px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: rgba(16, 21, 22, 0.08);
+}
+
+.pip--on {
+  background: linear-gradient(160deg, var(--lime), var(--sun));
+}
+
+/* ------- pestañas ------- */
+
+.perfil-tabs {
+  display: grid;
+  gap: 18px;
+}
+
+.perfil-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.perfil-tab {
+  padding: 10px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 950;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.perfil-tab:hover {
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.perfil-tab[aria-selected="true"] {
+  background: linear-gradient(100deg, var(--lime), var(--sun));
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.perfil-panel {
+  display: grid;
+  gap: 22px;
+}
+
+/* ------- historial ------- */
+
+.historial-list {
+  display: grid;
+  gap: 14px;
+}
+
+.historial-item {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 248, 233, 0.75);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.historial-item--actual {
+  background: rgba(183, 230, 91, 0.24);
+}
+
+.historial-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.historial-anio {
+  display: grid;
+  place-items: center;
+  min-width: 58px;
+  height: 58px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.historial-titulos {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.historial-titulos h3 {
+  margin: 0;
+  color: var(--deep);
+  font-size: 1.15rem;
+}
+
+.historial-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.historial-puesto {
+  padding: 8px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.historial-puesto--oro {
+  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+}
+
+.historial-puesto--plata {
+  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+}
+
+.historial-puesto--bronce {
+  background: linear-gradient(160deg, #f2c79b, #d98f52);
+}
+
+.historial-puesto--otro {
+  background: var(--foam);
+}
+
+.historial-puesto--pendiente {
+  background: var(--dune);
+  font-family: inherit;
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.historial-companeros {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+/* ------- editar ficha ------- */
+
+.ficha-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.ficha-grid-wide {
+  grid-column: 1 / -1;
+}
+
+.ficha-foto {
+  display: grid;
+  gap: 8px;
+}
+
+.ficha-atributos {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ficha-atributos legend {
+  padding: 0;
+}
+
+.atributos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.atributo-slider {
+  display: grid;
+  gap: 6px;
+}
+
+.atributo-slider-label {
+  font-size: 0.84rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+}
+
+.atributo-slider-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.atributo-slider-control input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--coral);
+}
+
+.atributo-slider-value {
+  min-width: 1.4em;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+@media (min-width: 901px) {
+  .cromo-body {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .cromo-foto-col {
+    margin-bottom: 0;
+    justify-items: stretch;
+  }
+
+  .cromo-foto {
+    width: 100%;
+  }
+
+  .cromo-nombre {
+    font-size: 2.2rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .stat-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ficha-grid,
+  .atributos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .historial-head {
+    flex-wrap: wrap;
+  }
+
+  .historial-titulos {
+    margin-right: 0;
+  }
+}
+
 /* ------------------------------ media queries ------------------------------ */
 
 /* Densidad de escritorio: los valores base están calibrados para móvil, donde
