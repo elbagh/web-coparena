@@ -2378,7 +2378,6 @@ html.js .reveal.in-view {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 10px;
 }
 
