@@ -1,11 +1,19 @@
-// GET  /api/partidos - listado publico de partidos.
-// POST /api/partidos - sorteo, horario, inicio, puntos y cierre.
+// GET    /api/partidos — listado público de partidos (lo lee la portada).
+// POST   /api/partidos — sorteo, horario, inicio, puntos, cierre y alta manual.
+// PATCH  /api/partidos — edita un partido a mano (ronda, equipos, marcador…).
+// DELETE /api/partidos — borra un partido, o todos con ?todos=1.
+//
+// Solo el GET es público. Todo lo que escribe pasa por requireAdmin: antes no
+// lo hacía, y cualquiera podía lanzar action:"draw", que borra la tabla entera
+// y rehace el cuadro.
 
+import { requireAdmin, jsonAdmin, type AdminEnv } from "../_lib/admin";
 import { json } from "../_lib/http";
+import { limpiar } from "../_lib/validacion";
 
-interface Env {
-  DB: D1Database;
-}
+type Env = AdminEnv;
+
+const ESTADOS: PartidoEstado[] = ["scheduled", "live", "finished"];
 
 type PartidoEstado = "scheduled" | "live" | "finished";
 type Lado = "A" | "B";
@@ -46,6 +54,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -56,6 +67,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const action = String(body.action || "");
 
   try {
+    if (action === "crear") return await crearPartido(env.DB, body);
+
     if (action === "draw") {
       const partidosConfirmados = extraerPartidos(body.partidos);
       const equipos = extraerEquipos(body.equipos);
@@ -104,6 +117,164 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "No se ha podido guardar el partido." }, 500);
   }
 };
+
+/**
+ * Edición manual de un partido. Todos los campos son opcionales: solo se toca
+ * lo que llega. Es la vía de escape cuando el marcador en vivo se desincroniza
+ * del papel a pie de pista.
+ */
+export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
+  const id = new URL(request.url).searchParams.get("id") || "";
+  const partido = await obtenerPartido(env.DB, id);
+  if (!partido) return jsonAdmin({ error: "Ese partido ya no existe." }, 404);
+
+  const body = ((await request.json().catch(() => null)) || {}) as Record<string, unknown>;
+  const campos: Record<string, string> = {};
+  const sets: string[] = [];
+  const binds: (string | number | null)[] = [];
+
+  const texto = (clave: string, columna: string, maximo: number) => {
+    if (body[clave] === undefined) return;
+    const valor = limpiar(body[clave]);
+    if (valor.length < 1 || valor.length > maximo) {
+      campos[clave] = `Escribe entre 1 y ${maximo} caracteres.`;
+      return;
+    }
+    sets.push(`${columna} = ?${binds.length + 1}`);
+    binds.push(valor);
+  };
+  texto("ronda", "ronda", 40);
+  texto("equipoANombre", "equipo_a_nombre", 60);
+  texto("equipoBNombre", "equipo_b_nombre", 60);
+
+  const numero = (clave: string, columna: string, min: number, max: number) => {
+    if (body[clave] === undefined) return;
+    const valor = Number(body[clave]);
+    if (!Number.isInteger(valor) || valor < min || valor > max) {
+      campos[clave] = `Tiene que estar entre ${min} y ${max}.`;
+      return;
+    }
+    sets.push(`${columna} = ?${binds.length + 1}`);
+    binds.push(valor);
+  };
+  numero("pointsA", "points_a", 0, 99);
+  numero("pointsB", "points_b", 0, 99);
+  numero("setsA", "sets_a", 0, 3);
+  numero("setsB", "sets_b", 0, 3);
+  numero("setNumber", "set_number", 1, 5);
+  numero("sortOrder", "sort_order", 0, 999);
+
+  if (body.scheduledAt !== undefined) {
+    const valor = typeof body.scheduledAt === "string" && body.scheduledAt ? body.scheduledAt : null;
+    sets.push(`scheduled_at = ?${binds.length + 1}`);
+    binds.push(valor);
+  }
+
+  if (body.status !== undefined) {
+    const estado = String(body.status) as PartidoEstado;
+    if (!ESTADOS.includes(estado)) campos.status = "Estado no válido.";
+    else {
+      sets.push(`status = ?${binds.length + 1}`);
+      binds.push(estado);
+      // Un partido que vuelve a "scheduled" no puede conservar ganador ni reloj.
+      if (estado === "scheduled") sets.push("winner = NULL", "started_at = NULL", "elapsed_ms = 0");
+    }
+  }
+
+  if (body.winner !== undefined) {
+    const ganador = body.winner === null || body.winner === "" ? null : String(body.winner);
+    if (ganador !== null && ganador !== "A" && ganador !== "B") campos.winner = "El ganador debe ser A o B.";
+    else {
+      sets.push(`winner = ?${binds.length + 1}`);
+      binds.push(ganador);
+    }
+  }
+
+  if (Object.keys(campos).length > 0) {
+    return jsonAdmin({ error: "Revisa los campos marcados.", campos }, 400);
+  }
+  if (sets.length === 0) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);
+
+  sets.push(`updated_at = ?${binds.length + 1}`);
+  binds.push(new Date().toISOString());
+  binds.push(partido.id);
+
+  try {
+    await env.DB.prepare(`UPDATE partidos SET ${sets.join(", ")} WHERE id = ?${binds.length}`).bind(...binds).run();
+    return jsonAdmin({ ok: true, partidos: await listarPartidos(env.DB) });
+  } catch (err) {
+    console.error("Error editando un partido:", err);
+    return jsonAdmin({ error: "No se ha podido guardar el partido." }, 500);
+  }
+};
+
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
+  const url = new URL(request.url);
+  try {
+    if (url.searchParams.get("todos") === "1") {
+      await env.DB.prepare("DELETE FROM partidos").run();
+      return jsonAdmin({ ok: true, partidos: [] });
+    }
+
+    const id = url.searchParams.get("id") || "";
+    const partido = await obtenerPartido(env.DB, id);
+    if (!partido) return jsonAdmin({ error: "Ese partido ya no existe." }, 404);
+
+    await env.DB.prepare("DELETE FROM partidos WHERE id = ?1").bind(partido.id).run();
+    return jsonAdmin({ ok: true, partidos: await listarPartidos(env.DB) });
+  } catch (err) {
+    console.error("Error borrando un partido:", err);
+    return jsonAdmin({ error: "No se ha podido borrar el partido." }, 500);
+  }
+};
+
+/** Alta manual, para cruces que el sorteo no genera (repesca, amistoso…). */
+async function crearPartido(db: D1Database, body: Record<string, unknown>): Promise<Response> {
+  const campos: Record<string, string> = {};
+  const ronda = limpiar(body.ronda) || "Sorteo";
+  const equipoA = limpiar(body.equipoANombre);
+  const equipoB = limpiar(body.equipoBNombre);
+
+  if (equipoA.length < 1 || equipoA.length > 60) campos.equipoANombre = "Indica el equipo A.";
+  if (equipoB.length < 1 || equipoB.length > 60) campos.equipoBNombre = "Indica el equipo B.";
+  if (Object.keys(campos).length > 0) {
+    return jsonAdmin({ error: "Revisa los campos marcados.", campos }, 400);
+  }
+
+  const scheduledAt = typeof body.scheduledAt === "string" && body.scheduledAt ? body.scheduledAt : null;
+  const idA = Number(body.equipoAId);
+  const idB = Number(body.equipoBId);
+
+  const orden = await db
+    .prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS siguiente FROM partidos")
+    .first<{ siguiente: number }>();
+
+  await db
+    .prepare(
+      `INSERT INTO partidos (id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre,
+         scheduled_at, status, sort_order)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'scheduled', ?8)`
+    )
+    .bind(
+      crypto.randomUUID(),
+      ronda,
+      Number.isInteger(idA) && idA > 0 ? idA : null,
+      Number.isInteger(idB) && idB > 0 ? idB : null,
+      equipoA,
+      equipoB,
+      scheduledAt,
+      orden?.siguiente ?? 0
+    )
+    .run();
+
+  return jsonAdmin({ ok: true, partidos: await listarPartidos(db) }, 201);
+}
 
 async function listarPartidos(db: D1Database) {
   const { results } = await db

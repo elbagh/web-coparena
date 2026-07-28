@@ -78,5 +78,54 @@ import { camisetas } from "../../data/event";
 
   <div data-admin-camisetas></div>
 
+  <dialog class="admin-dialog" slot="dialogos" data-camiseta-dialog>
+    <div class="admin-dialog-shell">
+      <div class="admin-dialog-head">
+        <div>
+          <h2 class="admin-dialog-title">Editar reserva</h2>
+          <p class="admin-dialog-sub" data-camiseta-sub></p>
+        </div>
+        <button type="button" class="admin-dialog-close" data-camiseta-cerrar aria-label="Cerrar">×</button>
+      </div>
+
+      <div class="admin-dialog-body">
+        <form class="admin-form" data-camiseta-form novalidate>
+          <div class="admin-form-grid">
+            <div class="admin-field">
+              <label for="camiseta-nombre">Nombre de quien la recoge</label>
+              <input id="camiseta-nombre" class="admin-input" type="text" maxlength="80" data-camiseta-field="nombre" />
+              <p class="admin-field-error" data-camiseta-error="nombre" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="camiseta-talla">Talla</label>
+              <select id="camiseta-talla" class="admin-select" data-camiseta-field="talla">
+                {camisetas.tallas.map((talla) => <option value={talla}>{talla}</option>)}
+              </select>
+              <p class="admin-field-error" data-camiseta-error="talla" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="camiseta-cantidad">Unidades</label>
+              <input id="camiseta-cantidad" class="admin-input" type="number" min="1" max="10" step="1"
+                inputmode="numeric" data-camiseta-field="cantidad" />
+              <p class="admin-field-error" data-camiseta-error="cantidad" hidden></p>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <label for="camiseta-notas">Notas <span class="admin-field-hint">(opcional)</span></label>
+            <textarea id="camiseta-notas" class="admin-textarea" maxlength="240" data-camiseta-field="notas"></textarea>
+            <p class="admin-field-error" data-camiseta-error="notas" hidden></p>
+          </div>
+        </form>
+      </div>
+
+      <div class="admin-dialog-foot">
+        <p class="admin-alert" role="alert" data-camiseta-banner hidden></p>
+        <button type="button" class="admin-btn" data-camiseta-cancelar>Cancelar</button>
+        <button type="button" class="admin-btn admin-btn--primary" data-camiseta-guardar>Guardar reserva</button>
+      </div>
+    </div>
+  </dialog>
+
   <script is:inline slot="scripts" src="/assets/admin/camisetas.js" defer></script>
 </AdminLayout>
