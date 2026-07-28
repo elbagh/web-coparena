@@ -2428,12 +2428,17 @@ html.js .reveal.in-view {
   font-weight: 850;
 }
 
+/* `align-items: start` es lo que impide que una tarjeta cerrada se estire hasta
+   la altura de la que se ha desplegado a su lado (se veía como un equipo vacío).
+   La abierta sí vuelve a `stretch`, así dos desplegadas en la misma fila acaban
+   midiendo lo mismo. */
 .teams-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 14px;
 }
 
@@ -2444,6 +2449,10 @@ html.js .reveal.in-view {
   border-radius: 8px;
   background: var(--foam);
   box-shadow: 4px 4px 0 var(--ink);
+}
+
+.teams-list > li.is-open {
+  align-self: stretch;
 }
 
 .team-body {

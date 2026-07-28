@@ -104,6 +104,9 @@
       const expandido = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!expandido));
       panel.hidden = expandido;
+      // `is-open` es lo que la rejilla mira para decidir si esta tarjeta se
+      // estira hasta la altura de la fila: cerrada nunca, abierta siempre.
+      item.classList.toggle("is-open", !expandido);
     });
 
     header.append(badge, toggle);
