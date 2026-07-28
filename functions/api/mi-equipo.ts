@@ -1,7 +1,7 @@
 import { publicUser, requireUser, type UsuarioSesion } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
 import { guardarEquipo } from "../_lib/equipo-editor";
-import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
+import { equipoDeUsuario, equipoPropioDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { limpiarFotos } from "../_lib/fotos";
 import { json } from "../_lib/http";
 import { validarRegistro } from "../_lib/validacion";
@@ -42,6 +42,12 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   const user = await requireUser(request, env);
   if (user instanceof Response) return user;
 
+  // La autorización va antes de leer y validar el cuerpo: a quien no puede
+  // guardar no se le devuelven pistas campo a campo de un equipo que no es suyo.
+  const edicion = await edicionActual(env.DB);
+  const currentTeam = await equipoPropioDeUsuario(env.DB, user, edicion?.id);
+  if (!currentTeam) return await sinPermisoParaEscribir(env.DB, user, edicion?.id);
+
   let body: unknown;
   try {
     body = await request.json();
@@ -55,12 +61,6 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    const edicion = await edicionActual(env.DB);
-    const currentTeam = await equipoDeUsuario(env.DB, user, edicion?.id);
-    if (!currentTeam) {
-      return json({ error: "Todavía no tienes un equipo inscrito en la edición actual." }, 404);
-    }
-
     if (!registroIncluyeEmailUsuario(resultado.registro, user)) {
       return json(
         {
@@ -89,13 +89,16 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   const user = await requireUser(request, env);
   if (user instanceof Response) return user;
 
-  try {
-    const edicion = await edicionActual(env.DB);
-    const currentTeam = await equipoDeUsuario(env.DB, user, edicion?.id);
-    if (!currentTeam) {
-      return json({ ok: true }, 200, { "Cache-Control": "no-store" });
-    }
+  const edicion = await edicionActual(env.DB);
+  const currentTeam = await equipoPropioDeUsuario(env.DB, user, edicion?.id);
+  if (!currentTeam) {
+    // Sin equipo propio no hay nada que borrar; si lo que hay es un equipo
+    // ajeno en el que figura, se le dice que no es suyo en vez de borrarlo.
+    const ajeno = await equipoDeUsuario(env.DB, user, edicion?.id);
+    return ajeno ? noEsTuEquipo() : json({ ok: true }, 200, { "Cache-Control": "no-store" });
+  }
 
+  try {
     const fotoKeys = await fotosDeEquipo(env.DB, currentTeam.id);
     await env.DB.batch([
       env.DB.prepare("DELETE FROM jugadores WHERE equipo_id = ?1").bind(currentTeam.id),
@@ -125,16 +128,19 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
     .all<JugadorRow>();
 
   // La foto de grupo la gestiona solo el administrador; aquí el capitán la ve.
-  const foto = await db
-    .prepare("SELECT foto_key FROM equipos WHERE id = ?1")
+  const fila = await db
+    .prepare("SELECT foto_key, owner_user_id FROM equipos WHERE id = ?1")
     .bind(team.id)
-    .first<{ foto_key: string | null }>();
+    .first<{ foto_key: string | null; owner_user_id: number | null }>();
 
   return {
     id: team.id,
     nombre: team.nombre,
     createdAt: team.created_at,
-    tieneFoto: Boolean(foto?.foto_key),
+    tieneFoto: Boolean(fila?.foto_key),
+    // Quien no es el propietario ve la ficha, pero el editor se pinta en modo
+    // lectura: el PATCH le respondería 403 igualmente.
+    puedeEditar: fila?.owner_user_id === user.id,
     jugadores: results.map((jugador) => ({
       id: jugador.id,
       nombre: jugador.nombre,
@@ -147,6 +153,32 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
       orden: jugador.orden
     }))
   };
+}
+
+const noEsTuEquipo = (): Response =>
+  json(
+    {
+      error:
+        "Solo quien inscribió el equipo puede cambiarlo. Pídeselo a esa persona o escríbenos a copa.arena.2000@gmail.com."
+    },
+    403,
+    { "Cache-Control": "no-store" }
+  );
+
+/**
+ * Distingue los dos motivos por los que alguien no puede escribir: figurar en un
+ * equipo que no inscribió (403) o no tener ninguno (404). Son mensajes distintos
+ * porque llevan a acciones distintas: hablar con tu capitán o inscribirte.
+ */
+async function sinPermisoParaEscribir(
+  db: D1Database,
+  user: UsuarioSesion,
+  edicionId?: number
+): Promise<Response> {
+  const ajeno = await equipoDeUsuario(db, user, edicionId);
+  return ajeno
+    ? noEsTuEquipo()
+    : json({ error: "Todavía no tienes un equipo inscrito en la edición actual." }, 404);
 }
 
 async function fotosDeEquipo(db: D1Database, equipoId: number): Promise<string[]> {

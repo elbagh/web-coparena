@@ -41,6 +41,36 @@ export async function equipoDeUsuario(
   ).first<EquipoUsuarioRow>();
 }
 
+/**
+ * Equipo del que el usuario es **propietario**, y solo eso. Es lo que autoriza
+ * a escribir.
+ *
+ * La otra vía de equipoDeUsuario —aparecer como jugador con tu correo— vale
+ * para mirar, pero no para modificar: ese correo lo teclea quien inscribe el
+ * equipo, sin que su dueño confirme nada. Autorizar escrituras con él dejaba
+ * que cualquiera diera de alta un equipo con el correo de un tercero y le
+ * pasara el mando (renombrar, editar los datos personales de la plantilla o
+ * borrarla entera), además de bloquearle su propia inscripción.
+ */
+export async function equipoPropioDeUsuario(
+  db: D1Database,
+  user: UsuarioSesion,
+  edicionId?: number
+): Promise<EquipoUsuarioRow | null> {
+  const filtroEdicion = edicionId != null ? "AND e.edicion_id = ?2" : "";
+
+  const stmt = db.prepare(
+    `SELECT e.id, e.nombre, e.created_at, e.edicion_id
+     FROM equipos e
+     WHERE e.owner_user_id = ?1
+       ${filtroEdicion}
+     ORDER BY e.created_at ASC, e.id ASC
+     LIMIT 1`
+  );
+
+  return await (edicionId != null ? stmt.bind(user.id, edicionId) : stmt.bind(user.id)).first<EquipoUsuarioRow>();
+}
+
 export function registroIncluyeEmailUsuario(registro: RegistroValidado, user: UsuarioSesion): boolean {
   const emailNormalizado = normalizarEmail(user.email);
   return registro.jugadores.some((jugador) => jugador.emailNormalizado === emailNormalizado);

@@ -11,10 +11,17 @@
   const addPlayer = root.querySelector("[data-my-team-add-player]");
   const save = root.querySelector("[data-my-team-save]");
   const remove = root.querySelector("[data-my-team-delete]");
+  const titulo = root.querySelector("[data-my-team-titulo]");
+  const intro = root.querySelector("[data-my-team-intro]");
+  const avisoLectura = root.querySelector("[data-my-team-lectura]");
   const template = document.getElementById("my-team-player-template");
 
   const MIN_JUGADORES = 2;
   const MAX_JUGADORES = 15;
+
+  // Solo el propietario del equipo puede guardar; el resto de la plantilla lo
+  // ve, pero el PATCH les respondería 403. Lo dice el servidor en cada carga.
+  let soloLectura = false;
 
   const limpiar = (value) => String(value || "").trim().replace(/\s+/g, " ");
   const emailNormalizado = (value) => limpiar(value).toLowerCase();
@@ -33,6 +40,23 @@
     remove.disabled = isBusy;
     addPlayer.disabled = isBusy || cards().length >= MAX_JUGADORES;
     save.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  /**
+   * Modo lectura. Los botones se ocultan en vez de deshabilitarse: uno que nunca
+   * se va a activar solo estorba. Los campos quedan readonly, no disabled, para
+   * que los datos del equipo se puedan seguir seleccionando y copiando.
+   */
+  function aplicarPermisos() {
+    if (titulo) titulo.textContent = soloLectura ? "Tu equipo" : "Editar inscripción";
+    if (intro) intro.hidden = soloLectura;
+    if (avisoLectura) avisoLectura.hidden = !soloLectura;
+    addPlayer.hidden = soloLectura;
+    save.hidden = soloLectura;
+    remove.hidden = soloLectura;
+    form.querySelectorAll("input").forEach((input) => {
+      input.readOnly = soloLectura;
+    });
   }
 
   function show(mode) {
@@ -65,13 +89,14 @@
       card.querySelector("[data-dorsal]").textContent = String(index + 1);
       card.querySelector("[data-role]").textContent = index < MIN_JUGADORES ? "Titular" : "Suplente";
       card.classList.toggle("is-suplente", index >= MIN_JUGADORES);
-      card.querySelector("[data-remove]").hidden = index < MIN_JUGADORES;
+      card.querySelector("[data-remove]").hidden = soloLectura || index < MIN_JUGADORES;
     });
     addPlayer.disabled = list.length >= MAX_JUGADORES;
     addPlayer.textContent = list.length >= MAX_JUGADORES ? `Máximo ${MAX_JUGADORES} personas por equipo` : "+ Añadir suplente";
   }
 
   function renderTeam(team) {
+    soloLectura = team.puedeEditar === false;
     form.querySelector('[data-field="equipo"]').value = team.nombre || "";
 
     const figura = root.querySelector("[data-my-team-foto]");
@@ -89,7 +114,9 @@
     players.textContent = "";
     const jugadores = Array.isArray(team.jugadores) ? team.jugadores : [];
     jugadores.forEach((player) => createPlayer(player));
-    while (cards().length < MIN_JUGADORES) createPlayer();
+    // Las fichas vacías de relleno solo tienen sentido si se pueden rellenar.
+    if (!soloLectura) while (cards().length < MIN_JUGADORES) createPlayer();
+    aplicarPermisos();
     setBanner("");
     show("editor");
   }

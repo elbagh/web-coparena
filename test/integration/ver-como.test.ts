@@ -190,6 +190,40 @@ describe("middleware: «ver como» es de solo lectura", () => {
     expect(respuesta.status).toBe(403);
   });
 
+  /*
+   * Entrar y salir del sitio actúan sobre la propia sesión, no sobre los datos
+   * de nadie, y por eso pasan. Sin ellas, una cookie de suplantación olvidada
+   * dejaba el navegador sin poder desloguearse *ni loguearse* hasta que
+   * caducara: el login también es un POST.
+   */
+  it("deja cerrar sesión y volver a entrar con la cookie puesta", async () => {
+    const admin = await crearAdmin();
+    const objetivo = await crearUsuario();
+    const cookies = [await cookieSesion(admin), await cookieVerComo(admin, objetivo)];
+
+    for (const ruta of ["/api/auth/logout", "/api/auth/google"]) {
+      const { respuesta, next } = await llamar("POST", ruta, cookies);
+      expect(next, `POST ${ruta} debería pasar`).toHaveBeenCalled();
+      expect(respuesta.status).toBe(204);
+    }
+  });
+
+  it("esas excepciones son de ruta y método exactos", async () => {
+    const admin = await crearAdmin();
+    const objetivo = await crearUsuario();
+    const cookies = [await cookieSesion(admin), await cookieVerComo(admin, objetivo)];
+
+    // Otro método en una ruta con excepción, y otra ruta de auth sin ella.
+    for (const [method, ruta] of [
+      ["DELETE", "/api/auth/logout"],
+      ["PATCH", "/api/auth/google"],
+      ["POST", "/api/auth/config"]
+    ]) {
+      const { respuesta } = await llamar(method!, ruta!, cookies);
+      expect(respuesta.status, `${method} ${ruta}`).toBe(403);
+    }
+  });
+
   it("sin cookie de suplantación las escrituras pasan con normalidad", async () => {
     const user = await crearUsuario();
     const { respuesta, next } = await llamar("POST", "/api/mi-equipo", [await cookieSesion(user)]);

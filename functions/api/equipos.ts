@@ -4,7 +4,7 @@
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
-import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
+import { equipoDeUsuario, equipoPropioDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { fotoNoEncontrada, limpiarFotos, servirFoto, subirFoto, type ExtensionFoto } from "../_lib/fotos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
@@ -72,9 +72,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: ERROR_500 }, 500);
   }
 
-  const equipoPropio = await equipoDeUsuario(env.DB, user, edicion.id);
-  if (equipoPropio) {
-    return json({ error: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." }, 409);
+  // Figurar ya en un equipo cierra la inscripción, pero el motivo no es el mismo
+  // y la salida tampoco: quien lo inscribió lo edita, y a quien solo aparece
+  // listado no se le manda a un editor que le va a responder 403.
+  const equipoExistente = await equipoDeUsuario(env.DB, user, edicion.id);
+  if (equipoExistente) {
+    const esSuyo = await equipoPropioDeUsuario(env.DB, user, edicion.id);
+    return json(
+      {
+        error: esSuyo
+          ? "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona."
+          : `Tu correo ya figura en el equipo "${equipoExistente.nombre}" de esta edición. Si no deberías estar ahí, escríbenos a copa.arena.2000@gmail.com.`
+      },
+      409
+    );
   }
 
   // Fotos: validación por tamaño, content-type y magic bytes.
