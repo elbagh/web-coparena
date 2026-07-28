@@ -73,6 +73,70 @@ h2 {
   text-transform: none;
 }
 
+/* -------------------------------- ver como --------------------------------- */
+
+/* Aviso permanente de que la sesión está suplantando a otra persona. Va anclado
+   abajo y no arriba porque la cabecera es una píldora `fixed` con su propia
+   franja: una banda superior se solaparía con ella en todas las páginas.
+   El color es el de peligro de la casa, sin degradados ni gracia: tiene que
+   leerse como una advertencia, no como parte del diseño. */
+
+.ver-como-banda {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-top: 3px solid var(--ink);
+  background: var(--coral);
+  color: var(--ink);
+}
+
+.ver-como-banda[hidden] {
+  display: none;
+}
+
+.ver-como-texto {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.ver-como-salir {
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ver-como-salir:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--foam);
+}
+
+.ver-como-salir:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Hueco al final de la página para que la banda no tape el pie ni el último
+   control de un formulario. */
+html.ver-como body {
+  padding-bottom: 72px;
+}
+
+
 /* ---------------------------------- header --------------------------------- */
 
 /* Franja fija que cubre el hueco entre el borde superior de la ventana y la

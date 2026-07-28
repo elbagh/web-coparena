@@ -54,6 +54,15 @@ const structuredDataItems = Array.isArray(structuredData) ? structuredData : [st
     <title>{title}</title>
   </head>
   <body class={bodyClass || undefined}>
+    {/* Modo «ver como»: mientras está activo, la sesión resuelve como otra
+        persona y no se puede guardar nada. Va en BaseLayout para que el aviso
+        acompañe al administrador por todo el sitio, no solo por /admin/. */}
+    <div class="ver-como-banda" data-ver-como hidden>
+      <p class="ver-como-texto">
+        Estás viendo el sitio como <strong data-ver-como-nombre></strong>. Solo lectura: no se puede guardar nada.
+      </p>
+      <button type="button" class="ver-como-salir" data-ver-como-salir>Volver a mi cuenta</button>
+    </div>
     <slot />
     <script is:inline src="/assets/auth.js" defer></script>
   </body>

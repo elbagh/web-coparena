@@ -292,6 +292,48 @@
   cursor: not-allowed;
 }
 
+.admin-separador {
+  height: 0;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--adm-line);
+}
+
+/* ------------------------ resumen de la cuenta ----------------------------- */
+
+/* Contexto de solo lectura junto al formulario: en qué equipos ha estado esta
+   persona y qué ha reservado. Sirve para saber a quién se está tocando antes
+   de tocarlo. */
+
+.admin-usuario-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface-alt);
+}
+
+.admin-usuario-bloque-titulo {
+  margin: 0 0 6px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}
+
+.admin-usuario-lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 /* --------------------------- foto de equipo -------------------------------- */
 
 /* La foto de grupo es la única imagen del panel que además es pública, así que

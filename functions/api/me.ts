@@ -1,4 +1,4 @@
-import { getCurrentUser, publicUser } from "../_lib/auth";
+import { getAuthContext, publicUser } from "../_lib/auth";
 import { equipoDeUsuario } from "../_lib/equipos";
 import { json } from "../_lib/http";
 
@@ -9,10 +9,20 @@ interface Env {
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
-    const user = await getCurrentUser(request, env);
+    const { user, realUser, impersonando } = await getAuthContext(request, env);
     if (!user) {
-      return json({ user: null, team: null }, 200, { "Cache-Control": "no-store" });
+      return json({ user: null, team: null, verComo: null }, 200, { "Cache-Control": "no-store" });
     }
+
+    // Lo consume auth.js para pintar la banda de aviso en todas las páginas.
+    const verComo = impersonando
+      ? {
+          activo: true,
+          usuarioId: user.id,
+          usuarioNombre: user.nombre || user.email,
+          adminNombre: realUser?.nombre || realUser?.email || ""
+        }
+      : null;
 
     const userTeam = await equipoDeUsuario(env.DB, user);
     const team = userTeam
@@ -31,7 +41,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     return json(
       {
         user: publicUser(user),
-        team: team ? { id: team.id, nombre: team.nombre, jugadores: team.jugadores } : null
+        team: team ? { id: team.id, nombre: team.nombre, jugadores: team.jugadores } : null,
+        verComo
       },
       200,
       { "Cache-Control": "no-store" }
