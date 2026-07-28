@@ -4,7 +4,7 @@
 // PATCH /api/perfil — actualiza los atributos manuales (apodo, dorsal, posicion,
 //   mano, lema, autovaloracion). El avatar se gestiona aparte en /api/avatar.
 
-import { publicUser, requireUser } from "../_lib/auth";
+import { publicUser, requireUser, requireUserContext } from "../_lib/auth";
 import { claveAvatar } from "../_lib/avatar";
 import { edicionActual } from "../_lib/ediciones";
 import { json } from "../_lib/http";
@@ -39,8 +39,9 @@ interface MembresiaRow {
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const user = await requireUser(request, env);
-  if (user instanceof Response) return user;
+  const sesion = await requireUserContext(request, env);
+  if (sesion instanceof Response) return sesion;
+  const { user, impersonando } = sesion;
 
   try {
     const emailNormalizado = normalizarEmail(user.email);
@@ -51,7 +52,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         .prepare("SELECT apodo, dorsal, posicion, mano, lema, atributos FROM perfiles WHERE usuario_id = ?1")
         .bind(user.id)
         .first<PerfilRow>(),
-      claveAvatar(env.DB, env.FOTOS, user).then((k) => k != null),
+      // Solo se quiere saber si hay foto: en modo «ver como» no se siembra.
+      claveAvatar(env.DB, env.FOTOS, user, { sembrar: !impersonando }).then((k) => k != null),
       cargarMembresias(env.DB, emailNormalizado),
       cargarCamisetas(env.DB, user.id)
     ]);
