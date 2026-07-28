@@ -136,7 +136,7 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
     capitanJugadorId: fila?.capitan_jugador_id ?? null,
     // Quien no es el capitán ve la ficha, pero el editor se pinta en modo
     // lectura: el PATCH le respondería 403 igualmente.
-    puedeEditar: Boolean(fila?.capitan_email) && fila!.capitan_email === normalizarEmail(user.email),
+    puedeEditar: fila?.capitan_email === normalizarEmail(user.email),
     jugadores: results.map((jugador) => ({
       id: jugador.id,
       nombre: jugador.nombre,

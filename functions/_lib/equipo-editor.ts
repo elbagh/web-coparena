@@ -184,15 +184,23 @@ export async function guardarEquipo(
   // El capitán se resuelve por `orden`, que este mismo batch acaba de fijar
   // (orden = índice + 1, único dentro del equipo). Va al final porque los
   // jugadores nuevos no tienen id hasta que se insertan.
-  statements.push(
-    env.DB
-      .prepare(
-        `UPDATE equipos SET capitan_jugador_id =
-           (SELECT id FROM jugadores WHERE equipo_id = ?1 AND orden = ?2)
-         WHERE id = ?1`
-      )
-      .bind(equipoId, (registro.capitan ?? 0) + 1)
-  );
+  //
+  // Solo se toca si el llamante manda `capitan` de verdad: la Tarea 1 no
+  // rellena ese campo desde ningún cliente, así que un guardado de plantilla
+  // sin él debe conservar el capitán que ya había. Empujar la sentencia
+  // siempre resolvía a `orden = 1` en cada guardado y le quitaba el mando a
+  // cualquier capitán que no estuviera en la primera tarjeta.
+  if (registro.capitan !== undefined) {
+    statements.push(
+      env.DB
+        .prepare(
+          `UPDATE equipos SET capitan_jugador_id =
+             (SELECT id FROM jugadores WHERE equipo_id = ?1 AND orden = ?2 ORDER BY id ASC LIMIT 1)
+           WHERE id = ?1`
+        )
+        .bind(equipoId, registro.capitan + 1)
+    );
+  }
 
   // 3. Un solo batch: o entra todo, o no entra nada.
   try {

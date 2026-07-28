@@ -62,3 +62,39 @@ describe("POST /api/equipos cuando ya figuras en un equipo", () => {
     expect(cuerpo.error).not.toContain("Mi zona");
   });
 });
+
+describe("POST /api/equipos: capitán", () => {
+  // La validación solo exige que el correo de la sesión aparezca *en algún*
+  // jugador, no en el primero: el alta tiene que nombrar capitán al jugador
+  // correcto sea cual sea su posición en la plantilla.
+  it("nombra capitán al jugador que lleva el correo de la sesión aunque no sea el primero", async () => {
+    const user = await crearUsuario({ email: "ana@example.com" });
+    const form = new FormData();
+    form.set(
+      "payload",
+      JSON.stringify({
+        equipo: "Equipo Capitana Segunda",
+        consentimiento: true,
+        jugadores: [
+          { nombre: "Bea", apellidos: "Louro", telefono: "600111333", email: "otra@example.com" },
+          { nombre: "Ana", apellidos: "Ferro", telefono: "600111222", email: user.email }
+        ]
+      })
+    );
+
+    const respuesta = await onRequestPost(
+      ctx(await peticion("/api/equipos", { method: "POST", user, body: form }), env)
+    );
+    expect(respuesta.status).toBe(201);
+    const { equipoId } = (await respuesta.json()) as { equipoId: number };
+
+    const capitan = await env.DB
+      .prepare(
+        `SELECT j.email FROM equipos e JOIN jugadores j ON j.id = e.capitan_jugador_id WHERE e.id = ?1`
+      )
+      .bind(equipoId)
+      .first<{ email: string }>();
+
+    expect(capitan?.email).toBe(user.email);
+  });
+});

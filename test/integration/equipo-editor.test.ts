@@ -372,3 +372,27 @@ describe("guardarEquipo: conflictos de unicidad", () => {
     expect(fila?.nombre).toBe(equipo.nombre);
   });
 });
+
+describe("guardarEquipo: capitán", () => {
+  // La Tarea 1 no manda `capitan` desde ningún cliente todavía (llega en la
+  // Tarea 2). Sin este resguardo, la sentencia se ejecutaba igual y devolvía
+  // siempre el mando al jugador de `orden 1`, aunque el capitán real fuera
+  // otro: un PATCH /api/mi-equipo del propio capitán se lo quitaba a sí mismo.
+  it("sin `capitan` en el registro, conserva el capitán que ya tenía aunque no sea el de orden 1", async () => {
+    const equipo = await crearEquipo({ jugadores: [{}, {}], capitan: 1 });
+    expect(equipo.capitanId).toBe(equipo.jugadores[1]!.id);
+
+    const error = await guardarEquipo(
+      env,
+      equipo.id,
+      registro(equipo.nombre, [comoEntrada(equipo.jugadores[0]!), comoEntrada(equipo.jugadores[1]!)])
+    );
+
+    expect(error).toBeNull();
+    const fila = await env.DB
+      .prepare("SELECT capitan_jugador_id FROM equipos WHERE id = ?1")
+      .bind(equipo.id)
+      .first<{ capitan_jugador_id: number | null }>();
+    expect(fila?.capitan_jugador_id).toBe(equipo.capitanId);
+  });
+});

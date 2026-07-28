@@ -58,7 +58,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
            SELECT eq.id FROM equipos eq
            JOIN jugadores cap ON cap.id = eq.capitan_jugador_id
            WHERE cap.email_normalizado = lower(trim(u.email))
-           ORDER BY eq.created_at ASC, eq.id ASC LIMIT 1
+           ORDER BY eq.created_at DESC, eq.id DESC LIMIT 1
          )
          ORDER BY u.is_admin DESC, u.created_at ASC, u.id ASC`
       )
