@@ -70,6 +70,29 @@ export interface OpcionesEquipo {
   jugadores?: JugadorSemilla[];
   ownerUserId?: number;
   fotoKey?: string | null;
+  /** Por defecto, la edición actual. Se pasa para sembrar historial. */
+  edicionId?: number;
+  posicionFinal?: number | null;
+}
+
+export interface OpcionesEdicion {
+  anio?: number;
+  nombre?: string;
+  estado?: "proxima" | "en_juego" | "finalizada";
+}
+
+/**
+ * Crea una edición **no** actual: el índice UNIQUE parcial solo admite una con
+ * es_actual = 1, y esa la siembra el setup.
+ */
+export async function crearEdicion(opciones: OpcionesEdicion = {}): Promise<{ id: number; anio: number }> {
+  const anio = opciones.anio ?? 2000 + siguiente();
+  const fila = await env.DB.prepare(
+    `INSERT INTO ediciones (anio, nombre, estado, es_actual) VALUES (?1, ?2, ?3, 0) RETURNING id`
+  )
+    .bind(anio, opciones.nombre ?? `Copa Arena ${anio}`, opciones.estado ?? "finalizada")
+    .first<{ id: number }>();
+  return { id: fila!.id, anio };
 }
 
 /**
@@ -79,14 +102,24 @@ export interface OpcionesEquipo {
 export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<EquipoSembrado> {
   const n = siguiente();
   const nombre = opciones.nombre ?? `Equipo ${n}`;
-  const edicion = await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>();
+  const edicionId =
+    opciones.edicionId ??
+    (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())?.id ??
+    null;
 
   const equipo = await env.DB.prepare(
-    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id, foto_key)
-     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5)
+    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id, foto_key, posicion_final)
+     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5, ?6)
      RETURNING id, edicion_id`
   )
-    .bind(nombre, normalizarTexto(nombre), opciones.ownerUserId ?? null, edicion?.id ?? null, opciones.fotoKey ?? null)
+    .bind(
+      nombre,
+      normalizarTexto(nombre),
+      opciones.ownerUserId ?? null,
+      edicionId,
+      opciones.fotoKey ?? null,
+      opciones.posicionFinal ?? null
+    )
     .first<{ id: number; edicion_id: number | null }>();
 
   const semillas: JugadorSemilla[] = opciones.jugadores ?? [{}, {}];
@@ -128,6 +161,48 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
   }
 
   return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, jugadores };
+}
+
+/**
+ * Carga de estadísticas de un jugador. Sin `partidoId` es la carga manual de la
+ * edición; con él, la que registraría un partido. Las dos suman.
+ */
+export async function crearEstadistica(
+  jugadorId: number,
+  valores: Partial<Record<string, number>> = {},
+  partidoId: string | null = null
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO estadisticas (
+       jugador_id, partido_id, partidos_jugados, puntos, remates, bloqueos, aces, defensas, errores
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+  )
+    .bind(
+      jugadorId,
+      partidoId,
+      valores.partidosJugados ?? 0,
+      valores.puntos ?? 0,
+      valores.remates ?? 0,
+      valores.bloqueos ?? 0,
+      valores.aces ?? 0,
+      valores.defensas ?? 0,
+      valores.errores ?? 0
+    )
+    .run();
+}
+
+/** Atributos 1–5 de un jugador, los que pone la organización. */
+export async function crearAtributos(jugadorId: number, atributos: Record<string, number>): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO jugador_atributos (jugador_id, atributos) VALUES (?1, ?2)
+     ON CONFLICT(jugador_id) DO UPDATE SET atributos = ?2`
+  )
+    .bind(jugadorId, JSON.stringify(atributos))
+    .run();
+}
+
+export async function ocultarJugador(jugadorId: number): Promise<void> {
+  await env.DB.prepare("UPDATE jugadores SET oculto_publico = 1 WHERE id = ?1").bind(jugadorId).run();
 }
 
 /** Sube un objeto a R2 y devuelve su key, para los tests de fotos. */

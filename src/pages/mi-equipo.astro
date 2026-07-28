@@ -17,7 +17,8 @@ import SiteFooter from "../components/SiteFooter.astro";
       <h1 class="reveal" style="--reveal-delay: 90ms">Tu ficha de jugador</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
         Entra con Google para ver tu cromo: foto, palmarés y estadísticas. Desde aquí
-        gestionas tu equipo de la edición en juego y tus camisetas reservadas.
+        gestionas tu equipo de la edición en juego y tus camisetas reservadas. Tu cromo se ve
+        también en el <a href="/jugadores/">álbum</a>.
       </p>
     </section>
 
@@ -143,7 +144,10 @@ import SiteFooter from "../components/SiteFooter.astro";
             <div>
               <p class="eyebrow">Tu ficha</p>
               <h2>Personaliza tu cromo</h2>
-              <p class="teams-status">Estos datos son tuyos y decoran tu ficha. Las estadísticas de juego son tu propia valoración.</p>
+              <p class="teams-status">
+                Esto es lo que ve todo el mundo en tu cromo del <a href="/jugadores/">álbum</a>. Los
+                atributos y las estadísticas los pone la organización.
+              </p>
             </div>
 
             <div class="form-banner" role="alert" data-ficha-banner hidden></div>
@@ -186,18 +190,13 @@ import SiteFooter from "../components/SiteFooter.astro";
 
             <div class="ficha-foto">
               <p class="eyebrow">Foto de la ficha</p>
-              <p class="field-hint">JPG, PNG o WebP, hasta 4 MB. Solo la ves tú.</p>
+              <p class="field-hint">JPG, PNG o WebP, hasta 4 MB. Es la foto de tu cromo público.</p>
               <div class="field">
                 <input type="file" data-ficha-avatar accept="image/jpeg,image/png,image/webp" />
                 <p class="field-error" data-ficha-error="avatar" hidden></p>
               </div>
               <button type="button" class="add-player danger-button" data-ficha-avatar-delete hidden>Quitar foto</button>
             </div>
-
-            <fieldset class="ficha-atributos">
-              <legend class="eyebrow">Tu juego (1 a 5, tu valoración)</legend>
-              <div class="atributos-grid" data-ficha-atributos></div>
-            </fieldset>
 
             <button type="submit" class="button button-primary form-submit" data-ficha-save>Guardar ficha</button>
           </form>
@@ -242,6 +241,7 @@ import SiteFooter from "../components/SiteFooter.astro";
 
   <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/cromo.js" defer></script>
   <script is:inline src="/assets/perfil.js" defer></script>
   <script is:inline src="/assets/my-team.js" defer></script>
   <script is:inline src="/assets/shirts.js" defer></script>

@@ -3,12 +3,15 @@
 //   GET ?id=N      ficha completa: perfil, equipos por edición y camisetas
 //   PATCH ?id=N    nombre, permiso de administrador y ficha de jugador
 //
+// Los atributos 1–5 no se tocan aquí: cuelgan del jugador de una edición, no de
+// la cuenta, y se editan en /api/admin/estadisticas.
+//
 // No hay alta ni baja: las cuentas las crea Google al iniciar sesión, y
 // borrarlas se descartó a propósito (arrastraría perfil, avatar y reservas, y
 // dejaría equipos huérfanos).
 
 import { requireAdmin, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
-import { guardarPerfil, parseAtributos, validarPerfil } from "../../_lib/perfil";
+import { guardarPerfil, validarPerfil } from "../../_lib/perfil";
 import { limpiar, normalizarEmail } from "../../_lib/validacion";
 
 interface UsuarioRow {
@@ -29,7 +32,6 @@ interface PerfilRow {
   posicion: string | null;
   mano: string | null;
   lema: string | null;
-  atributos: string | null;
   avatar_key: string | null;
 }
 
@@ -206,7 +208,7 @@ async function cargarFicha(db: D1Database, usuarioId: number) {
 
   const [perfil, equipos, camisetas] = await Promise.all([
     db
-      .prepare("SELECT apodo, dorsal, posicion, mano, lema, atributos, avatar_key FROM perfiles WHERE usuario_id = ?1")
+      .prepare("SELECT apodo, dorsal, posicion, mano, lema, avatar_key FROM perfiles WHERE usuario_id = ?1")
       .bind(usuarioId)
       .first<PerfilRow>(),
     // Por propiedad del equipo o por aparecer como jugador con ese correo: son
@@ -247,8 +249,7 @@ async function cargarFicha(db: D1Database, usuarioId: number) {
       dorsal: perfil?.dorsal ?? null,
       posicion: perfil?.posicion ?? null,
       mano: perfil?.mano ?? null,
-      lema: perfil?.lema ?? null,
-      atributos: parseAtributos(perfil?.atributos ?? null)
+      lema: perfil?.lema ?? null
     },
     equipos: equipos.results.map((e) => ({
       id: e.id,

@@ -1,0 +1,69 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  titulo="Estadísticas"
+  seccion="estadisticas"
+  lede="Lo que se anota aquí es lo que se ve en el álbum público de jugadores: cifras de juego, atributos y quién aparece."
+>
+  <div class="admin-toolbar">
+    <input
+      type="search"
+      class="admin-input admin-search"
+      placeholder="Buscar por nombre o equipo"
+      aria-label="Buscar jugadores"
+      data-admin-buscar
+    />
+    <span class="admin-toolbar-sep"></span>
+    <span class="admin-count" data-admin-contador></span>
+  </div>
+
+  <div data-admin-estadisticas></div>
+
+  <dialog class="admin-dialog" slot="dialogos" data-stats-dialog>
+    <div class="admin-dialog-shell">
+      <div class="admin-dialog-head">
+        <div>
+          <h2 class="admin-dialog-title" data-stats-titulo>Estadísticas</h2>
+          <p class="admin-dialog-sub" data-stats-sub></p>
+        </div>
+        <button type="button" class="admin-dialog-close" data-stats-cerrar aria-label="Cerrar">×</button>
+      </div>
+
+      <div class="admin-dialog-body">
+        <form class="admin-form" data-stats-form novalidate>
+          <div class="admin-field">
+            <span class="admin-label">Cifras de la edición</span>
+            <p class="admin-field-hint">
+              Totales de la persona en esta edición. Cuando exista el registro por partido, estas
+              cifras se sumarán a las que llegue de cada encuentro.
+            </p>
+            <div class="admin-form-grid" data-stats-metricas></div>
+          </div>
+
+          <div class="admin-field">
+            <span class="admin-label">Atributos (1 a 5)</span>
+            <p class="admin-field-hint">Déjalo en blanco para no puntuar ese apartado.</p>
+            <div class="admin-form-grid" data-stats-atributos></div>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-photo-delete">
+              <input type="checkbox" data-stats-oculto />
+              No mostrar a esta persona en el álbum público
+            </label>
+          </div>
+        </form>
+      </div>
+
+      <div class="admin-dialog-foot">
+        <p class="admin-alert" role="alert" data-stats-banner hidden></p>
+        <button type="button" class="admin-btn" data-stats-cancelar>Cancelar</button>
+        <button type="button" class="admin-btn admin-btn--primary" data-stats-guardar>Guardar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script is:inline slot="scripts" src="/assets/admin/estadisticas.js" defer></script>
+</AdminLayout>

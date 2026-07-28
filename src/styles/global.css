@@ -3258,6 +3258,366 @@ html.js .reveal.in-view {
   }
 }
 
+/* ------------------------------ álbum de cromos ---------------------------- */
+
+/* /jugadores/ es literalmente un álbum: la rejilla son cromos y quien no ha
+   subido foto deja el hueco sin pegar, con su silueta. Reutiliza la pieza
+   `.cromo` de Mi zona para la ficha grande, así que aquí solo viven la rejilla,
+   los controles y el ranking. Base móvil; a 901px la rejilla se aprieta. */
+
+.album-page {
+  width: min(1120px, calc(100% - 32px));
+}
+
+/* Las acciones cierran la página; el ranking o el historial quedan pegados a
+   ellas sin este respiro. */
+.album-page .teams-actions {
+  margin-top: 32px;
+}
+
+.album-controles {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.album-buscador {
+  display: grid;
+  gap: 6px;
+}
+
+.album-buscador-label {
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sea);
+}
+
+.album-buscador input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 700;
+}
+
+.album-cuenta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.album-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.album-filtro {
+  padding: 8px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 900;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.album-filtro:hover {
+  background: var(--sun);
+}
+
+.album-filtro.is-on {
+  background: var(--sea);
+  color: var(--foam);
+}
+
+.album-filtro:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.album-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.album-cromo {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: linear-gradient(165deg, var(--foam) 0%, var(--dune) 100%);
+  box-shadow: 6px 6px 0 var(--ink);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.album-cromo:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 9px 9px 0 var(--ink);
+}
+
+.album-cromo:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.album-cromo-foto {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-bottom: 3px solid var(--ink);
+  background: linear-gradient(150deg, var(--aqua), var(--lime));
+}
+
+.album-cromo-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Hueco del álbum: trama de puntos, silueta y aviso. Es información, no adorno:
+   dice que esa persona todavía no tiene foto. */
+.album-cromo-foto--hueco {
+  background:
+    radial-gradient(circle, rgba(16, 21, 22, 0.16) 1.4px, transparent 1.5px) 0 0 / 12px 12px,
+    linear-gradient(150deg, var(--dune), var(--sand));
+}
+
+.album-cromo-inicial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  color: rgba(16, 21, 22, 0.32);
+}
+
+.album-cromo-pegar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.album-cromo-dorsal {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 7px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sun);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.album-cromo-pie {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: 10px 12px 12px;
+}
+
+.album-cromo-nombre {
+  font-weight: 950;
+  font-size: 0.92rem;
+  line-height: 1.15;
+  color: var(--deep);
+}
+
+.album-cromo-equipo {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.album-cromo-apodo {
+  color: var(--coral);
+  font-size: 0.76rem;
+  font-style: italic;
+  font-weight: 900;
+}
+
+/* ------- ranking ------- */
+
+.album-ranking {
+  margin-top: 40px;
+}
+
+.album-ranking h2 {
+  margin-bottom: 16px;
+  color: var(--deep);
+  font-size: clamp(1.5rem, 5vw, 2rem);
+}
+
+.ranking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.ranking-card {
+  padding: 16px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 248, 233, 0.78);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.ranking-titulo {
+  margin: 0 0 10px;
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sea);
+}
+
+.ranking-lista {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--foam);
+}
+
+.ranking-fila--oro {
+  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+}
+
+.ranking-fila--plata {
+  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+}
+
+.ranking-fila--bronce {
+  background: linear-gradient(160deg, #f2c79b, #d98f52);
+}
+
+.ranking-nombre {
+  margin-right: auto;
+  font-weight: 900;
+  font-size: 0.86rem;
+  line-height: 1.2;
+}
+
+.ranking-nombre:hover {
+  text-decoration: underline;
+}
+
+.ranking-valor {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+/* ------- ficha pública ------- */
+
+.album-ficha {
+  display: grid;
+  gap: 22px;
+}
+
+.album-volver {
+  justify-self: start;
+  padding: 9px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 950;
+  font-size: 0.85rem;
+}
+
+.album-volver:hover {
+  background: var(--sun);
+}
+
+.album-social {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.album-companero {
+  font-weight: 900;
+  color: var(--deep);
+}
+
+.album-companero:hover {
+  text-decoration: underline;
+}
+
+.historial-stats {
+  margin: 0;
+  color: var(--pine);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+@media (min-width: 901px) {
+  .album-rejilla {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 18px;
+  }
+
+  .album-controles {
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    align-items: start;
+    gap: 18px 24px;
+  }
+
+  .album-ranking h2 {
+    font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  }
+}
+
+@media (max-width: 560px) {
+  .album-rejilla {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+  }
+
+  .album-cromo-inicial {
+    font-size: 2rem;
+  }
+}
+
 
 /* ------------------------------ media queries ------------------------------ */
 

@@ -16,6 +16,8 @@ beforeAll(async () => {
  * Hijos antes que padres, por las claves ajenas.
  */
 const TABLAS = [
+  "estadisticas",
+  "jugador_atributos",
   "jugadores",
   "partidos",
   "camisetas_reservas",
