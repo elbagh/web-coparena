@@ -13,12 +13,19 @@
   const raiz = document.querySelector("[data-admin-equipos]");
   if (!raiz || !window.CopaAdmin) return;
 
-  const { api, resumen, onReady, recargar, setError, el, clear, text, tabla, celda, boton, limpiar, confirmar } =
+  const { api, apiJson, resumen, onReady, recargar, setError, el, clear, text, tabla, celda, boton, enlace, limpiar, confirmar } =
     window.CopaAdmin;
 
   const buscador = document.querySelector("[data-admin-buscar]");
   const contador = document.querySelector("[data-admin-contador]");
   const normalizar = document.querySelector("[data-admin-normalize]");
+  const btnNuevo = document.querySelector("[data-equipo-nuevo]");
+  const dialogoNuevo = document.querySelector("[data-equipo-nuevo-dialog]");
+
+  const fotoEquipoInput = () => dialogo?.querySelector('[data-team-edit-field="fotoEquipo"]');
+  const eliminarFotoEquipo = () => dialogo?.querySelector('[data-team-edit-field="eliminarFotoEquipo"]');
+  const fotoEquipoPreview = () => dialogo?.querySelector("[data-team-foto-preview]");
+  const fotoEquipoVacia = () => dialogo?.querySelector("[data-team-foto-vacia]");
 
   const dialogo = document.querySelector("[data-team-edit-dialog]");
   const form = dialogo?.querySelector("[data-team-edit-form]");
@@ -97,6 +104,7 @@
             render: (e) =>
               celda(
                 "admin-row-actions",
+                enlace("Jugadores", `/admin/jugadores/?equipo=${encodeURIComponent(e.id)}`, "admin-btn admin-btn--sm"),
                 boton("Editar", () => abrirEditor(e)),
                 boton("Borrar", () => borrarEquipo(e), "admin-btn admin-btn--sm admin-btn--danger")
               )
@@ -119,6 +127,15 @@
     if (jugadores.length === 0) return el("span", "admin-tag admin-tag--warn", "Sin jugadores");
 
     const caja = el("div", "admin-cell-media");
+    if (equipo.tieneFoto) {
+      const grupo = document.createElement("img");
+      grupo.className = "admin-thumb";
+      grupo.alt = "";
+      grupo.title = "Foto de equipo";
+      grupo.loading = "lazy";
+      grupo.src = `/api/equipos?foto=${encodeURIComponent(equipo.id)}`;
+      caja.append(grupo);
+    }
     jugadores.slice(0, 4).forEach((jugador) => {
       if (jugador.tieneFoto) {
         const img = document.createElement("img");
@@ -259,17 +276,91 @@
     equipoEnEdicion = {
       id: equipo.id,
       nombre: equipo.nombre,
+      tieneFoto: Boolean(equipo.tieneFoto),
       jugadores: (equipo.jugadores || []).map((j) => ({ ...j }))
     };
     titulo.textContent = equipo.nombre;
     form.querySelector('[data-team-edit-field="equipo"]').value = equipo.nombre;
     listaJugadores.innerHTML = "";
     (equipo.jugadores || []).forEach((jugador) => listaJugadores.append(crearFilaJugador(jugador)));
+    prepararFotoEquipo(equipo);
     reindexar();
     mostrarPasoEdicion();
     limpiarBanner();
     dialogo.showModal();
   }
+
+  // ------------------------------------------------------ foto de equipo ---
+
+  function prepararFotoEquipo(equipo) {
+    const input = fotoEquipoInput();
+    const borrar = eliminarFotoEquipo();
+    const preview = fotoEquipoPreview();
+    const vacia = fotoEquipoVacia();
+    if (!input) return;
+
+    input.value = "";
+    borrar.checked = false;
+    liberarFotoEquipo();
+
+    if (equipo.tieneFoto) {
+      preview.src = `/api/equipos?foto=${encodeURIComponent(equipo.id)}&t=${Date.now()}`;
+      preview.hidden = false;
+      vacia.hidden = true;
+    } else {
+      preview.hidden = true;
+      vacia.hidden = false;
+    }
+    errorFotoEquipo("");
+  }
+
+  /** El error de la foto de equipo no cuelga de ninguna carta de jugador. */
+  function errorFotoEquipo(mensaje) {
+    const p = form.querySelector('[data-team-edit-error="fotoEquipo"]');
+    if (!p) return;
+    p.textContent = mensaje || "";
+    p.hidden = !mensaje;
+  }
+
+  function liberarFotoEquipo() {
+    const preview = fotoEquipoPreview();
+    if (preview?.dataset.objectUrl === "1") {
+      URL.revokeObjectURL(preview.src);
+      delete preview.dataset.objectUrl;
+    }
+  }
+
+  fotoEquipoInput()?.addEventListener("change", () => {
+    const archivo = fotoEquipoInput().files?.[0];
+    if (!archivo) return;
+    if (archivo.size > MAX_FOTO_BYTES || !TIPOS_FOTO.includes(archivo.type)) {
+      errorFotoEquipo("Solo se admiten fotos JPG, PNG o WebP de hasta 4 MB.");
+      fotoEquipoInput().value = "";
+      return;
+    }
+    errorFotoEquipo("");
+    eliminarFotoEquipo().checked = false;
+    liberarFotoEquipo();
+    const preview = fotoEquipoPreview();
+    preview.src = URL.createObjectURL(archivo);
+    preview.dataset.objectUrl = "1";
+    preview.hidden = false;
+    fotoEquipoVacia().hidden = true;
+  });
+
+  eliminarFotoEquipo()?.addEventListener("change", () => {
+    const preview = fotoEquipoPreview();
+    if (eliminarFotoEquipo().checked) {
+      fotoEquipoInput().value = "";
+      liberarFotoEquipo();
+      preview.hidden = true;
+      fotoEquipoVacia().hidden = false;
+    } else if (equipoEnEdicion?.tieneFoto) {
+      preview.src = `/api/equipos?foto=${encodeURIComponent(equipoEnEdicion.id)}&t=${Date.now()}`;
+      preview.hidden = false;
+      fotoEquipoVacia().hidden = true;
+    }
+  });
 
   function reindexar() {
     const cartas = Array.from(listaJugadores.querySelectorAll("[data-team-edit-player]"));
@@ -402,6 +493,12 @@
       cambios.push(`Nombre del equipo: «${equipoEnEdicion.nombre}» → «${nombreActual}»`);
     }
 
+    if (fotoEquipoInput()?.files?.[0]) {
+      cambios.push(equipoEnEdicion.tieneFoto ? "Cambia la foto del equipo." : "Se añade la foto del equipo.");
+    } else if (eliminarFotoEquipo()?.checked && equipoEnEdicion.tieneFoto) {
+      cambios.push("Se elimina la foto del equipo.");
+    }
+
     const cartas = Array.from(listaJugadores.querySelectorAll("[data-team-edit-player]"));
     const idsActuales = new Set();
     const CAMPOS = [
@@ -527,6 +624,10 @@
       if (fotoInput.files && fotoInput.files[0]) envio.append(`foto_${i}`, fotoInput.files[0]);
     });
 
+    const fotoEquipo = fotoEquipoInput()?.files?.[0];
+    if (fotoEquipo) envio.append("fotoEquipo", fotoEquipo);
+    if (eliminarFotoEquipo()?.checked) envio.append("eliminarFotoEquipo", "1");
+
     btnConfirmar.disabled = true;
     btnConfirmar.setAttribute("aria-busy", "true");
     const textoOriginal = btnConfirmar.textContent;
@@ -557,8 +658,61 @@
     carta.querySelector('[data-field="nombre"]')?.focus();
   });
 
+  // ------------------------------------------------------- alta de equipo ---
+
+  btnNuevo?.addEventListener("click", () => {
+    if (!dialogoNuevo) return;
+    dialogoNuevo.querySelector("[data-equipo-nuevo-form]").reset();
+    bannerNuevo("");
+    errorNuevo("");
+    dialogoNuevo.showModal();
+    dialogoNuevo.querySelector('[data-equipo-nuevo-field="nombre"]').focus();
+  });
+
+  function bannerNuevo(mensaje) {
+    const b = dialogoNuevo?.querySelector("[data-equipo-nuevo-banner]");
+    if (!b) return;
+    b.textContent = mensaje || "";
+    b.hidden = !mensaje;
+  }
+
+  function errorNuevo(mensaje) {
+    const p = dialogoNuevo?.querySelector('[data-equipo-nuevo-error="nombre"]');
+    if (!p) return;
+    p.textContent = mensaje || "";
+    p.hidden = !mensaje;
+  }
+
+  dialogoNuevo?.querySelector("[data-equipo-nuevo-guardar]")?.addEventListener("click", async () => {
+    const input = dialogoNuevo.querySelector('[data-equipo-nuevo-field="nombre"]');
+    const nombre = limpiar(input.value);
+    bannerNuevo("");
+    errorNuevo("");
+    if (nombre.length < 2 || nombre.length > 60) {
+      errorNuevo("El nombre debe tener entre 2 y 60 caracteres.");
+      return;
+    }
+
+    const guardar = dialogoNuevo.querySelector("[data-equipo-nuevo-guardar]");
+    guardar.disabled = true;
+    try {
+      await apiJson("/api/admin/equipos", "POST", { nombre });
+      dialogoNuevo.close();
+      await recargar();
+    } catch (err) {
+      if (err.campos?.nombre) errorNuevo(err.campos.nombre);
+      bannerNuevo(err.message);
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+
+  dialogoNuevo?.querySelector("[data-equipo-nuevo-cerrar]")?.addEventListener("click", () => dialogoNuevo.close());
+  dialogoNuevo?.querySelector("[data-equipo-nuevo-cancelar]")?.addEventListener("click", () => dialogoNuevo.close());
+
   dialogo?.addEventListener("close", () => {
     equipoEnEdicion = null;
+    liberarFotoEquipo();
     // Libera los object URL de las previsualizaciones antes de vaciar.
     listaJugadores.querySelectorAll("[data-photo-preview]").forEach((img) => {
       if (img.dataset.objectUrl === "1") URL.revokeObjectURL(img.src);

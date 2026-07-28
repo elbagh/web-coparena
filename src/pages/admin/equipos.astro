@@ -9,6 +9,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 >
   <div class="admin-toolbar" slot="acciones">
     <button type="button" class="admin-btn" data-admin-normalize>Normalizar nombres</button>
+    <button type="button" class="admin-btn admin-btn--primary" data-equipo-nuevo>+ Nuevo equipo</button>
   </div>
 
   <div class="admin-toolbar">
@@ -44,6 +45,28 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               <p class="field-error" data-team-edit-error="equipo" hidden></p>
             </div>
 
+            <div class="field" data-team-foto-bloque>
+              <span class="admin-photo-label">Foto del equipo</span>
+              <div class="admin-foto-equipo">
+                <div class="admin-foto-equipo-marco">
+                  <img data-team-foto-preview alt="" hidden />
+                  <span class="admin-foto-equipo-vacia" data-team-foto-vacia>Sin foto de equipo</span>
+                </div>
+                <div class="admin-foto-equipo-acciones">
+                  <p class="admin-field-hint">Se ve en la página pública de equipos y en la zona del capitán.</p>
+                  <label class="admin-btn admin-btn--sm admin-photo-upload">
+                    Cambiar foto
+                    <input type="file" data-team-edit-field="fotoEquipo" accept="image/jpeg,image/png,image/webp" hidden />
+                  </label>
+                  <label class="admin-photo-delete">
+                    <input type="checkbox" data-team-edit-field="eliminarFotoEquipo" />
+                    Eliminar foto
+                  </label>
+                </div>
+              </div>
+              <p class="field-error" data-team-edit-error="fotoEquipo" hidden></p>
+            </div>
+
             <div class="players" data-team-edit-players></div>
 
             <button type="button" class="admin-btn" data-team-edit-add>+ Añadir jugador</button>
@@ -62,6 +85,33 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
           <button type="button" class="admin-btn admin-btn--primary" data-team-edit-confirm hidden>
             Confirmar cambios
           </button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="admin-dialog" data-equipo-nuevo-dialog>
+      <div class="admin-dialog-shell">
+        <div class="admin-dialog-head">
+          <div>
+            <h2 class="admin-dialog-title">Nuevo equipo</h2>
+            <p class="admin-dialog-sub">Se crea vacío en la edición activa. Los jugadores se añaden después.</p>
+          </div>
+          <button type="button" class="admin-dialog-close" data-equipo-nuevo-cerrar aria-label="Cerrar">×</button>
+        </div>
+        <div class="admin-dialog-body">
+          <form class="admin-form" data-equipo-nuevo-form novalidate>
+            <div class="admin-field">
+              <label for="equipo-nuevo-nombre">Nombre del equipo</label>
+              <input id="equipo-nuevo-nombre" class="admin-input" type="text" maxlength="60" autocomplete="off"
+                data-equipo-nuevo-field="nombre" />
+              <p class="admin-field-error" data-equipo-nuevo-error="nombre" hidden></p>
+            </div>
+          </form>
+        </div>
+        <div class="admin-dialog-foot">
+          <p class="admin-alert" role="alert" data-equipo-nuevo-banner hidden></p>
+          <button type="button" class="admin-btn" data-equipo-nuevo-cancelar>Cancelar</button>
+          <button type="button" class="admin-btn admin-btn--primary" data-equipo-nuevo-guardar>Crear equipo</button>
         </div>
       </div>
     </dialog>

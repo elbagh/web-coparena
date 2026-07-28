@@ -73,6 +73,70 @@ h2 {
   text-transform: none;
 }
 
+/* -------------------------------- ver como --------------------------------- */
+
+/* Aviso permanente de que la sesión está suplantando a otra persona. Va anclado
+   abajo y no arriba porque la cabecera es una píldora `fixed` con su propia
+   franja: una banda superior se solaparía con ella en todas las páginas.
+   El color es el de peligro de la casa, sin degradados ni gracia: tiene que
+   leerse como una advertencia, no como parte del diseño. */
+
+.ver-como-banda {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-top: 3px solid var(--ink);
+  background: var(--coral);
+  color: var(--ink);
+}
+
+.ver-como-banda[hidden] {
+  display: none;
+}
+
+.ver-como-texto {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.ver-como-salir {
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ver-como-salir:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--foam);
+}
+
+.ver-como-salir:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Hueco al final de la página para que la banda no tape el pie ni el último
+   control de un formulario. */
+html.ver-como body {
+  padding-bottom: 72px;
+}
+
+
 /* ---------------------------------- header --------------------------------- */
 
 /* Franja fija que cubre el hueco entre el borde superior de la ventana y la
@@ -2446,13 +2510,31 @@ html.js .reveal.in-view {
   transform: rotate(-135deg);
 }
 
+/* Panel desplegable de la tarjeta: la foto de grupo (si el equipo tiene) y
+   debajo la plantilla. La línea punteada separa la cabecera del contenido,
+   venga o no con foto. */
+.team-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--line);
+}
+
+.team-foto {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--dune);
+}
+
 .team-players {
   margin: 0;
-  padding: 10px 0 0;
+  padding: 0;
   list-style: none;
   display: grid;
   gap: 8px;
-  border-top: 2px dashed var(--line);
 }
 
 .player-row {
@@ -2617,6 +2699,31 @@ html.js .reveal.in-view {
 .shirt-card .player-remove {
   margin-left: auto;
 }
+
+/* Foto de grupo en la zona del capitán: solo lectura, la sube la organización
+   desde el panel. */
+.mi-equipo-foto {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.mi-equipo-foto img {
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--dune);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.mi-equipo-foto figcaption {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 
 /* ------------------------------ mi zona: ficha ----------------------------- */
 

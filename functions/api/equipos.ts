@@ -5,7 +5,7 @@ import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
 import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
-import { limpiarFotos, subirFoto, type ExtensionFoto } from "../_lib/fotos";
+import { fotoNoEncontrada, limpiarFotos, servirFoto, subirFoto, type ExtensionFoto } from "../_lib/fotos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
@@ -201,11 +201,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   );
 };
 
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+  // La foto de grupo del equipo sí es pública (a diferencia de las de jugador,
+  // que solo salen por /api/admin/fotos): se pinta en /equipos/ y /mi-equipo/.
+  const fotoDe = new URL(request.url).searchParams.get("foto");
+  if (fotoDe !== null) return servirFotoEquipo(env, fotoDe);
+
   try {
     const { results } = await env.DB
       .prepare(
-        `SELECT e.id AS equipo_id, e.nombre AS equipo_nombre,
+        `SELECT e.id AS equipo_id, e.nombre AS equipo_nombre, e.foto_key AS equipo_foto,
                 j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos, j.red_social AS red_social
          FROM equipos e
          LEFT JOIN jugadores j ON j.equipo_id = e.id
@@ -214,17 +219,28 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       .all<{
         equipo_id: number;
         equipo_nombre: string;
+        equipo_foto: string | null;
         jugador_nombre: string | null;
         jugador_apellidos: string | null;
         red_social: string | null;
       }>();
 
-    const equipos: { nombre: string; jugadores: { nombre: string; apellidos: string; instagram: string | null }[] }[] = [];
+    const equipos: {
+      id: number;
+      nombre: string;
+      tieneFoto: boolean;
+      jugadores: { nombre: string; apellidos: string; instagram: string | null }[];
+    }[] = [];
     const porId = new Map<number, (typeof equipos)[number]>();
     for (const fila of results) {
       let equipo = porId.get(fila.equipo_id);
       if (!equipo) {
-        equipo = { nombre: fila.equipo_nombre, jugadores: [] };
+        equipo = {
+          id: fila.equipo_id,
+          nombre: fila.equipo_nombre,
+          tieneFoto: Boolean(fila.equipo_foto),
+          jugadores: []
+        };
         porId.set(fila.equipo_id, equipo);
         equipos.push(equipo);
       }
@@ -243,6 +259,25 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     return json({ error: "No se ha podido cargar la lista de equipos." }, 500);
   }
 };
+
+/**
+ * GET /api/equipos?foto=N — foto de grupo del equipo.
+ * Se cachea cinco minutos: la clave de R2 lleva un uuid, así que reemplazar la
+ * foto cambia el objeto y ningún intermedio puede servir la anterior más allá
+ * de esa ventana.
+ */
+async function servirFotoEquipo(env: Env, idBruto: string): Promise<Response> {
+  const equipoId = Number(idBruto);
+  if (!Number.isInteger(equipoId) || equipoId <= 0) return fotoNoEncontrada();
+
+  const equipo = await env.DB
+    .prepare("SELECT foto_key FROM equipos WHERE id = ?1")
+    .bind(equipoId)
+    .first<{ foto_key: string | null }>();
+  if (!equipo?.foto_key) return fotoNoEncontrada();
+
+  return servirFoto(env.FOTOS, equipo.foto_key, "public, max-age=300");
+}
 
 async function buscarDuplicados(db: D1Database, registro: RegistroValidado): Promise<Record<string, string>> {
   const campos: Record<string, string> = {};

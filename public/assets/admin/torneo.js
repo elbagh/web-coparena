@@ -13,7 +13,7 @@
   if (!panel || !window.CopaArenaMatches || !window.CopaAdmin) return;
 
   const matchesApi = window.CopaArenaMatches;
-  const { onReady, el } = window.CopaAdmin;
+  const { onReady, el, setError, confirmar, limpiar } = window.CopaAdmin;
 
   const status = panel.querySelector("[data-admin-status]");
   const teamPool = panel.querySelector("[data-team-pool]");
@@ -30,7 +30,6 @@
   let matches = [];
   let draftMatches = null;
   let selectedId = null;
-  let apiAvailable = true;
   let relojIniciado = false;
 
   onReady(async () => {
@@ -66,16 +65,18 @@
     }
   }
 
+  // La lectura sí conserva el respaldo local: si la API no responde a pie de
+  // pista, al menos se sigue viendo el cuadro. Escribir, en cambio, ya no cae
+  // en localStorage: un guardado que no llega a la base tiene que doler.
   async function loadMatches() {
     try {
       matches = await matchesApi.apiGetMatches();
       const localMatches = matchesApi.readLocalMatches();
       if (!matches.length && localMatches.length) matches = localMatches;
       else matchesApi.writeLocalMatches(matches);
-      apiAvailable = true;
     } catch {
       matches = matchesApi.readLocalMatches();
-      apiAvailable = false;
+      setError("No se ha podido leer el calendario. Se muestra la última copia de este navegador.");
     }
   }
 
@@ -156,55 +157,73 @@
     input.addEventListener("change", () => scheduleMatch(match.id, input.value));
     field.append(el("span", "", "Hora"), input);
 
+    const acciones = el("div", "match-card-acciones");
+    acciones.append(
+      botonChico("Editar", () => abrirEdicion(match)),
+      botonChico("Borrar", () => borrarPartido(match), "admin-btn admin-btn--sm admin-btn--danger")
+    );
+    field.append(acciones);
+
     card.append(button, field);
     return card;
   }
 
-  const winnerPrefix = (match, team) => (match.winner === team ? "♕ " : "");
-
-  async function persist(action) {
-    if (apiAvailable) {
-      try {
-        matches = await matchesApi.apiAction(action);
-        matchesApi.writeLocalMatches(matches);
-        draftMatches = null;
-        render();
-        renderDialog();
-        return;
-      } catch {
-        apiAvailable = false;
-        status.textContent = "La API no responde; guardando solo en este navegador.";
-      }
-    }
-    applyLocal(action);
-    matchesApi.writeLocalMatches(matches);
-    draftMatches = null;
-    render();
-    renderDialog();
+  function botonChico(texto, onClick, clase = "admin-btn admin-btn--sm") {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = clase;
+    b.textContent = texto;
+    b.addEventListener("click", onClick);
+    return b;
   }
 
-  function applyLocal(action) {
-    if (action.action === "draw") {
-      matches = action.partidos ? matchesApi.clone(action.partidos) : matchesApi.createDraw(action.equipos);
-      return;
-    }
-    matches = matches.map((match) => {
-      if (match.id !== action.id) return match;
-      const next = matchesApi.clone(match);
-      if (action.action === "schedule") {
-        next.scheduledAt = action.scheduledAt || null;
-      } else if (action.action === "start") {
-        next.status = "live";
-        next.startedAt = next.startedAt || new Date().toISOString();
-      } else if (action.action === "point") {
-        return matchesApi.applyPoint(next, action.team === "B" ? "B" : "A", Number(action.delta) < 0 ? -1 : 1);
-      } else if (action.action === "finish") {
-        next.elapsedMs = matchesApi.elapsed(next);
-        next.status = "finished";
-        next.winner = next.sets.A > next.sets.B || next.points.A >= next.points.B ? "A" : "B";
-      }
-      return next;
+  async function borrarPartido(match) {
+    const ok = await confirmar({
+      titulo: "Borrar partido",
+      texto: `Se va a borrar ${match.teams.A.name} vs ${match.teams.B.name}.`,
+      accion: "Borrar partido"
     });
+    if (!ok) return;
+    await escribir(`/api/partidos?id=${encodeURIComponent(match.id)}`, { method: "DELETE" });
+  }
+
+  const winnerPrefix = (match, team) => (match.winner === team ? "♕ " : "");
+
+  /**
+   * Escribir siempre va contra el servidor. Antes había un respaldo silencioso
+   * en localStorage: si la API fallaba, el marcador seguía funcionando en
+   * pantalla mientras la base no se enteraba de nada. Ahora un fallo se dice.
+   */
+  async function persist(action) {
+    try {
+      matches = await matchesApi.apiAction(action);
+      matchesApi.writeLocalMatches(matches);
+      draftMatches = null;
+      setError("");
+      render();
+      renderDialog();
+    } catch (err) {
+      setError(
+        err.status === 401 || err.status === 403
+          ? "Tu sesión de administrador ha caducado. Recarga la página e inicia sesión otra vez."
+          : err.message
+      );
+    }
+  }
+
+  async function escribir(url, options) {
+    try {
+      matches = await matchesApi.apiWrite(url, options);
+      matchesApi.writeLocalMatches(matches);
+      draftMatches = null;
+      setError("");
+      render();
+      renderDialog();
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
   }
 
   function openMatch(id) {
@@ -337,6 +356,109 @@
     if (!draftMatches?.length) return;
     await persist({ action: "draw", partidos: draftMatches });
     status.textContent = "Sorteo confirmado. Ya aparece en la portada.";
+  });
+
+  // ------------------------------------------- alta y edición manual ---
+
+  const dialogoPartido = document.querySelector("[data-partido-dialog]");
+  const formPartido = dialogoPartido?.querySelector("[data-partido-form]");
+  let partidoEnEdicion = null;
+
+  const campoPartido = (nombre) => formPartido?.querySelector(`[data-partido-field="${nombre}"]`);
+
+  function bannerPartido(mensaje) {
+    const b = dialogoPartido?.querySelector("[data-partido-banner]");
+    if (!b) return;
+    b.textContent = mensaje || "";
+    b.hidden = !mensaje;
+  }
+
+  function abrirEdicion(match) {
+    if (!dialogoPartido) return;
+    partidoEnEdicion = match;
+    bannerPartido("");
+    dialogoPartido.querySelector("[data-partido-titulo]").textContent = match
+      ? `${match.teams.A.name} vs ${match.teams.B.name}`
+      : "Nuevo partido";
+
+    campoPartido("ronda").value = match?.ronda || "Sorteo";
+    campoPartido("equipoANombre").value = match?.teams.A.name || "";
+    campoPartido("equipoBNombre").value = match?.teams.B.name || "";
+    campoPartido("scheduledAt").value = match?.scheduledAt ? match.scheduledAt.slice(0, 16) : "";
+
+    // El marcador solo se toca al editar: un partido nuevo nace a cero.
+    const bloqueMarcador = dialogoPartido.querySelector("[data-partido-marcador]");
+    bloqueMarcador.hidden = !match;
+    if (match) {
+      campoPartido("status").value = match.status;
+      campoPartido("pointsA").value = String(match.points.A);
+      campoPartido("pointsB").value = String(match.points.B);
+      campoPartido("setsA").value = String(match.sets.A);
+      campoPartido("setsB").value = String(match.sets.B);
+      campoPartido("winner").value = match.winner || "";
+    }
+
+    dialogoPartido.showModal();
+  }
+
+  dialogoPartido?.querySelector("[data-partido-guardar]")?.addEventListener("click", async () => {
+    bannerPartido("");
+    const equipoA = limpiar(campoPartido("equipoANombre").value);
+    const equipoB = limpiar(campoPartido("equipoBNombre").value);
+    if (!equipoA || !equipoB) {
+      bannerPartido("Indica los dos equipos.");
+      return;
+    }
+
+    const hora = campoPartido("scheduledAt").value;
+    const datos = {
+      ronda: limpiar(campoPartido("ronda").value) || "Sorteo",
+      equipoANombre: equipoA,
+      equipoBNombre: equipoB,
+      scheduledAt: hora ? new Date(hora).toISOString() : null
+    };
+
+    let ok;
+    if (partidoEnEdicion) {
+      Object.assign(datos, {
+        status: campoPartido("status").value,
+        pointsA: Number(campoPartido("pointsA").value || 0),
+        pointsB: Number(campoPartido("pointsB").value || 0),
+        setsA: Number(campoPartido("setsA").value || 0),
+        setsB: Number(campoPartido("setsB").value || 0),
+        winner: campoPartido("winner").value || null
+      });
+      ok = await escribir(`/api/partidos?id=${encodeURIComponent(partidoEnEdicion.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(datos)
+      });
+    } else {
+      ok = await escribir("/api/partidos", {
+        method: "POST",
+        body: JSON.stringify({ action: "crear", ...datos })
+      });
+    }
+
+    if (ok) dialogoPartido.close();
+    else bannerPartido("No se ha podido guardar. Revisa el aviso de arriba.");
+  });
+
+  document.querySelector("[data-partido-nuevo]")?.addEventListener("click", () => abrirEdicion(null));
+  dialogoPartido?.querySelector("[data-partido-cerrar]")?.addEventListener("click", () => dialogoPartido.close());
+  dialogoPartido?.querySelector("[data-partido-cancelar]")?.addEventListener("click", () => dialogoPartido.close());
+  dialogoPartido?.addEventListener("close", () => {
+    partidoEnEdicion = null;
+  });
+
+  document.querySelector("[data-vaciar-partidos]")?.addEventListener("click", async () => {
+    const ok = await confirmar({
+      titulo: "Vaciar el cuadro",
+      texto: `Se van a borrar los ${matches.length} partidos.`,
+      aviso: "Se pierden horarios y marcadores. No se puede deshacer.",
+      accion: "Vaciar el cuadro"
+    });
+    if (!ok) return;
+    await escribir("/api/partidos?todos=1", { method: "DELETE" });
   });
 
   teamForm?.addEventListener("submit", (event) => {

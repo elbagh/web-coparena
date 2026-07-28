@@ -254,6 +254,7 @@
 
       const contadores = {
         equipos: datos.stats?.equipos,
+        jugadores: datos.stats?.jugadores,
         camisetas: datos.stats?.reservasCamisetas
       };
       Object.entries(contadores).forEach(([clave, valor]) => {

@@ -160,6 +160,13 @@
   color: var(--adm-ink);
 }
 
+.match-card-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
 /* --------------------------- marcador en vivo ------------------------------ */
 
 .match-dialog {

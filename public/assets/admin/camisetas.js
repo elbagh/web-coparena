@@ -42,6 +42,7 @@
             render: (r) =>
               celda(
                 "admin-row-actions",
+                boton("Editar", () => abrirEdicion(r)),
                 boton("Borrar", () => borrar(r), "admin-btn admin-btn--sm admin-btn--danger")
               )
           }
@@ -65,6 +66,90 @@
       setError(err.message);
     }
   }
+
+  // -------------------------------------------------------- edición ---
+
+  const dialogo = document.querySelector("[data-camiseta-dialog]");
+  const formEdicion = dialogo?.querySelector("[data-camiseta-form]");
+  let enEdicion = null;
+
+  const campoEdicion = (nombre) => formEdicion?.querySelector(`[data-camiseta-field="${nombre}"]`);
+
+  function bannerEdicion(mensaje) {
+    const b = dialogo?.querySelector("[data-camiseta-banner]");
+    if (!b) return;
+    b.textContent = mensaje || "";
+    b.hidden = !mensaje;
+  }
+
+  function errorEdicion(nombre, mensaje) {
+    const nodo = formEdicion?.querySelector(`[data-camiseta-error="${nombre}"]`);
+    if (!nodo) return;
+    nodo.textContent = mensaje || "";
+    nodo.hidden = !mensaje;
+    campoEdicion(nombre)?.closest(".admin-field")?.classList.toggle("has-error", Boolean(mensaje));
+  }
+
+  function abrirEdicion(reserva) {
+    if (!dialogo) return;
+    enEdicion = reserva;
+    bannerEdicion("");
+    CAMPOS.forEach((n) => errorEdicion(n, ""));
+
+    dialogo.querySelector("[data-camiseta-sub]").textContent =
+      `Reserva #${reserva.id} · ${reserva.ownerEmail || "sin cuenta"}`;
+    campoEdicion("nombre").value = reserva.nombre || "";
+    campoEdicion("talla").value = reserva.talla || "";
+    campoEdicion("cantidad").value = String(reserva.cantidad || 1);
+    campoEdicion("notas").value = reserva.notas || "";
+
+    dialogo.showModal();
+  }
+
+  dialogo?.querySelector("[data-camiseta-guardar]")?.addEventListener("click", async () => {
+    bannerEdicion("");
+    CAMPOS.forEach((n) => errorEdicion(n, ""));
+
+    const datos = {
+      nombre: limpiar(campoEdicion("nombre").value),
+      talla: limpiar(campoEdicion("talla").value).toUpperCase(),
+      cantidad: Number(campoEdicion("cantidad").value || 1),
+      notas: limpiar(campoEdicion("notas").value)
+    };
+
+    const errores = {};
+    if (datos.nombre.length < 2 || datos.nombre.length > 80) errores.nombre = "Indica el nombre de quien la recoge.";
+    if (!TALLAS.has(datos.talla)) errores.talla = "Elige una talla válida.";
+    if (!Number.isInteger(datos.cantidad) || datos.cantidad < 1 || datos.cantidad > 10) {
+      errores.cantidad = "Puedes reservar entre 1 y 10 camisetas.";
+    }
+    if (datos.notas.length > 240) errores.notas = "Las notas no pueden pasar de 240 caracteres.";
+
+    if (Object.keys(errores).length > 0) {
+      Object.entries(errores).forEach(([n, m]) => errorEdicion(n, m));
+      bannerEdicion("Revisa los campos marcados.");
+      return;
+    }
+
+    const guardar = dialogo.querySelector("[data-camiseta-guardar]");
+    guardar.disabled = true;
+    try {
+      await apiJson(`/api/admin/camisetas?id=${encodeURIComponent(enEdicion.id)}`, "PATCH", datos);
+      dialogo.close();
+      await recargar();
+    } catch (err) {
+      Object.entries(err.campos || {}).forEach(([n, m]) => errorEdicion(n, m));
+      bannerEdicion(err.message);
+    } finally {
+      guardar.disabled = false;
+    }
+  });
+
+  dialogo?.querySelector("[data-camiseta-cerrar]")?.addEventListener("click", () => dialogo.close());
+  dialogo?.querySelector("[data-camiseta-cancelar]")?.addEventListener("click", () => dialogo.close());
+  dialogo?.addEventListener("close", () => {
+    enEdicion = null;
+  });
 
   // ----------------------------------------------------------- alta ---
 
