@@ -2,6 +2,7 @@
   const state = {
     user: null,
     team: null,
+    verComo: null,
     googleClientId: "",
     loading: true
   };
@@ -42,7 +43,26 @@
     setText("[data-auth-user-name]", state.user?.nombre || state.user?.email || "");
     setText("[data-auth-user-email]", state.user?.email || "");
     setText("[data-auth-team-name]", state.team?.nombre || "");
+
+    // Banda de «ver como»: presente en todas las páginas, oculta salvo cuando
+    // la suplantación está activa.
+    const verComoActivo = Boolean(state.verComo?.activo);
+    setHidden("[data-ver-como]", !verComoActivo);
+    setText("[data-ver-como-nombre]", state.verComo?.usuarioNombre || "");
+    document.documentElement.classList.toggle("ver-como", verComoActivo);
+
     dispatch();
+  }
+
+  async function salirDeVerComo() {
+    await fetch("/api/admin/ver-como", {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+      credentials: "include"
+    }).catch(() => {});
+    // Recarga completa: media página puede estar pintada con datos del otro
+    // usuario, y refrescar el estado a mano dejaría restos.
+    window.location.reload();
   }
 
   async function refresh() {
@@ -56,9 +76,11 @@
       const data = response.ok ? await response.json() : {};
       state.user = data.user || null;
       state.team = data.team || null;
+      state.verComo = data.verComo || null;
     } catch {
       state.user = null;
       state.team = null;
+      state.verComo = null;
     } finally {
       state.loading = false;
       renderAuthState();
@@ -174,11 +196,19 @@
     });
   });
 
+  $all("[data-ver-como-salir]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      await salirDeVerComo();
+    });
+  });
+
   window.CopaAuth = {
     state,
     refresh,
     logout,
-    loginWithCredential
+    loginWithCredential,
+    salirDeVerComo
   };
 
   renderAuthState();

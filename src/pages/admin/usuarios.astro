@@ -1,0 +1,107 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { MANOS, POSICIONES } from "../../../functions/_lib/perfil";
+---
+
+<AdminLayout
+  titulo="Usuarios"
+  seccion="usuarios"
+  lede="Cuentas de Google que han entrado alguna vez. Puedes editar su ficha, darles permiso de administración y ver el sitio con sus ojos."
+>
+  <div class="admin-toolbar">
+    <input
+      type="search"
+      class="admin-input admin-search"
+      placeholder="Buscar por nombre, correo o equipo"
+      aria-label="Buscar cuentas"
+      data-admin-buscar
+    />
+    <span class="admin-toolbar-sep"></span>
+    <span class="admin-count" data-admin-contador></span>
+  </div>
+
+  <div data-admin-usuarios></div>
+
+  <dialog class="admin-dialog admin-dialog--wide" slot="dialogos" data-usuario-dialog>
+    <div class="admin-dialog-shell">
+      <div class="admin-dialog-head">
+        <div>
+          <h2 class="admin-dialog-title" data-usuario-titulo>Cuenta</h2>
+          <p class="admin-dialog-sub" data-usuario-sub></p>
+        </div>
+        <button type="button" class="admin-dialog-close" data-usuario-cerrar aria-label="Cerrar">×</button>
+      </div>
+
+      <div class="admin-dialog-body">
+        <form class="admin-form" data-usuario-form novalidate>
+          <div class="admin-form-grid">
+            <div class="admin-field">
+              <label for="usuario-nombre">Nombre</label>
+              <input id="usuario-nombre" class="admin-input" type="text" maxlength="80" data-usuario-field="nombre" />
+              <p class="admin-field-error" data-usuario-error="nombre" hidden></p>
+            </div>
+            <div class="admin-field">
+              <span class="admin-label">Permisos</span>
+              <label class="admin-check">
+                <input type="checkbox" data-usuario-field="esAdmin" />
+                Puede entrar en el panel de administración
+              </label>
+              <p class="admin-field-error" data-usuario-error="esAdmin" hidden></p>
+            </div>
+          </div>
+
+          <hr class="admin-separador" />
+
+          <p class="admin-label">Ficha de jugador</p>
+          <div class="admin-form-grid">
+            <div class="admin-field">
+              <label for="usuario-apodo">Apodo</label>
+              <input id="usuario-apodo" class="admin-input" type="text" maxlength="40" data-usuario-field="apodo" />
+              <p class="admin-field-error" data-usuario-error="apodo" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="usuario-dorsal">Dorsal</label>
+              <input id="usuario-dorsal" class="admin-input" type="number" min="0" max="99" data-usuario-field="dorsal" />
+              <p class="admin-field-error" data-usuario-error="dorsal" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="usuario-posicion">Posición</label>
+              <select id="usuario-posicion" class="admin-select" data-usuario-field="posicion">
+                <option value="">Sin definir</option>
+                {POSICIONES.map((p) => <option value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div class="admin-field">
+              <label for="usuario-mano">Mano</label>
+              <select id="usuario-mano" class="admin-select" data-usuario-field="mano">
+                <option value="">Sin definir</option>
+                {MANOS.map((m) => <option value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <label for="usuario-lema">Lema</label>
+            <input id="usuario-lema" class="admin-input" type="text" maxlength="80" data-usuario-field="lema" />
+            <p class="admin-field-error" data-usuario-error="lema" hidden></p>
+          </div>
+
+          <div class="admin-field">
+            <span class="admin-label">Atributos (1 a 5)</span>
+            <div class="admin-form-grid" data-usuario-atributos></div>
+          </div>
+        </form>
+
+        <div class="admin-usuario-resumen" data-usuario-resumen></div>
+      </div>
+
+      <div class="admin-dialog-foot">
+        <p class="admin-alert" role="alert" data-usuario-banner hidden></p>
+        <button type="button" class="admin-btn" data-usuario-cancelar>Cancelar</button>
+        <button type="button" class="admin-btn admin-btn--primary" data-usuario-guardar>Guardar cuenta</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script is:inline slot="scripts" src="/assets/admin/usuarios.js" defer></script>
+</AdminLayout>
