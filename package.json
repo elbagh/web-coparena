@@ -12,7 +12,11 @@
     "predeploy:worker": "npm run db:migrate",
     "deploy:worker": "wrangler deploy",
     "deploy": "npm run build && npm run deploy:worker",
-    "preview": "astro preview --host 127.0.0.1"
+    "preview": "astro preview --host 127.0.0.1",
+    "test": "vitest run --project unit --project integration",
+    "test:watch": "vitest --project unit --project integration",
+    "test:types": "tsc -p test/tsconfig.json --noEmit",
+    "verify": "npm run build && npm run test:types && vitest run"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
@@ -21,7 +25,11 @@
     "typescript": "^5.9.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.8",
     "@cloudflare/workers-types": "^5.20260710.1",
+    "@types/node": "^26.1.2",
+    "jsdom": "^30.0.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.110.0"
   }
 }
