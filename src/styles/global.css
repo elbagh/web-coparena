@@ -3275,15 +3275,17 @@ html.js .reveal.in-view {
   margin-top: 32px;
 }
 
+/* Solo el buscador: la fila de burbujas por equipo crecía con cada inscripción
+   y no cabía. El término se compara también contra el nombre del equipo, así
+   que escribirlo filtra igual. */
 .album-controles {
-  display: grid;
-  gap: 14px;
   margin-bottom: 24px;
 }
 
 .album-buscador {
   display: grid;
   gap: 6px;
+  max-width: 420px;
 }
 
 .album-buscador-label {
@@ -3309,38 +3311,6 @@ html.js .reveal.in-view {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 800;
-}
-
-.album-filtros {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.album-filtro {
-  padding: 8px 14px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--foam);
-  box-shadow: 3px 3px 0 var(--ink);
-  font-weight: 900;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
-}
-
-.album-filtro:hover {
-  background: var(--sun);
-}
-
-.album-filtro.is-on {
-  background: var(--sea);
-  color: var(--foam);
-}
-
-.album-filtro:active {
-  transform: translate(3px, 3px);
-  box-shadow: 0 0 0 var(--ink);
 }
 
 .album-rejilla {
@@ -3594,12 +3564,6 @@ html.js .reveal.in-view {
   .album-rejilla {
     grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
     gap: 18px;
-  }
-
-  .album-controles {
-    grid-template-columns: minmax(240px, 320px) 1fr;
-    align-items: start;
-    gap: 18px 24px;
   }
 
   .album-ranking h2 {
