@@ -8,15 +8,23 @@
  * veintitantos endpoints —donde tarde o temprano se olvidaría en uno— se
  * bloquea aquí cualquier método que no sea de lectura.
  *
- * Única excepción: terminar la propia suplantación. Ese endpoint se valida
- * contra el administrador real, no contra el usuario efectivo.
+ * Las únicas excepciones son las tres operaciones que actúan sobre la propia
+ * sesión, no sobre los datos de nadie: salir del modo, cerrar sesión y volver a
+ * entrar. Sin ellas, una cookie de suplantación olvidada dejaría el navegador
+ * bloqueado —sin poder ni desloguearse ni loguearse— hasta que caducara. Salir
+ * se valida contra el administrador **real**, y el login contra la credencial
+ * de Google: en ninguna de las dos manda el usuario efectivo.
  */
 
 import { hayVerComo, type AuthEnv } from "./_lib/auth";
 import { json } from "./_lib/http";
 
 const METODOS_DE_LECTURA = new Set(["GET", "HEAD", "OPTIONS"]);
-const SALIDA = "/api/admin/ver-como";
+const EXCEPCIONES = new Map([
+  ["/api/admin/ver-como", "DELETE"],
+  ["/api/auth/logout", "POST"],
+  ["/api/auth/google", "POST"]
+]);
 
 export const onRequest: PagesFunction<AuthEnv> = async (context) => {
   const { request, env, next } = context;
@@ -24,9 +32,8 @@ export const onRequest: PagesFunction<AuthEnv> = async (context) => {
   if (METODOS_DE_LECTURA.has(request.method)) return next();
 
   const url = new URL(request.url);
-  // Salir del modo "ver como" tiene que seguir siendo posible: es justo lo que
-  // devuelve el control al administrador.
-  if (url.pathname === SALIDA && request.method === "DELETE") return next();
+  // Cada excepción abre un único método en su ruta, nunca la ruta entera.
+  if (EXCEPCIONES.get(url.pathname) === request.method) return next();
 
   if (await hayVerComo(request, env)) {
     return json(

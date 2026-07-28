@@ -76,6 +76,18 @@ describe("el middleware de «ver como» está enganchado a todas las rutas", () 
     expect((await pedir("/api/admin/ver-como", "POST", cookie)).status).toBe(403);
   });
 
+  // Con la cookie puesta hay que poder salir del sitio: si el logout se bloquea,
+  // el navegador se queda sin forma de volver a un estado limpio.
+  it("permite cerrar sesión, y el logout se lleva las dos cookies", async () => {
+    const cookie = await cookiesDeSuplantacion();
+    const respuesta = await pedir("/api/auth/logout", "POST", cookie);
+
+    expect(respuesta.status).toBe(200);
+    const cookies = respuesta.headers.getSetCookie();
+    expect(cookies.some((c) => c.startsWith("copa_session=") && c.includes("Max-Age=0"))).toBe(true);
+    expect(cookies.some((c) => c.startsWith("copa_ver_como=") && c.includes("Max-Age=0"))).toBe(true);
+  });
+
   it("sin la cookie de suplantación las rutas responden con normalidad", async () => {
     const user = await crearUsuario();
     const cookie = await cookieSesion(user);
@@ -93,6 +105,21 @@ describe("las rutas públicas siguen siendo públicas", () => {
       const respuesta = await SELF.fetch(`${BASE}${ruta}`);
       expect(respuesta.status, `GET ${ruta}`).toBe(200);
     }
+  });
+
+  // Era la única escritura sin sesión de toda la API: cualquiera podía meter
+  // filas en `inscripciones`, que el panel enseña en /admin/heredado/. La tabla
+  // se sigue leyendo desde el panel; lo que ya no existe es la puerta de entrada.
+  it("el alta anónima de /api/inscripciones ya no existe", async () => {
+    const respuesta = await SELF.fetch(`${BASE}/api/inscripciones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team: "Los Colados", email: "colado@example.com" })
+    });
+
+    expect(respuesta.status).toBe(404);
+    const filas = await SELF.fetch(`${BASE}/api/inscripciones`);
+    expect(filas.status).toBe(404);
   });
 
   it("las escrituras de /api/partidos siguen cerradas a los anónimos", async () => {

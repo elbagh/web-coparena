@@ -78,9 +78,15 @@ import SiteFooter from "../components/SiteFooter.astro";
           <div class="form-card" data-my-team-editor hidden>
             <div>
               <p class="eyebrow">Equipo de la edición en juego</p>
-              <h2>Editar inscripción</h2>
-              <p class="teams-status">
+              <h2 data-my-team-titulo>Editar inscripción</h2>
+              <p class="teams-status" data-my-team-intro>
                 Cada jugador necesita correo. Al menos uno debe coincidir con la cuenta con la que has iniciado sesión.
+              </p>
+              {/* Quien figura en el equipo pero no lo inscribió ve la plantilla
+                  en modo lectura: los cambios los hace quien lo dio de alta. */}
+              <p class="teams-status" data-my-team-lectura hidden>
+                Te inscribió otra persona, así que aquí solo consultas la plantilla. Para cambiar algo, habla con quien
+                inscribió el equipo o escríbenos a copa.arena.2000@gmail.com.
               </p>
             </div>
 

@@ -1,6 +1,6 @@
-import { createSessionCookie, mapUser, publicUser } from "../../_lib/auth";
+import { clearVerComoCookie, createSessionCookie, mapUser, publicUser } from "../../_lib/auth";
 import { verifyGoogleCredential, type GoogleEnv } from "../../_lib/google";
-import { json } from "../../_lib/http";
+import { json, jsonConCookies } from "../../_lib/http";
 
 interface Env extends GoogleEnv {
   DB: D1Database;
@@ -61,9 +61,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return json({ error: "No se ha podido crear la sesión." }, 500);
     }
 
+    // Una sesión nueva anula cualquier suplantación anterior en este navegador:
+    // la cookie de «ver como» apunta a un administrador que ya no es quien está
+    // usando el sitio.
     const cookie = await createSessionCookie(request, env, userRow.id);
-    return json({ user: publicUser(mapUser(userRow)) }, 200, {
-      "Set-Cookie": cookie,
+    return jsonConCookies({ user: publicUser(mapUser(userRow)) }, [cookie, clearVerComoCookie(request)], 200, {
       "Cache-Control": "no-store"
     });
   } catch (err) {
