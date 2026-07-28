@@ -181,6 +181,19 @@ export async function guardarEquipo(
     }
   });
 
+  // El capitán se resuelve por `orden`, que este mismo batch acaba de fijar
+  // (orden = índice + 1, único dentro del equipo). Va al final porque los
+  // jugadores nuevos no tienen id hasta que se insertan.
+  statements.push(
+    env.DB
+      .prepare(
+        `UPDATE equipos SET capitan_jugador_id =
+           (SELECT id FROM jugadores WHERE equipo_id = ?1 AND orden = ?2)
+         WHERE id = ?1`
+      )
+      .bind(equipoId, (registro.capitan ?? 0) + 1)
+  );
+
   // 3. Un solo batch: o entra todo, o no entra nada.
   try {
     await env.DB.batch(statements);

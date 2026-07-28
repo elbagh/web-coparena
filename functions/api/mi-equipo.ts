@@ -1,10 +1,10 @@
 import { publicUser, requireUser, type UsuarioSesion } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
 import { guardarEquipo } from "../_lib/equipo-editor";
-import { equipoDeUsuario, equipoPropioDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
+import { equipoDeUsuario, equipoDelCapitan } from "../_lib/equipos";
 import { limpiarFotos } from "../_lib/fotos";
 import { json } from "../_lib/http";
-import { validarRegistro } from "../_lib/validacion";
+import { normalizarEmail, validarRegistro } from "../_lib/validacion";
 
 interface Env {
   DB: D1Database;
@@ -45,7 +45,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   // La autorización va antes de leer y validar el cuerpo: a quien no puede
   // guardar no se le devuelven pistas campo a campo de un equipo que no es suyo.
   const edicion = await edicionActual(env.DB);
-  const currentTeam = await equipoPropioDeUsuario(env.DB, user, edicion?.id);
+  const currentTeam = await equipoDelCapitan(env.DB, user, edicion?.id);
   if (!currentTeam) return await sinPermisoParaEscribir(env.DB, user, edicion?.id);
 
   let body: unknown;
@@ -61,16 +61,6 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    if (!registroIncluyeEmailUsuario(resultado.registro, user)) {
-      return json(
-        {
-          error: "Tu equipo debe mantener tu correo de Google en uno de los jugadores.",
-          campos: { email: "Mantén el mismo correo con el que has iniciado sesión." }
-        },
-        400
-      );
-    }
-
     // Guardado incremental por id de jugador: conserva la foto de quien sigue
     // en el equipo. Antes esto borraba y reinsertaba, y al capitán le
     // desaparecían todas las fotos cada vez que guardaba.
@@ -90,7 +80,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   if (user instanceof Response) return user;
 
   const edicion = await edicionActual(env.DB);
-  const currentTeam = await equipoPropioDeUsuario(env.DB, user, edicion?.id);
+  const currentTeam = await equipoDelCapitan(env.DB, user, edicion?.id);
   if (!currentTeam) {
     // Sin equipo propio no hay nada que borrar; si lo que hay es un equipo
     // ajeno en el que figura, se le dice que no es suyo en vez de borrarlo.
@@ -129,23 +119,29 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
 
   // La foto de grupo la gestiona solo el administrador; aquí el capitán la ve.
   const fila = await db
-    .prepare("SELECT foto_key, owner_user_id FROM equipos WHERE id = ?1")
+    .prepare(
+      `SELECT e.foto_key, e.capitan_jugador_id, c.email_normalizado AS capitan_email
+       FROM equipos e
+       LEFT JOIN jugadores c ON c.id = e.capitan_jugador_id
+       WHERE e.id = ?1`
+    )
     .bind(team.id)
-    .first<{ foto_key: string | null; owner_user_id: number | null }>();
+    .first<{ foto_key: string | null; capitan_jugador_id: number | null; capitan_email: string | null }>();
 
   return {
     id: team.id,
     nombre: team.nombre,
     createdAt: team.created_at,
     tieneFoto: Boolean(fila?.foto_key),
-    // Quien no es el propietario ve la ficha, pero el editor se pinta en modo
+    capitanJugadorId: fila?.capitan_jugador_id ?? null,
+    // Quien no es el capitán ve la ficha, pero el editor se pinta en modo
     // lectura: el PATCH le respondería 403 igualmente.
-    puedeEditar: fila?.owner_user_id === user.id,
+    puedeEditar: Boolean(fila?.capitan_email) && fila!.capitan_email === normalizarEmail(user.email),
     jugadores: results.map((jugador) => ({
       id: jugador.id,
       nombre: jugador.nombre,
       apellidos: jugador.apellidos,
-      telefono: jugador.telefono,
+      telefono: jugador.telefono || null,
       email: jugador.email,
       redSocial: jugador.red_social,
       tieneFoto: Boolean(jugador.foto_key),
@@ -159,7 +155,7 @@ const noEsTuEquipo = (): Response =>
   json(
     {
       error:
-        "Solo quien inscribió el equipo puede cambiarlo. Pídeselo a esa persona o escríbenos a copa.arena.2000@gmail.com."
+        "Solo el capitán puede cambiar el equipo. Pídeselo a esa persona o escríbenos a copa.arena.2000@gmail.com."
     },
     403,
     { "Cache-Control": "no-store" }

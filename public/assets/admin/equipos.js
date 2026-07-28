@@ -97,7 +97,7 @@
             etiqueta: "Plantilla",
             render: (e) => resumenPlantilla(e)
           },
-          { etiqueta: "Cuenta", clase: "is-clip", render: (e) => text(e.ownerEmail) },
+          { etiqueta: "Capitán", clase: "is-clip", render: (e) => text(e.capitanEmail) },
           {
             etiqueta: "Acciones",
             clase: "is-actions",
@@ -118,7 +118,7 @@
     const jugadores = (equipo.jugadores || [])
       .map((j) => `${j.nombre} ${j.apellidos} ${j.email || ""} ${j.telefono || ""}`)
       .join(" ");
-    return `${equipo.nombre} ${equipo.ownerEmail || ""} ${jugadores}`.toLowerCase();
+    return `${equipo.nombre} ${equipo.capitanEmail || ""} ${jugadores}`.toLowerCase();
   }
 
   /** Miniaturas + nombres, para reconocer el equipo sin abrir la ficha. */

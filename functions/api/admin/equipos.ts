@@ -2,7 +2,7 @@
 //   POST                         crea un equipo vacío (nombre + edición)
 //   PATCH ?id=N                  editor completo del equipo (multipart)
 //   PATCH ?id=N&accion=posicion   puesto final del equipo en su edición
-//   PATCH ?id=N&accion=ficha      edición y propietario del equipo
+//   PATCH ?id=N&accion=ficha      edición y capitán del equipo
 //   DELETE ?id=N                 borra el equipo con sus jugadores y sus fotos
 
 import {
@@ -245,7 +245,7 @@ async function aplicarFotoEquipo(
 }
 
 /**
- * Edición y propietario del equipo. Mover un equipo de edición arrastra a sus
+ * Edición y capitán del equipo. Mover un equipo de edición arrastra a sus
  * jugadores: si no, el historial del cromo los dejaría en el año equivocado.
  */
 async function actualizarFicha(db: D1Database, equipoId: number, raw: unknown): Promise<Response> {
@@ -268,27 +268,34 @@ async function actualizarFicha(db: D1Database, equipoId: number, raw: unknown): 
     statements.push(db.prepare("UPDATE jugadores SET edicion_id = ?1 WHERE equipo_id = ?2").bind(edicionId, equipoId));
   }
 
-  if (body.ownerUserId !== undefined) {
-    const ownerId = body.ownerUserId === null || body.ownerUserId === "" ? null : Number(body.ownerUserId);
-    if (ownerId !== null) {
-      if (!Number.isInteger(ownerId)) return accionNoValida();
-      const existe = await db.prepare("SELECT 1 FROM usuarios WHERE id = ?1").bind(ownerId).first();
-      if (!existe) {
-        return jsonAdmin({ error: "Esa cuenta no existe.", campos: { ownerUserId: "Elige una cuenta válida." } }, 400);
-      }
-      // Índice UNIQUE parcial: una cuenta no puede ser dueña de dos equipos.
-      const ocupada = await db
-        .prepare("SELECT 1 FROM equipos WHERE owner_user_id = ?1 AND id <> ?2")
-        .bind(ownerId, equipoId)
-        .first();
-      if (ocupada) {
+  if (body.capitanJugadorId !== undefined) {
+    const capitanId =
+      body.capitanJugadorId === null || body.capitanJugadorId === "" ? null : Number(body.capitanJugadorId);
+    if (capitanId !== null) {
+      if (!Number.isInteger(capitanId)) return accionNoValida();
+      const jugador = await db
+        .prepare("SELECT id, telefono, email FROM jugadores WHERE id = ?1 AND equipo_id = ?2")
+        .bind(capitanId, equipoId)
+        .first<{ id: number; telefono: string; email: string | null }>();
+      if (!jugador) {
         return jsonAdmin(
-          { error: "Esa cuenta ya es dueña de otro equipo.", campos: { ownerUserId: "Ya tiene equipo." } },
-          409
+          { error: "Ese jugador no está en el equipo.", campos: { capitanJugadorId: "Elige un jugador de la plantilla." } },
+          400
+        );
+      }
+      // El capitán es el contacto del equipo y quien puede editarlo: sin móvil
+      // ni correo el equipo se quedaría sin nadie con quien hablar y sin editor.
+      if (!jugador.telefono || !jugador.email) {
+        return jsonAdmin(
+          {
+            error: "El capitán necesita móvil y correo.",
+            campos: { capitanJugadorId: "Rellena su móvil y su correo antes de nombrarle capitán." }
+          },
+          400
         );
       }
     }
-    statements.push(db.prepare("UPDATE equipos SET owner_user_id = ?1 WHERE id = ?2").bind(ownerId, equipoId));
+    statements.push(db.prepare("UPDATE equipos SET capitan_jugador_id = ?1 WHERE id = ?2").bind(capitanId, equipoId));
   }
 
   if (statements.length === 0) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);

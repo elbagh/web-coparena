@@ -34,7 +34,6 @@ describe("POST /api/equipos cuando ya figuras en un equipo", () => {
   it("a quien lo inscribió le manda a editarlo en Mi zona", async () => {
     const dueño = await crearUsuario({ email: "duena@example.com" });
     await crearEquipo({
-      ownerUserId: dueño.id,
       jugadores: [{ nombre: "Ana", apellidos: "Ferro", email: "duena@example.com" }, {}]
     });
 
@@ -49,7 +48,6 @@ describe("POST /api/equipos cuando ya figuras en un equipo", () => {
     const miembro = await crearUsuario({ email: "miembro@example.com" });
     await crearEquipo({
       nombre: "Los Delfines",
-      ownerUserId: dueño.id,
       jugadores: [
         { nombre: "Ana", apellidos: "Ferro", email: "duena@example.com" },
         { nombre: "Bea", apellidos: "Louro", email: "miembro@example.com" }

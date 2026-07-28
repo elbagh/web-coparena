@@ -51,8 +51,7 @@ async function equipoConMiembro() {
     jugadores: [
       { nombre: "Ana", apellidos: "Ferro", email: "duena@example.com" },
       { nombre: "Bea", apellidos: "Louro", email: "miembro@example.com" }
-    ],
-    ownerUserId: dueño.id
+    ]
   });
   return { dueño, miembro, equipo };
 }
@@ -77,7 +76,7 @@ describe("PATCH /api/mi-equipo", () => {
     );
 
     expect(respuesta.status).toBe(403);
-    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("inscribió") });
+    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("capitán") });
     expect(await nombreDe(equipo.id), "el equipo no debería haber cambiado").toBe(equipo.nombre);
   });
 

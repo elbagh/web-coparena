@@ -4,11 +4,12 @@
 import { json } from "../_lib/http";
 import { requireUser } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
-import { equipoDeUsuario, equipoPropioDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
+import { equipoDeUsuario, equipoDelCapitan } from "../_lib/equipos";
 import { fotoNoEncontrada, limpiarFotos, servirFoto, subirFoto, type ExtensionFoto } from "../_lib/fotos";
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
+  normalizarEmail,
   validarRegistro,
   validarFoto,
   type RegistroValidado
@@ -56,16 +57,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   const registro = resultado.registro;
 
-  if (!registroIncluyeEmailUsuario(registro, user)) {
-    return json(
-      {
-        error: "Incluye tu correo de Google en uno de los jugadores para ligar el equipo a tu cuenta.",
-        campos: { email: "El equipo debe incluir el mismo correo con el que has iniciado sesión." }
-      },
-      400
-    );
-  }
-
   const edicion = await edicionActual(env.DB);
   if (!edicion) {
     console.error("No hay edicion actual: falta la migracion 0006_perfiles_ediciones.sql.");
@@ -77,7 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // listado no se le manda a un editor que le va a responder 403.
   const equipoExistente = await equipoDeUsuario(env.DB, user, edicion.id);
   if (equipoExistente) {
-    const esSuyo = await equipoPropioDeUsuario(env.DB, user, edicion.id);
+    const esSuyo = await equipoDelCapitan(env.DB, user, edicion.id);
     return json(
       {
         error: esSuyo
@@ -135,9 +126,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const statements = [
       env.DB
         .prepare(
-          "INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id) VALUES (?1, ?2, ?3, ?4, ?5)"
+          "INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, edicion_id) VALUES (?1, ?2, ?3, ?4)"
         )
-        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString(), user.id, edicion.id),
+        .bind(registro.equipo, registro.equipoNormalizado, new Date().toISOString(), edicion.id),
       ...registro.jugadores.map((j, i) =>
         env.DB
           .prepare(
@@ -165,7 +156,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             i + 1,
             edicion.id
           )
-      )
+      ),
+      env.DB
+        .prepare(
+          `UPDATE equipos SET capitan_jugador_id = (
+             SELECT j.id FROM jugadores j
+             WHERE j.equipo_id = equipos.id AND j.email_normalizado = ?2
+             ORDER BY j.orden ASC LIMIT 1
+           ) WHERE nombre_normalizado = ?1`
+        )
+        .bind(registro.equipoNormalizado, normalizarEmail(user.email))
     ];
     const resultados = await env.DB.batch(statements);
     equipoId = resultados[0].meta.last_row_id;
@@ -357,9 +357,6 @@ async function buscarDuplicados(
 function mapearConflictoUnique(err: unknown): Record<string, string> | null {
   const mensaje = err instanceof Error ? err.message : String(err);
   if (!mensaje.includes("UNIQUE constraint failed")) return null;
-  if (mensaje.includes("equipos.owner_user_id")) {
-    return { equipo: "Ya tienes un equipo inscrito con esta cuenta. Puedes editarlo desde Mi zona." };
-  }
   if (mensaje.includes("equipos.nombre_normalizado")) {
     return { equipo: "Ya hay un equipo inscrito con ese nombre." };
   }
@@ -379,9 +376,6 @@ function mapearErrorEsquema(err: unknown): string | null {
   const mensaje = err instanceof Error ? err.message : String(err);
   if (mensaje.includes("no such table: usuarios")) {
     return "La base de datos no esta actualizada: falta la tabla usuarios. Aplica la migracion 0003_auth_usuarios.sql.";
-  }
-  if (mensaje.includes("no such column: owner_user_id") || mensaje.includes("table equipos has no column named owner_user_id")) {
-    return "La base de datos no esta actualizada: falta equipos.owner_user_id. Aplica la migracion 0003_auth_usuarios.sql.";
   }
   return null;
 }

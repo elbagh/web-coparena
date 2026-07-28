@@ -26,6 +26,11 @@ export interface RegistroValidado {
   equipo: string;
   equipoNormalizado: string;
   jugadores: JugadorValidado[];
+  /**
+   * Índice del jugador capitán. Opcional en esta tarea (Tarea 1): la
+   * validación todavía no lo rellena. La Tarea 2 lo hace obligatorio.
+   */
+  capitan?: number;
 }
 
 interface OpcionesValidacion {
