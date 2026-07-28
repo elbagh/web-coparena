@@ -31,12 +31,12 @@
 
 ---
 
-### Task 1: Migración 0010 y el capitán como propietario
+### Task 1: Migración 0011 y el capitán como propietario
 
 Sustituye `equipos.owner_user_id` por `equipos.capitan_jugador_id` en la base y en todo el backend, **sin cambiar todavía las reglas de validación**. Al terminar, el comportamiento visible es el mismo que antes (el capitán heredado es quien era propietario), pero el mando ya se lee de la nueva columna.
 
 **Files:**
-- Create: `db/migrations/0010_capitan.sql`
+- Create: `db/migrations/0011_capitan.sql`
 - Modify: `functions/_lib/equipos.ts`, `functions/_lib/equipo-editor.ts`, `functions/_lib/admin.ts`, `functions/api/equipos.ts`, `functions/api/mi-equipo.ts`, `functions/api/admin/equipos.ts`, `functions/api/admin/index.ts`, `public/assets/admin/equipos.js`, `CLAUDE.md`
 - Test: `test/helpers/db.ts`, `test/integration/mi-equipo.test.ts`, `test/integration/equipos-alta.test.ts`, `test/integration/avatar.test.ts`, `test/integration/perfil.test.ts`, `test/integration/capitan.test.ts` (nuevo)
 
@@ -52,10 +52,10 @@ Sustituye `equipos.owner_user_id` por `equipos.capitan_jugador_id` en la base y 
 
 - [ ] **Step 1: Escribir la migración**
 
-Crear `db/migrations/0010_capitan.sql`:
+Crear `db/migrations/0011_capitan.sql`:
 
 ```sql
--- Migration number: 0010 	 capitan del equipo
+-- Migration number: 0011 	 capitan del equipo
 -- El capitan sustituye a equipos.owner_user_id: es la fila de jugadores que
 -- manda en el equipo. Autoriza a escribir quien inicie sesion con el correo de
 -- esa fila, no una cuenta apuntada aparte. Un solo concepto, imposible de
@@ -201,7 +201,7 @@ import { describe, expect, it } from "vitest";
 import { crearEquipo, crearUsuario } from "../helpers/db";
 
 /*
- * La migración 0010 mueve el mando de equipos.owner_user_id a
+ * La migración 0011 mueve el mando de equipos.owner_user_id a
  * equipos.capitan_jugador_id y hace opcional el móvil. Estos dos hechos son la
  * base de todo lo demás, así que se comprueban contra la base real.
  */
@@ -559,7 +559,7 @@ En la sección «Admin panel», sustituir el párrafo que empieza por **«Two wa
 - **Two ways to belong to a team, only one of them authorizes writes.** `equipoDeUsuario` matches any player row carrying your email — but that email is typed by whoever registered the team, with no confirmation from its owner. So `GET /api/mi-equipo` uses it (any listed player sees the roster, with `puedeEditar: false`), while `PATCH`/`DELETE` go through `equipoDelCapitan`, which only matches the team's **captain** (`equipos.capitan_jugador_id` → the player row whose email is yours). The captain is the only player whose phone and email are mandatory, and the only one who can hand the team over — by designating another player as captain. A team created from the admin panel has no captain until one is set, and until then nobody can edit it from `/mi-equipo/`.
 ```
 
-En la sección «Backend», en la frase sobre migraciones, añadir tras «Main tables: `equipos`, `jugadores` (0002)»: «`equipos.capitan_jugador_id` (0010) sustituyó a `owner_user_id`; el móvil de los jugadores que no son capitán es opcional y se guarda como cadena vacía».
+En la sección «Backend», en la frase sobre migraciones, añadir tras «Main tables: `equipos`, `jugadores` (0002)»: «`equipos.capitan_jugador_id` (0011) sustituyó a `owner_user_id`; el móvil de los jugadores que no son capitán es opcional y se guarda como cadena vacía».
 
 - [ ] **Step 14: Ver los tests en verde**
 
@@ -575,7 +575,7 @@ Esperado: sin errores.
 - [ ] **Step 15: Commit**
 
 ```bash
-git add db/migrations/0010_capitan.sql functions/ public/assets/admin/equipos.js test/ CLAUDE.md
+git add db/migrations/0011_capitan.sql functions/ public/assets/admin/equipos.js test/ CLAUDE.md
 git commit -m "feat: el capitán del equipo sustituye a owner_user_id"
 ```
 
@@ -824,7 +824,7 @@ y en el marcado de errores por jugador, no marcar a quien no tiene móvil:
 (y quitar el import de `normalizarEmail` si ya no se usa).
 
 2. `functions/api/admin/equipos.ts`: `validarRegistro(payload, { requireConsent: false })`.
-3. `functions/_lib/equipo-editor.ts`: quitar el `?? 0` y dejar `.bind(equipoId, registro.capitan + 1)`; en `RegistroValidado` el campo ya es obligatorio.
+3. `functions/_lib/equipo-editor.ts`: quitar la guarda `if (registro.capitan !== undefined)` que envolvía la sentencia del capitán y dejarla incondicional. Existía solo para que la Tarea 1 no cambiara de capitán en cada guardado, cuando el campo aún no lo enviaba nadie; con `capitan` ya obligatorio en `RegistroValidado`, la guarda sería código muerto.
 4. `functions/api/mi-equipo.ts`: `validarRegistro(body, { requireConsent: false })`.
 
 - [ ] **Step 6: Ver los tests pasar**

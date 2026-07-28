@@ -30,7 +30,7 @@ Dentro:
 Fuera:
 
 - Notificaciones reales, grupos de WhatsApp o envíos a los jugadores. El aviso es informativo; no hay integración detrás.
-- Rehacer los índices `UNIQUE` globales como compuestos con `edicion_id` (sigue pendiente desde 0006 y no lo toca este cambio).
+- Rehacer los índices `UNIQUE` como compuestos con `edicion_id`: ya lo hizo la migración `0010_unicidad_por_edicion.sql`, que llegó de `development` mientras se escribía esto. Este cambio conserva ese alcance por edición y solo le añade la condición parcial al del móvil.
 - Cualquier cambio en `camisetas_reservas.owner_user_id`, que es una columna distinta y sin relación.
 
 ## Modelo de datos
@@ -53,12 +53,12 @@ La columna es `NOT NULL` y **se queda así**: se guarda cadena vacía para «sin
 
 La API sí expone `telefono: null` cuando no hay dato, igual que ya hace con `email`. La conversión vive en un solo sitio por dirección: al validar (`""` entra en la base) y al mapear la respuesta (`""` sale como `null`, en `mapJugador` de `_lib/admin.ts` y en `cargarEquipo` de `api/mi-equipo.ts`).
 
-El índice `UNIQUE` de teléfono pasa a ser parcial, como ya lo es el de correo — si no, dos jugadores sin móvil chocarían entre sí:
+El índice `UNIQUE` de teléfono pasa a ser parcial, como ya lo es el de correo — si no, dos jugadores sin móvil chocarían entre sí. La migración 0010 ya le había dado alcance por edición, que aquí se conserva:
 
 ```sql
 DROP INDEX IF EXISTS idx_jugadores_telefono;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_jugadores_telefono
-  ON jugadores (telefono_normalizado) WHERE telefono_normalizado <> '';
+  ON jugadores (edicion_id, telefono_normalizado) WHERE telefono_normalizado <> '';
 ```
 
 ### Fuera `equipos.owner_user_id`
@@ -70,11 +70,13 @@ ALTER TABLE equipos DROP COLUMN owner_user_id;
 
 Se elimina en lugar de mantenerse sincronizada con el capitán: dos columnas que dicen quién manda acaban contradiciéndose, y su índice `UNIQUE` global (sin `edicion_id`) haría fallar la sincronización en cuanto una cuenta heredara el mando de un segundo equipo.
 
-Ese índice era también lo que garantizaba «una cuenta, un equipo». La garantía no se pierde: `idx_jugadores_email` es `UNIQUE` global, así que un correo solo puede estar en una plantilla y, por tanto, ser capitán de un solo equipo. Y el alta sigue rechazando a quien ya figure en un equipo de la edición (`equipoDeUsuario`).
+Ese índice era también lo que garantizaba «una cuenta, un equipo» — y lo garantizaba *para siempre*, no por edición, que es justamente lo que la migración 0010 vino a quitar de en medio para que una persona pueda volver a inscribirse cada año.
+
+Lo que hace falta conservar es la garantía **dentro de la edición viva**, y esa sigue en pie por dos vías: `idx_jugadores_email` es `UNIQUE` por `(edicion_id, email_normalizado)`, así que un correo solo puede estar en una plantilla de esa edición y por tanto capitanear un solo equipo; y el alta sigue rechazando a quien ya figure en un equipo de la edición (`equipoDeUsuario`). Ser capitán de un equipo en 2026 y de otro en 2027 es ahora posible, y es lo correcto.
 
 `api/equipos.ts` pierde además las dos ramas que hablan de la columna: la de `mapearConflictoUnique` («Ya tienes un equipo inscrito con esta cuenta») y la de `mapearErrorEsquema` («falta equipos.owner_user_id»).
 
-### Migración `0010_capitan.sql`
+### Migración `0011_capitan.sql`
 
 Orden de las sentencias:
 
@@ -213,7 +215,7 @@ Se revisan y actualizan `mi-equipo.test.ts`, `equipos-alta.test.ts`, `equipo-edi
 
 | Archivo | Cambio |
 |---|---|
-| `db/migrations/0010_capitan.sql` | nuevo |
+| `db/migrations/0011_capitan.sql` | nuevo |
 | `functions/_lib/validacion.ts` | capitán, contacto opcional |
 | `functions/_lib/equipos.ts` | `equipoDelCapitan`, duplicados con teléfono vacío |
 | `functions/_lib/equipo-editor.ts` | `UPDATE` final del capitán en el batch |
