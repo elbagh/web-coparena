@@ -22,8 +22,6 @@ const TABLAS = [
   "perfiles",
   "equipos",
   "usuarios",
-  "inscripciones",
-  "reservas",
   "ediciones"
 ];
 
