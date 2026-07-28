@@ -1,6 +1,8 @@
 // /api/admin/equipos
+//   POST                         crea un equipo vacío (nombre + edición)
 //   PATCH ?id=N                  editor completo del equipo (multipart)
-//   PATCH ?id=N&accion=posicion  puesto final del equipo en su edición
+//   PATCH ?id=N&accion=posicion   puesto final del equipo en su edición
+//   PATCH ?id=N&accion=ficha      edición y propietario del equipo
 //   DELETE ?id=N                 borra el equipo con sus jugadores y sus fotos
 
 import {
@@ -11,9 +13,59 @@ import {
   cargarEquipoConJugadores,
   type AdminEnv
 } from "../../_lib/admin";
-import { buscarDuplicadosEdicion, mapearConflictoUnicoEdicion } from "../../_lib/equipos";
+import { edicionActual } from "../../_lib/ediciones";
+import { guardarEquipo, type FotoNueva } from "../../_lib/equipo-editor";
 import { limpiarFotos, subirFoto } from "../../_lib/fotos";
-import { MAX_BODY_BYTES, validarRegistro, validarFoto } from "../../_lib/validacion";
+import { MAX_BODY_BYTES, limpiar, normalizarTexto, validarRegistro, validarFoto } from "../../_lib/validacion";
+
+/**
+ * Alta de un equipo vacío. Los jugadores se añaden después con el editor o
+ * desde /api/admin/jugadores: exigir dos jugadores de golpe aquí obligaría al
+ * administrador a tener todos los datos a mano para poder empezar.
+ */
+export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
+  const admin = await requireAdmin(request, env);
+  if (admin instanceof Response) return admin;
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const nombre = limpiar(body?.nombre);
+  if (nombre.length < 2 || nombre.length > 60) {
+    return jsonAdmin(
+      { error: "Revisa los campos marcados.", campos: { nombre: "El nombre debe tener entre 2 y 60 caracteres." } },
+      400
+    );
+  }
+
+  const nombreNormalizado = normalizarTexto(nombre);
+  const existe = await env.DB
+    .prepare("SELECT 1 FROM equipos WHERE nombre_normalizado = ?1")
+    .bind(nombreNormalizado)
+    .first();
+  if (existe) {
+    return jsonAdmin(
+      { error: "Ya hay un equipo con ese nombre.", campos: { nombre: "Ya hay un equipo inscrito con ese nombre." } },
+      409
+    );
+  }
+
+  const edicionId = Number(body?.edicionId) || (await edicionActual(env.DB).catch(() => null))?.id || null;
+
+  try {
+    const fila = await env.DB
+      .prepare(
+        `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, edicion_id)
+         VALUES (?1, ?2, datetime('now'), ?3)
+         RETURNING id`
+      )
+      .bind(nombre, nombreNormalizado, edicionId)
+      .first<{ id: number }>();
+
+    return jsonAdmin({ ok: true, equipo: await cargarEquipoConJugadores(env.DB, fila!.id) }, 201);
+  } catch (err) {
+    console.error("Error creando un equipo desde el panel:", err);
+    return jsonAdmin({ error: "No se ha podido crear el equipo." }, 500);
+  }
+};
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
   const admin = await requireAdmin(request, env);
@@ -22,13 +74,23 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   const url = new URL(request.url);
   const equipoId = idDeQuery(url);
   if (equipoId === null) return accionNoValida();
+  const accion = url.searchParams.get("accion");
 
-  if (url.searchParams.get("accion") === "posicion") {
+  if (accion === "posicion") {
     try {
       return await fijarPosicionFinal(env.DB, equipoId, await request.json().catch(() => null));
     } catch (err) {
       console.error("Error fijando el puesto de un equipo:", err);
       return jsonAdmin({ error: "No se ha podido guardar el puesto." }, 500);
+    }
+  }
+
+  if (accion === "ficha") {
+    try {
+      return await actualizarFicha(env.DB, equipoId, await request.json().catch(() => null));
+    } catch (err) {
+      console.error("Error actualizando la ficha de un equipo:", err);
+      return jsonAdmin({ error: "No se ha podido guardar el equipo." }, 500);
     }
   }
 
@@ -96,171 +158,143 @@ async function editarEquipo(request: Request, env: AdminEnv, equipoId: number): 
   if ("campos" in resultado) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }
-  const registro = resultado.registro;
 
-  const equipoActual = await env.DB.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  const equipoActual = await env.DB
+    .prepare("SELECT id, foto_key FROM equipos WHERE id = ?1")
+    .bind(equipoId)
+    .first<{ id: number; foto_key: string | null }>();
   if (!equipoActual) return jsonAdmin({ error: "Ese equipo ya no existe." }, 404);
 
-  const { results: jugadoresActuales } = await env.DB
-    .prepare("SELECT id, foto_key FROM jugadores WHERE equipo_id = ?1")
-    .bind(equipoId)
-    .all<{ id: number; foto_key: string | null }>();
-  const actualesPorId = new Map(jugadoresActuales.map((j) => [j.id, j.foto_key]));
-
-  for (const j of registro.jugadores) {
-    if (j.id !== undefined && !actualesPorId.has(j.id)) {
-      return jsonAdmin({ error: "Alguno de los jugadores no pertenece a este equipo." }, 400);
-    }
-  }
-
-  const duplicados = await buscarDuplicadosEdicion(env.DB, registro, equipoId);
-  if (Object.keys(duplicados).length > 0) {
-    return jsonAdmin({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
-  }
-
-  // Fotos nuevas: tamaño, tipo y magic bytes antes de tocar R2 o D1.
-  const fotosNuevas = new Map<number, { buffer: ArrayBuffer; ext: "jpg" | "png" | "webp" }>();
+  // Fotos de jugador: tamaño, tipo y magic bytes antes de tocar R2 o D1.
+  const fotosJugadores = new Map<number, FotoNueva>();
   const camposFoto: Record<string, string> = {};
-  for (let i = 0; i < registro.jugadores.length; i++) {
+  for (let i = 0; i < resultado.registro.jugadores.length; i++) {
     const entrada = formData.get(`foto_${i}`);
     if (!(entrada instanceof File) || entrada.size === 0) continue;
     const buffer = await entrada.arrayBuffer();
     const foto = validarFoto(buffer, entrada.type, entrada.size);
-    if ("error" in foto) {
-      camposFoto[`jugadores.${i}.foto`] = foto.error;
-    } else {
-      fotosNuevas.set(i, { buffer, ext: foto.ext });
-    }
+    if ("error" in foto) camposFoto[`jugadores.${i}.foto`] = foto.error;
+    else fotosJugadores.set(i, { buffer, ext: foto.ext });
   }
+
+  // Foto de equipo: la parte `fotoEquipo`, más la casilla `eliminarFotoEquipo`.
+  const entradaEquipo = formData.get("fotoEquipo");
+  let fotoEquipo: FotoNueva | null = null;
+  if (entradaEquipo instanceof File && entradaEquipo.size > 0) {
+    const buffer = await entradaEquipo.arrayBuffer();
+    const foto = validarFoto(buffer, entradaEquipo.type, entradaEquipo.size);
+    if ("error" in foto) camposFoto.fotoEquipo = foto.error;
+    else fotoEquipo = { buffer, ext: foto.ext };
+  }
+  const eliminarFotoEquipo = formData.get("eliminarFotoEquipo") === "1";
+
   if (Object.keys(camposFoto).length > 0) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos: camposFoto }, 400);
   }
-  if (fotosNuevas.size > 0 && !env.FOTOS) {
-    return jsonAdmin({ error: "No se han podido guardar las fotos." }, 500);
-  }
 
-  const clavesNuevas: string[] = [];
-  const clavePorIndice = new Map<number, string>();
-  if (env.FOTOS) {
-    const lote = crypto.randomUUID();
-    try {
-      for (const [i, foto] of fotosNuevas) {
-        const key = `equipos/${lote}/jugador-${i + 1}.${foto.ext}`;
-        await subirFoto(env.FOTOS, key, foto.buffer, foto.ext);
-        clavesNuevas.push(key);
-        clavePorIndice.set(i, key);
-      }
-    } catch (err) {
-      console.error("Error subiendo foto a R2 desde el panel:", err);
-      await limpiarFotos(env.FOTOS, clavesNuevas);
-      return jsonAdmin({ error: "No se han podido guardar las fotos." }, 500);
-    }
-  }
+  const error = await guardarEquipo(env, equipoId, resultado.registro, fotosJugadores);
+  if (error) return error;
 
-  // Los jugadores actuales cuyo id no viene en el payload se borran.
-  const idsEnviados = new Set(registro.jugadores.filter((j) => j.id !== undefined).map((j) => j.id as number));
-  const idsABorrar = jugadoresActuales.filter((j) => !idsEnviados.has(j.id)).map((j) => j.id);
-  const clavesABorrar: string[] = jugadoresActuales
-    .filter((j) => idsABorrar.includes(j.id) && j.foto_key)
-    .map((j) => j.foto_key as string);
-
-  const statements = [
-    env.DB
-      .prepare("UPDATE equipos SET nombre = ?1, nombre_normalizado = ?2 WHERE id = ?3")
-      .bind(registro.equipo, registro.equipoNormalizado, equipoId)
-  ];
-
-  if (idsABorrar.length > 0) {
-    statements.push(
-      env.DB.prepare(`DELETE FROM jugadores WHERE id IN (${idsABorrar.map(() => "?").join(",")})`).bind(...idsABorrar)
-    );
-  }
-
-  registro.jugadores.forEach((j, i) => {
-    const esSuplente = i >= 2 ? 1 : 0;
-    const orden = i + 1;
-    const fotoNueva = clavePorIndice.get(i);
-
-    if (j.id !== undefined) {
-      const fotoActual = actualesPorId.get(j.id) ?? null;
-      let fotoKey: string | null;
-      if (fotoNueva) {
-        fotoKey = fotoNueva;
-        if (fotoActual) clavesABorrar.push(fotoActual);
-      } else if (j.eliminarFoto) {
-        fotoKey = null;
-        if (fotoActual) clavesABorrar.push(fotoActual);
-      } else {
-        fotoKey = fotoActual;
-      }
-      statements.push(
-        env.DB
-          .prepare(
-            `UPDATE jugadores SET nombre = ?1, apellidos = ?2, nombre_completo_normalizado = ?3,
-               telefono = ?4, telefono_normalizado = ?5, email = ?6, email_normalizado = ?7,
-               red_social = ?8, foto_key = ?9, es_suplente = ?10, orden = ?11
-             WHERE id = ?12`
-          )
-          .bind(
-            j.nombre,
-            j.apellidos,
-            j.nombreCompletoNormalizado,
-            j.telefono,
-            j.telefonoNormalizado,
-            j.email,
-            j.emailNormalizado,
-            j.redSocial,
-            fotoKey,
-            esSuplente,
-            orden,
-            j.id
-          )
-      );
-    } else {
-      statements.push(
-        env.DB
-          .prepare(
-            `INSERT INTO jugadores (
-               equipo_id, nombre, apellidos, nombre_completo_normalizado,
-               telefono, telefono_normalizado, email, email_normalizado,
-               red_social, foto_key, es_suplente, orden, edicion_id
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-               (SELECT edicion_id FROM equipos WHERE id = ?1))`
-          )
-          .bind(
-            equipoId,
-            j.nombre,
-            j.apellidos,
-            j.nombreCompletoNormalizado,
-            j.telefono,
-            j.telefonoNormalizado,
-            j.email,
-            j.emailNormalizado,
-            j.redSocial,
-            fotoNueva ?? null,
-            esSuplente,
-            orden
-          )
-      );
-    }
-  });
-
-  try {
-    await env.DB.batch(statements);
-  } catch (err) {
-    await limpiarFotos(env.FOTOS, clavesNuevas);
-    const conflicto = mapearConflictoUnicoEdicion(err);
-    if (conflicto) {
-      return jsonAdmin({ error: "Hay datos que ya están registrados.", campos: conflicto }, 409);
-    }
-    console.error("Error actualizando un equipo desde el panel:", err);
-    return jsonAdmin({ error: "No se ha podido guardar el equipo." }, 500);
-  }
-
-  await limpiarFotos(env.FOTOS, clavesABorrar);
+  const fallo = await aplicarFotoEquipo(env, equipoId, equipoActual.foto_key, fotoEquipo, eliminarFotoEquipo);
+  if (fallo) return fallo;
 
   const equipo = await cargarEquipoConJugadores(env.DB, equipoId);
   return jsonAdmin({ ok: true, equipo });
+}
+
+/**
+ * Sube, reemplaza o borra la foto de grupo. Va después del guardado de
+ * jugadores y por separado: es un cambio independiente, y si fallara no tiene
+ * por qué tirar abajo una edición de plantilla que ya ha entrado bien.
+ */
+async function aplicarFotoEquipo(
+  env: AdminEnv,
+  equipoId: number,
+  claveActual: string | null,
+  fotoNueva: FotoNueva | null,
+  eliminar: boolean
+): Promise<Response | null> {
+  if (!fotoNueva && !eliminar) return null;
+  if (fotoNueva && !env.FOTOS) {
+    return jsonAdmin({ error: "No se ha podido guardar la foto del equipo." }, 500);
+  }
+
+  let claveNueva: string | null = null;
+  if (fotoNueva && env.FOTOS) {
+    // El uuid en la clave evita que un cache intermedio siga sirviendo la
+    // foto anterior: la URL pública lleva el id, pero el objeto cambia.
+    claveNueva = `equipos/${equipoId}/equipo-${crypto.randomUUID()}.${fotoNueva.ext}`;
+    try {
+      await subirFoto(env.FOTOS, claveNueva, fotoNueva.buffer, fotoNueva.ext);
+    } catch (err) {
+      console.error("Error subiendo la foto de equipo a R2:", err);
+      return jsonAdmin({ error: "No se ha podido guardar la foto del equipo." }, 500);
+    }
+  }
+
+  try {
+    await env.DB.prepare("UPDATE equipos SET foto_key = ?1 WHERE id = ?2").bind(claveNueva, equipoId).run();
+  } catch (err) {
+    if (claveNueva) await limpiarFotos(env.FOTOS, [claveNueva]);
+    console.error("Error guardando la clave de la foto de equipo:", err);
+    return jsonAdmin({ error: "No se ha podido guardar la foto del equipo." }, 500);
+  }
+
+  if (claveActual && claveActual !== claveNueva) await limpiarFotos(env.FOTOS, [claveActual]);
+  return null;
+}
+
+/**
+ * Edición y propietario del equipo. Mover un equipo de edición arrastra a sus
+ * jugadores: si no, el historial del cromo los dejaría en el año equivocado.
+ */
+async function actualizarFicha(db: D1Database, equipoId: number, raw: unknown): Promise<Response> {
+  const equipo = await db.prepare("SELECT id FROM equipos WHERE id = ?1").bind(equipoId).first<{ id: number }>();
+  if (!equipo) return jsonAdmin({ error: "Ese equipo ya no existe." }, 404);
+
+  const body = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const statements: D1PreparedStatement[] = [];
+
+  if (body.edicionId !== undefined) {
+    const edicionId = body.edicionId === null || body.edicionId === "" ? null : Number(body.edicionId);
+    if (edicionId !== null) {
+      if (!Number.isInteger(edicionId)) return accionNoValida();
+      const existe = await db.prepare("SELECT 1 FROM ediciones WHERE id = ?1").bind(edicionId).first();
+      if (!existe) {
+        return jsonAdmin({ error: "Esa edición no existe.", campos: { edicionId: "Elige una edición válida." } }, 400);
+      }
+    }
+    statements.push(db.prepare("UPDATE equipos SET edicion_id = ?1 WHERE id = ?2").bind(edicionId, equipoId));
+    statements.push(db.prepare("UPDATE jugadores SET edicion_id = ?1 WHERE equipo_id = ?2").bind(edicionId, equipoId));
+  }
+
+  if (body.ownerUserId !== undefined) {
+    const ownerId = body.ownerUserId === null || body.ownerUserId === "" ? null : Number(body.ownerUserId);
+    if (ownerId !== null) {
+      if (!Number.isInteger(ownerId)) return accionNoValida();
+      const existe = await db.prepare("SELECT 1 FROM usuarios WHERE id = ?1").bind(ownerId).first();
+      if (!existe) {
+        return jsonAdmin({ error: "Esa cuenta no existe.", campos: { ownerUserId: "Elige una cuenta válida." } }, 400);
+      }
+      // Índice UNIQUE parcial: una cuenta no puede ser dueña de dos equipos.
+      const ocupada = await db
+        .prepare("SELECT 1 FROM equipos WHERE owner_user_id = ?1 AND id <> ?2")
+        .bind(ownerId, equipoId)
+        .first();
+      if (ocupada) {
+        return jsonAdmin(
+          { error: "Esa cuenta ya es dueña de otro equipo.", campos: { ownerUserId: "Ya tiene equipo." } },
+          409
+        );
+      }
+    }
+    statements.push(db.prepare("UPDATE equipos SET owner_user_id = ?1 WHERE id = ?2").bind(ownerId, equipoId));
+  }
+
+  if (statements.length === 0) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);
+
+  await db.batch(statements);
+  return jsonAdmin({ ok: true, equipo: await cargarEquipoConJugadores(db, equipoId) });
 }
 
 async function fijarPosicionFinal(db: D1Database, equipoId: number, raw: unknown): Promise<Response> {
