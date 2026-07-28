@@ -683,7 +683,7 @@
     p.hidden = !mensaje;
   }
 
-  dialogoNuevo?.querySelector("[data-equipo-nuevo-guardar]")?.addEventListener("click", async () => {
+  async function crearEquipo() {
     const input = dialogoNuevo.querySelector('[data-equipo-nuevo-field="nombre"]');
     const nombre = limpiar(input.value);
     bannerNuevo("");
@@ -705,6 +705,21 @@
     } finally {
       guardar.disabled = false;
     }
+  }
+
+  dialogoNuevo?.querySelector("[data-equipo-nuevo-guardar]")?.addEventListener("click", crearEquipo);
+
+  /*
+   * Enter en el nombre tiene que crear el equipo, no enviar el formulario.
+   * «Crear equipo» está fuera del <form> y es type="button", así que el form se
+   * queda con un solo campo y ningún submit: justo la forma con la que el
+   * navegador hace *implicit submission* al pulsar Enter. Sin este manejador la
+   * acción por defecto navega a la propia URL, el panel se recarga y el alta se
+   * pierde sin decir nada.
+   */
+  dialogoNuevo?.querySelector("[data-equipo-nuevo-form]")?.addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    crearEquipo();
   });
 
   dialogoNuevo?.querySelector("[data-equipo-nuevo-cerrar]")?.addEventListener("click", () => dialogoNuevo.close());
