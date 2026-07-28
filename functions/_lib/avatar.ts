@@ -24,10 +24,17 @@ export async function upsertAvatarKey(db: D1Database, usuarioId: number, key: st
 
 // Devuelve la clave R2 del avatar del usuario, sembrandola desde la foto de
 // inscripcion la primera vez si hace falta. null si el usuario no tiene ninguna.
+//
+// Con `sembrar: false` resuelve la clave sin escribir nada: devuelve la foto de
+// inscripcion tal cual en vez de copiarla. Es lo que se usa en modo «ver como»,
+// donde la peticion se resuelve como otra persona y no se le puede crear un
+// avatar en su perfil solo porque un administrador haya pasado por su ficha.
+// Se ve la misma imagen; lo unico que no ocurre es la escritura.
 export async function claveAvatar(
   db: D1Database,
   fotos: R2Bucket | undefined,
-  user: UsuarioSesion
+  user: UsuarioSesion,
+  opciones: { sembrar?: boolean } = {}
 ): Promise<string | null> {
   const perfil = await db
     .prepare("SELECT avatar_key FROM perfiles WHERE usuario_id = ?1")
@@ -47,6 +54,8 @@ export async function claveAvatar(
     .bind(emailNormalizado)
     .first<{ foto_key: string }>();
   if (!jugador?.foto_key) return null;
+
+  if (opciones.sembrar === false) return jugador.foto_key;
 
   const ext = jugador.foto_key.split(".").pop()?.toLowerCase() ?? "jpg";
   const nuevaClave = `avatares/${user.id}.${ext}`;
