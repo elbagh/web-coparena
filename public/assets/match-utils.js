@@ -34,14 +34,26 @@ window.CopaArenaMatches = (() => {
     return Array.isArray(data.partidos) ? data.partidos : [];
   }
 
+  // Escribir partidos exige sesión de administrador, así que la cookie tiene
+  // que viajar. El mensaje del servidor se propaga para poder distinguir un
+  // 401/403 (sesión caducada) de una caída de red.
   async function apiAction(payload) {
-    const response = await fetch("/api/partidos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload)
+    return apiWrite("/api/partidos", { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async function apiWrite(url, options = {}) {
+    const response = await fetch(url, {
+      cache: "no-store",
+      credentials: "include",
+      ...options,
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...(options.headers || {}) }
     });
-    if (!response.ok) throw new Error(String(response.status));
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const err = new Error(data.error || `No se ha podido guardar (${response.status}).`);
+      err.status = response.status;
+      throw err;
+    }
     return Array.isArray(data.partidos) ? data.partidos : [];
   }
 
@@ -241,6 +253,7 @@ window.CopaArenaMatches = (() => {
     writeManualTeams,
     apiGetMatches,
     apiAction,
+    apiWrite,
     createDraw,
     applyPoint,
     elapsed,

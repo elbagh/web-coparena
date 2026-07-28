@@ -9,6 +9,8 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 >
   <div class="admin-actions" slot="acciones">
     <button class="admin-btn" type="button" data-load-teams>Actualizar equipos</button>
+    <button class="admin-btn" type="button" data-partido-nuevo>+ Partido suelto</button>
+    <button class="admin-btn admin-btn--danger" type="button" data-vaciar-partidos>Vaciar cuadro</button>
     <button class="admin-btn admin-btn--primary" type="button" data-draw>Sortear emparejamientos</button>
     <button class="admin-btn admin-btn--primary" type="button" data-confirm-draw hidden>Confirmar sorteo</button>
   </div>
@@ -39,12 +41,96 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
     <div class="admin-match-list" data-match-list></div>
   </section>
 
-  <dialog class="match-dialog" slot="dialogos" data-match-dialog>
-    <form method="dialog" class="match-dialog-close">
-      <button type="submit" aria-label="Cerrar">×</button>
-    </form>
-    <div class="match-dialog-body" data-dialog-body></div>
-  </dialog>
+  <Fragment slot="dialogos">
+    <dialog class="match-dialog" data-match-dialog>
+      <form method="dialog" class="match-dialog-close">
+        <button type="submit" aria-label="Cerrar">×</button>
+      </form>
+      <div class="match-dialog-body" data-dialog-body></div>
+    </dialog>
+
+    <dialog class="admin-dialog" data-partido-dialog>
+      <div class="admin-dialog-shell">
+        <div class="admin-dialog-head">
+          <div>
+            <h2 class="admin-dialog-title" data-partido-titulo>Partido</h2>
+            <p class="admin-dialog-sub">Para cruces que el sorteo no genera, o para cuadrar el marcador a mano.</p>
+          </div>
+          <button type="button" class="admin-dialog-close" data-partido-cerrar aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="admin-dialog-body">
+          <form class="admin-form" data-partido-form novalidate>
+            <div class="admin-form-grid">
+              <div class="admin-field">
+                <label for="partido-ronda">Ronda</label>
+                <input id="partido-ronda" class="admin-input" type="text" maxlength="40" data-partido-field="ronda" />
+              </div>
+              <div class="admin-field">
+                <label for="partido-hora">Hora</label>
+                <input id="partido-hora" class="admin-input" type="datetime-local" data-partido-field="scheduledAt" />
+              </div>
+              <div class="admin-field">
+                <label for="partido-a">Equipo A</label>
+                <input id="partido-a" class="admin-input" type="text" maxlength="60" data-partido-field="equipoANombre" />
+              </div>
+              <div class="admin-field">
+                <label for="partido-b">Equipo B</label>
+                <input id="partido-b" class="admin-input" type="text" maxlength="60" data-partido-field="equipoBNombre" />
+              </div>
+            </div>
+
+            <div class="admin-field" data-partido-marcador hidden>
+              <span class="admin-label">Marcador</span>
+              <div class="admin-form-grid">
+                <div class="admin-field">
+                  <label for="partido-status">Estado</label>
+                  <select id="partido-status" class="admin-select" data-partido-field="status">
+                    <option value="scheduled">Programado</option>
+                    <option value="live">En juego</option>
+                    <option value="finished">Terminado</option>
+                  </select>
+                </div>
+                <div class="admin-field">
+                  <label for="partido-winner">Ganador</label>
+                  <select id="partido-winner" class="admin-select" data-partido-field="winner">
+                    <option value="">Sin decidir</option>
+                    <option value="A">Equipo A</option>
+                    <option value="B">Equipo B</option>
+                  </select>
+                </div>
+                <div class="admin-field">
+                  <label for="partido-pa">Puntos A</label>
+                  <input id="partido-pa" class="admin-input" type="number" min="0" max="99" data-partido-field="pointsA" />
+                </div>
+                <div class="admin-field">
+                  <label for="partido-pb">Puntos B</label>
+                  <input id="partido-pb" class="admin-input" type="number" min="0" max="99" data-partido-field="pointsB" />
+                </div>
+                <div class="admin-field">
+                  <label for="partido-sa">Sets A</label>
+                  <input id="partido-sa" class="admin-input" type="number" min="0" max="3" data-partido-field="setsA" />
+                </div>
+                <div class="admin-field">
+                  <label for="partido-sb">Sets B</label>
+                  <input id="partido-sb" class="admin-input" type="number" min="0" max="3" data-partido-field="setsB" />
+                </div>
+              </div>
+              <p class="admin-field-hint">
+                Poner el estado en «Programado» borra el ganador y reinicia el cronómetro.
+              </p>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-dialog-foot">
+          <p class="admin-alert" role="alert" data-partido-banner hidden></p>
+          <button type="button" class="admin-btn" data-partido-cancelar>Cancelar</button>
+          <button type="button" class="admin-btn admin-btn--primary" data-partido-guardar>Guardar partido</button>
+        </div>
+      </div>
+    </dialog>
+  </Fragment>
 
   <Fragment slot="scripts">
     <script is:inline src="/assets/match-utils.js" defer></script>
