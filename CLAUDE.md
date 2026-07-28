@@ -9,7 +9,9 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 ## Commands
 
 - `npm run dev` — dev server at 127.0.0.1
-- `npm run build` — runs `astro check` (TypeScript/type checking) then `astro build`; this is the only verification step, there are no tests or linter
+- `npm run build` — runs `astro check` (TypeScript/type checking) then `astro build`, then builds the worker
+- `npm test` — unit + integration tests (no build needed, ~10 s). The everyday command.
+- `npm run verify` — build + test types + **all** tests including e2e. The gate before merging to `development` (see Tests below)
 - `npm run preview` — serve the built `dist/`
 - `npx wrangler d1 migrations apply DB --local` — apply D1 migrations to the local database
 - `npx wrangler dev --port 8788` — serve the built site plus `functions/` with the local D1/R2 bindings (run `npm run build` first). **Not** `wrangler pages dev`: the project is a Worker with static assets (`main = ".worker/index.js"` + `[assets]` in wrangler.toml), not a Pages project.
@@ -35,7 +37,7 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 - The site stays static; Cloudflare Pages automatically deploys [functions/](functions/) as Pages Functions alongside `dist/`. No Astro adapter.
 - [wrangler.toml](wrangler.toml) declares the `DB` D1 binding (`copa-arena-db`) and the `FOTOS` R2 binding (`copa-arena-fotos`, private player photos). The real `database_id` must be pasted after running `npx wrangler d1 create copa-arena-db` (see README).
 - Migrations live in [db/migrations/](db/migrations/) (`migrations_dir` in wrangler.toml). Tables: `inscripciones`, `reservas` (0001, legacy) and `equipos`, `jugadores` (0002). Uniqueness (team name; player full name / phone / email) is enforced via normalized columns (lowercase, accent-stripped in the endpoint — SQLite NOCASE is ASCII-only) plus UNIQUE indexes.
-- [functions/api/equipos.ts](functions/api/equipos.ts) is the real registration endpoint: `POST /api/equipos` (multipart: `payload` JSON + optional `foto_0..n`; Turnstile check, validation with per-field Spanish errors keyed `jugadores.<i>.<campo>`, R2 photo upload, transactional `DB.batch` insert, confirmation email) and `GET /api/equipos` (public list: team names + player count only, for privacy). Shared helpers live in [functions/_lib/](functions/_lib/) (`http`, `validacion`, `turnstile`, `gmail`) — `_lib` files don't become routes. Client validation in [public/assets/team-form.js](public/assets/team-form.js) mirrors `functions/_lib/validacion.ts`: keep both in sync.
+- [functions/api/equipos.ts](functions/api/equipos.ts) is the real registration endpoint: `POST /api/equipos` (multipart: `payload` JSON + optional `foto_0..n`; Turnstile check, validation with per-field Spanish errors keyed `jugadores.<i>.<campo>`, R2 photo upload, transactional `DB.batch` insert, confirmation email) and `GET /api/equipos` (public list: team names + player count only, for privacy). Shared helpers live in [functions/_lib/](functions/_lib/) (`http`, `validacion`, `turnstile`, `gmail`) — `_lib` files don't become routes. Client validation in [public/assets/team-form.js](public/assets/team-form.js) mirrors `functions/_lib/validacion.ts`: keep both in sync — `test/unit/paridad-validacion.test.ts` fails if they drift.
 - Confirmation email is sent from copa.arena.2000@gmail.com via Gmail API OAuth (plain-text MIME). Secrets: `TURNSTILE_SECRET_KEY`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` (production: `wrangler pages secret put`; local: `.dev.vars`, gitignored). Email failure never rolls back a registration (201 with `emailEnviado: false`).
 - Frontend pages: `/inscripcion/` (form, dynamic player cards, min 2 players + subs up to 15, RGPD consent, Turnstile widget — site key in `src/data/event.ts` `inscripcion.turnstileSiteKey`, currently the always-passing test key) and `/equipos/` (client-side fetch list). The old `POST /api/inscripciones` endpoint is obsolete but kept.
 - `astro dev` does not serve `/api`; test the full flow with `npm run build` + `npx wrangler dev --port 8788`.
@@ -66,6 +68,29 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
 - The base values in global.css are the **mobile** scale. Desktop density lives in a single `@media (min-width: 901px)` block (start of the media-queries section): it compacts type and vertical rhythm (~0.8x) so more fits on screen at 100% zoom. When adding a new desktop-visible component, check whether it needs an entry there too.
 - Note when verifying with headless Chrome screenshots: Chrome clamps the window to a ~500px minimum width, so `--window-size=390,...` renders a 500px layout cropped to 390 — right-edge "cuts" at mobile sizes are usually this artifact, not a layout bug.
 
+## Tests
+
+Vitest, with three projects declared in [vitest.config.ts](vitest.config.ts). Each has its own config under `test/<proyecto>/vitest.config.ts`.
+
+| Project | Runs in | Covers | Needs a build |
+|---|---|---|---|
+| `unit` | Node (jsdom per file via `// @vitest-environment jsdom`) | Pure logic (`validacion`, `nombres`, `_lib/admin` helpers) and the client scripts in `public/assets/` | No |
+| `integration` | workerd, with **real D1 and R2** (migrations applied) | Handlers from `functions/` imported directly and called with a fabricated context | No |
+| `e2e` | Same, plus `main = .worker/index.js` and `SELF.fetch` | **Route wiring only** — that `_middleware.ts` really runs in front of every route | Yes |
+
+- **Write behaviour tests in `integration`, not `e2e`.** `e2e` exists for one thing: proving the middleware is actually wired. Calling handlers one by one can never show that.
+- Seed with the helpers in [test/helpers/db.ts](test/helpers/db.ts) (`crearUsuario`, `crearAdmin`, `crearEquipo`, `sembrarFoto`, `peticion`) — no loose SQL in test files. Session and «ver como» cookies are signed with the real `createSessionCookie` / `createVerComoCookie` against the test `SESSION_SECRET`; never hand-roll a cookie.
+- Call a handler with `ctx(request, env)` from [test/helpers/ctx.ts](test/helpers/ctx.ts). Use `crearContexto` instead when you need to assert whether `next` was called (that's how the middleware tests prove a request was cut off rather than merely rejected downstream).
+- **Nothing resets state on its own.** `isolatedStorage` disappeared in `@cloudflare/vitest-pool-workers` 0.18, so [test/integration/setup.ts](test/integration/setup.ts) empties every table and the R2 bucket in an `afterEach` and re-seeds the current edición. Add any new table to its `TABLAS` list, or tests will leak into each other — the UNIQUE indexes on `equipos`/`jugadores` are global and will start failing depending on test order.
+- Test files are excluded from the root `tsconfig.json` (they import `cloudflare:test`, which `astro check` knows nothing about). They are type-checked separately by `npm run test:types` against [test/tsconfig.json](test/tsconfig.json). A binding added to the miniflare config also needs an entry in [test/env.d.ts](test/env.d.ts).
+- `paridad-validacion.test.ts` compares the shared literals of `functions/_lib/validacion.ts` and `public/assets/team-form.js`. If you change a validation rule, change both — that test is what makes the "keep them in sync" rule enforceable instead of aspirational.
+
+### Before merging a branch into `development`
+
+1. Add or update tests for everything the branch touches. Any new endpoint or `_lib/` function arrives with its tests.
+2. Re-read the existing tests of the areas affected and update the ones the change invalidates — a test that had to be weakened to keep passing is a finding, not a chore.
+3. Run `npm run verify`. Do not merge with anything red.
+
 ## Git workflow (Git Flow)
 
 - This repo follows **Git Flow**. `main` only ever receives merges from `development` — never commit or push directly to `main`.
@@ -75,7 +100,7 @@ Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Port
   - `release/<version>` — stabilizes `development` for a release (version bump, final polish) before it goes to `main`.
   - `hotfix/<nombre-corto>` — urgent fix branched from `main` to patch production, merged back into **both** `main` and `development`.
 - Before starting any requested change: check out `development` (create it from `main` if it doesn't exist yet), pull latest, then branch off it with the right prefix for the kind of change (feature/bugfix/release/hotfix).
-- Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first.
+- Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first. **`npm run verify` must be green first**, and the branch must carry tests for what it changed (see Tests above).
 - **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) ask for explicit confirmation before merging `development` into `main` and pushing.
 
 ## Conventions

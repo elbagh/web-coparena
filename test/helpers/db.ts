@@ -1,0 +1,184 @@
+import { env } from "cloudflare:test";
+import {
+  createSessionCookie,
+  createVerComoCookie,
+  type UsuarioSesion
+} from "../../functions/_lib/auth";
+import { capitalizarPropio } from "../../functions/_lib/nombres";
+import { normalizarEmail, normalizarTelefono, normalizarTexto } from "../../functions/_lib/validacion";
+
+// Sembradores para los tests de integración. Todo test que necesite datos pasa
+// por aquí: nada de SQL suelto repartido por los ficheros de test.
+
+let contador = 0;
+const siguiente = () => ++contador;
+
+export interface OpcionesUsuario {
+  email?: string;
+  nombre?: string;
+  admin?: boolean;
+  emailVerified?: boolean;
+}
+
+export async function crearUsuario(opciones: OpcionesUsuario = {}): Promise<UsuarioSesion> {
+  const n = siguiente();
+  const email = opciones.email ?? `usuario${n}@example.com`;
+  const fila = await env.DB.prepare(
+    `INSERT INTO usuarios (google_sub, email, email_verified, nombre, foto_url, is_admin)
+     VALUES (?1, ?2, ?3, ?4, NULL, ?5)
+     RETURNING id`
+  )
+    .bind(
+      `sub-${n}`,
+      email,
+      opciones.emailVerified === false ? 0 : 1,
+      opciones.nombre ?? `Usuario ${n}`,
+      opciones.admin ? 1 : 0
+    )
+    .first<{ id: number }>();
+
+  return {
+    id: fila!.id,
+    googleSub: `sub-${n}`,
+    email,
+    emailVerified: opciones.emailVerified !== false,
+    nombre: opciones.nombre ?? `Usuario ${n}`,
+    fotoUrl: null
+  };
+}
+
+export const crearAdmin = (opciones: OpcionesUsuario = {}) => crearUsuario({ ...opciones, admin: true });
+
+export interface JugadorSemilla {
+  nombre?: string;
+  apellidos?: string;
+  telefono?: string;
+  email?: string | null;
+  redSocial?: string | null;
+  fotoKey?: string | null;
+}
+
+export interface EquipoSembrado {
+  id: number;
+  nombre: string;
+  edicionId: number | null;
+  jugadores: { id: number; nombre: string; apellidos: string; telefono: string; email: string | null }[];
+}
+
+export interface OpcionesEquipo {
+  nombre?: string;
+  jugadores?: JugadorSemilla[];
+  ownerUserId?: number;
+  fotoKey?: string | null;
+}
+
+/**
+ * Crea un equipo con sus jugadores en la edición actual. Los datos por defecto
+ * son únicos entre llamadas, para no chocar con los índices UNIQUE globales.
+ */
+export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<EquipoSembrado> {
+  const n = siguiente();
+  const nombre = opciones.nombre ?? `Equipo ${n}`;
+  const edicion = await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>();
+
+  const equipo = await env.DB.prepare(
+    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id, foto_key)
+     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5)
+     RETURNING id, edicion_id`
+  )
+    .bind(nombre, normalizarTexto(nombre), opciones.ownerUserId ?? null, edicion?.id ?? null, opciones.fotoKey ?? null)
+    .first<{ id: number; edicion_id: number | null }>();
+
+  const semillas: JugadorSemilla[] = opciones.jugadores ?? [{}, {}];
+  const jugadores: EquipoSembrado["jugadores"] = [];
+
+  for (const [i, semilla] of semillas.entries()) {
+    const m = siguiente();
+    const nombreJ = capitalizarPropio(semilla.nombre ?? `Jugador${m}`);
+    const apellidosJ = capitalizarPropio(semilla.apellidos ?? `Apellido${m}`);
+    const telefono = semilla.telefono ?? `6${String(10000000 + m).slice(0, 8)}`;
+    const email = semilla.email === null ? null : (semilla.email ?? `jugador${m}@example.com`);
+
+    const fila = await env.DB.prepare(
+      `INSERT INTO jugadores (
+         equipo_id, nombre, apellidos, nombre_completo_normalizado,
+         telefono, telefono_normalizado, email, email_normalizado,
+         red_social, foto_key, es_suplente, orden, edicion_id
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+       RETURNING id`
+    )
+      .bind(
+        equipo!.id,
+        nombreJ,
+        apellidosJ,
+        normalizarTexto(`${nombreJ} ${apellidosJ}`),
+        telefono,
+        normalizarTelefono(telefono),
+        email,
+        email ? normalizarEmail(email) : null,
+        semilla.redSocial ?? null,
+        semilla.fotoKey ?? null,
+        i >= 2 ? 1 : 0,
+        i + 1,
+        equipo!.edicion_id
+      )
+      .first<{ id: number }>();
+
+    jugadores.push({ id: fila!.id, nombre: nombreJ, apellidos: apellidosJ, telefono, email });
+  }
+
+  return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, jugadores };
+}
+
+/** Sube un objeto a R2 y devuelve su key, para los tests de fotos. */
+export async function sembrarFoto(key: string, contenido = "foto"): Promise<string> {
+  await env.FOTOS.put(key, contenido);
+  return key;
+}
+
+// ---------------------------------------------------------------------------
+// Cookies: firmadas de verdad con el mismo SESSION_SECRET del binding.
+// ---------------------------------------------------------------------------
+
+const soloCookie = (setCookie: string) => setCookie.split(";")[0]!;
+const base = "https://copa.test";
+
+export async function cookieSesion(user: UsuarioSesion, url = base): Promise<string> {
+  return soloCookie(await createSessionCookie(new Request(url), env, user.id));
+}
+
+export async function cookieVerComo(admin: UsuarioSesion, objetivo: UsuarioSesion, url = base): Promise<string> {
+  return soloCookie(await createVerComoCookie(new Request(url), env, admin.id, objetivo.id));
+}
+
+export interface OpcionesPeticion {
+  method?: string;
+  /** Sesión real. */
+  user?: UsuarioSesion;
+  /** Si se pasa, se añade también la cookie de suplantación. */
+  verComo?: { admin: UsuarioSesion; objetivo: UsuarioSesion };
+  body?: BodyInit | null;
+  headers?: Record<string, string>;
+  json?: unknown;
+}
+
+/** Construye una Request con las cookies ya firmadas. */
+export async function peticion(ruta: string, opciones: OpcionesPeticion = {}): Promise<Request> {
+  const url = ruta.startsWith("http") ? ruta : `${base}${ruta}`;
+  const cookies: string[] = [];
+  if (opciones.user) cookies.push(await cookieSesion(opciones.user, url));
+  if (opciones.verComo) {
+    cookies.push(await cookieVerComo(opciones.verComo.admin, opciones.verComo.objetivo, url));
+  }
+
+  const headers: Record<string, string> = { ...opciones.headers };
+  if (cookies.length > 0) headers.Cookie = cookies.join("; ");
+
+  let body = opciones.body ?? null;
+  if (opciones.json !== undefined) {
+    body = JSON.stringify(opciones.json);
+    headers["Content-Type"] = "application/json";
+  }
+
+  return new Request(url, { method: opciones.method ?? "GET", headers, body });
+}
