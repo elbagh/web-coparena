@@ -21,7 +21,6 @@ const MARCADO = `
     <section data-controles hidden>
       <input data-buscador />
       <p data-cuenta></p>
-      <div data-filtros></div>
     </section>
     <p data-vacio hidden></p>
     <div data-rejilla hidden></div>
@@ -107,15 +106,26 @@ describe("álbum de jugadores", () => {
   });
 
   it("el buscador filtra por nombre, apodo o equipo, sin tildes", async () => {
-    await montar([jugador(1, "Marta", { apodo: "La Muralla" }), jugador(2, "Xoán")]);
+    await montar([
+      jugador(1, "Marta", { apodo: "La Muralla", equipoId: 2, equipoNombre: "Areeiros" }),
+      jugador(2, "Xoán")
+    ]);
 
     const buscador = document.querySelector("[data-buscador]") as HTMLInputElement;
-    buscador.value = "xoan";
-    buscador.dispatchEvent(new Event("input"));
+    const buscar = (termino: string) => {
+      buscador.value = termino;
+      buscador.dispatchEvent(new Event("input"));
+      return Array.from(document.querySelectorAll(".album-cromo")).map((n) => n.textContent);
+    };
 
-    const cromos = Array.from(document.querySelectorAll(".album-cromo"));
-    expect(cromos).toHaveLength(1);
-    expect(cromos[0]!.textContent).toContain("Xoán");
+    expect(buscar("xoan")).toHaveLength(1);
+    expect(buscar("xoan")[0]).toContain("Xoán");
+    expect(buscar("muralla")[0]).toContain("Marta");
+
+    // Buscar por equipo es lo que sustituye a la fila de burbujas por equipo.
+    const porEquipo = buscar("areeiros");
+    expect(porEquipo).toHaveLength(1);
+    expect(porEquipo[0]).toContain("Marta");
   });
 
   it("el ranking corona a quien más suma y deja fuera las métricas sin datos", async () => {

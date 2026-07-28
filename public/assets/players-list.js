@@ -18,7 +18,6 @@
   const estado = root.querySelector("[data-status]");
   const controles = root.querySelector("[data-controles]");
   const buscador = root.querySelector("[data-buscador]");
-  const filtros = root.querySelector("[data-filtros]");
   const rejilla = root.querySelector("[data-rejilla]");
   const vacio = root.querySelector("[data-vacio]");
   const ranking = root.querySelector("[data-ranking]");
@@ -52,7 +51,6 @@
 
   let jugadores = [];
   let edicion = null;
-  let equipoFiltro = null;
   let busqueda = "";
 
   const nombreCompleto = (j) => `${j.nombre} ${j.apellidos}`.trim();
@@ -71,41 +69,17 @@
 
   // ------------------------------------------------------------- rejilla ----
 
+  /**
+   * El buscador es el único filtro: el término se compara también contra el
+   * equipo, así que escribir su nombre hace de filtro por equipo sin una fila de
+   * botones que crece con cada inscripción.
+   */
   function visibles() {
     const termino = sinAcentos(busqueda.trim());
-    return jugadores.filter((j) => {
-      if (equipoFiltro != null && j.equipoId !== equipoFiltro) return false;
-      if (!termino) return true;
-      return sinAcentos(`${nombreCompleto(j)} ${j.apodo || ""} ${j.equipoNombre}`).includes(termino);
-    });
-  }
-
-  function renderFiltros() {
-    if (!filtros) return;
-    filtros.textContent = "";
-
-    const equipos = [];
-    const vistos = new Set();
-    jugadores.forEach((j) => {
-      if (vistos.has(j.equipoId)) return;
-      vistos.add(j.equipoId);
-      equipos.push({ id: j.equipoId, nombre: j.equipoNombre });
-    });
-
-    const boton = (texto, id) => {
-      const b = el("button", "album-filtro" + (equipoFiltro === id ? " is-on" : ""), texto);
-      b.type = "button";
-      b.setAttribute("aria-pressed", equipoFiltro === id ? "true" : "false");
-      b.addEventListener("click", () => {
-        equipoFiltro = equipoFiltro === id ? null : id;
-        renderFiltros();
-        renderRejilla();
-      });
-      return b;
-    };
-
-    filtros.appendChild(boton("Todos", null));
-    equipos.forEach((e) => filtros.appendChild(boton(e.nombre, e.id)));
+    if (!termino) return jugadores;
+    return jugadores.filter((j) =>
+      sinAcentos(`${nombreCompleto(j)} ${j.apodo || ""} ${j.equipoNombre}`).includes(termino)
+    );
   }
 
   function cromoMini(j) {
@@ -426,7 +400,6 @@
       }
 
       setEstado("");
-      renderFiltros();
       renderRanking();
       sincronizarConLaUrl();
     } catch (err) {
