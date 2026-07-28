@@ -89,3 +89,44 @@ describe("paridad entre team-form.js y validacion.ts", () => {
     );
   });
 });
+
+/*
+ * Lo mismo con el álbum: players-list.js repite a mano la lista de métricas y la
+ * de atributos porque tampoco puede importar del servidor. Si una crece y la
+ * otra no, la ficha pública deja de pintar lo que la API devuelve.
+ */
+
+const estadisticasTs = readFileSync(path.join(raiz, "functions/_lib/estadisticas.ts"), "utf8");
+const perfilTs = readFileSync(path.join(raiz, "functions/_lib/perfil.ts"), "utf8");
+const album = readFileSync(path.join(raiz, "public/assets/players-list.js"), "utf8");
+const miZona = readFileSync(path.join(raiz, "public/assets/perfil.js"), "utf8");
+
+/** Claves de un array de objetos literales: `{ clave: "puntos", ... }`. */
+const claves = (fuente: string, patron: RegExp, campo: string): string[] => {
+  const bloque = fuente.match(patron)?.[1] ?? "";
+  return [...bloque.matchAll(new RegExp(`${campo}:\\s*"([^"]+)"`, "g"))].map((m) => m[1]!);
+};
+
+describe("paridad entre players-list.js y el servidor", () => {
+  it("comparte las claves de las métricas", () => {
+    const enServidor = claves(estadisticasTs, /METRICAS: Metrica\[\] = \[([\s\S]*?)\];/, "clave");
+    const enCliente = claves(album, /METRICAS = \[([\s\S]*?)\];/, "clave");
+
+    expect(enServidor.length).toBeGreaterThan(0);
+    expect(enCliente, "players-list.js ha derivado de estadisticas.ts: las métricas ya no coinciden.").toEqual(
+      enServidor
+    );
+  });
+
+  it("comparte las claves de los atributos", () => {
+    const enServidor = extraer(perfilTs, /ATRIBUTOS = \[([^\]]+)\]/)
+      ?.split(",")
+      .map((s) => s.trim().replace(/"/g, ""));
+    const enAlbum = claves(album, /ATRIBUTOS = \[([\s\S]*?)\];/, "key");
+    const enMiZona = claves(miZona, /ATRIBUTOS = \[([\s\S]*?)\];/, "key");
+
+    expect(enServidor).not.toBeNull();
+    expect(enAlbum, "players-list.js ha derivado de perfil.ts: los atributos ya no coinciden.").toEqual(enServidor);
+    expect(enMiZona, "perfil.js ha derivado de perfil.ts: los atributos ya no coinciden.").toEqual(enServidor);
+  });
+});

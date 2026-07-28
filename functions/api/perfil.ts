@@ -1,14 +1,18 @@
 // GET   /api/perfil — paquete completo de la ficha del usuario logueado:
-//   datos de cuenta, atributos manuales + avatar, edicion actual, historial de
-//   equipos por edicion, palmares agregado y camisetas reservadas.
-// PATCH /api/perfil — actualiza los atributos manuales (apodo, dorsal, posicion,
-//   mano, lema, autovaloracion). El avatar se gestiona aparte en /api/avatar.
+//   datos de cuenta, ficha + avatar, edicion actual, historial de equipos por
+//   edicion, palmares agregado, estadisticas y camisetas reservadas.
+// PATCH /api/perfil — actualiza los campos propios de la ficha (apodo, dorsal,
+//   posicion, mano, lema). El avatar se gestiona aparte en /api/avatar.
+//
+// Los atributos 1-5 son de solo lectura aqui: los pone la organizacion desde
+// /admin/estadisticas/ sobre el jugador de la edicion, no su dueño.
 
 import { publicUser, requireUser, requireUserContext } from "../_lib/auth";
 import { claveAvatar } from "../_lib/avatar";
 import { edicionActual } from "../_lib/ediciones";
+import { mapEstadisticas, sumarTotales, totalesPorJugador } from "../_lib/estadisticas";
 import { json } from "../_lib/http";
-import { guardarPerfil, parseAtributos, validarPerfil } from "../_lib/perfil";
+import { atributosPorJugador, guardarPerfil, validarPerfil } from "../_lib/perfil";
 import { normalizarEmail } from "../_lib/validacion";
 
 interface Env {
@@ -23,10 +27,10 @@ interface PerfilRow {
   posicion: string | null;
   mano: string | null;
   lema: string | null;
-  atributos: string | null;
 }
 
 interface MembresiaRow {
+  jugador_id: number;
   equipo_id: number;
   equipo_nombre: string;
   posicion_final: number | null;
@@ -49,7 +53,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     const [perfilRow, tieneAvatar, membresias, camisetas] = await Promise.all([
       env.DB
-        .prepare("SELECT apodo, dorsal, posicion, mano, lema, atributos FROM perfiles WHERE usuario_id = ?1")
+        .prepare("SELECT apodo, dorsal, posicion, mano, lema FROM perfiles WHERE usuario_id = ?1")
         .bind(user.id)
         .first<PerfilRow>(),
       // Solo se quiere saber si hay foto: en modo «ver como» no se siembra.
@@ -60,7 +64,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     const historial = await construirHistorial(env.DB, membresias, emailNormalizado, edicion?.id ?? null);
     const propio = membresias[0];
-    const jugador = propio ? { nombre: propio.jugador_nombre, apellidos: propio.jugador_apellidos } : null;
+    const jugador = propio ? { id: propio.jugador_id, nombre: propio.jugador_nombre, apellidos: propio.jugador_apellidos } : null;
+
+    // Los atributos son los del jugador de la edición en juego; si no juega esta
+    // edición, los de su inscripción más reciente.
+    const jugadorVigente = membresias.find((m) => m.edicion_id === edicion?.id) ?? propio;
+    const atributos = jugadorVigente
+      ? (await atributosPorJugador(env.DB, [jugadorVigente.jugador_id])).get(jugadorVigente.jugador_id) ?? {}
+      : {};
 
     return json(
       {
@@ -73,11 +84,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           posicion: perfilRow?.posicion ?? null,
           mano: perfilRow?.mano ?? null,
           lema: perfilRow?.lema ?? null,
-          atributos: parseAtributos(perfilRow?.atributos ?? null),
+          atributos,
           tieneAvatar
         },
         historial,
         palmares: calcularPalmares(historial),
+        carrera: sumarTotales(historial.map((h) => h.estadisticas)),
         camisetas
       },
       200,
@@ -112,7 +124,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
     return json(
       {
         ok: true,
-        perfil: { apodo: p.apodo, dorsal: p.dorsal, posicion: p.posicion, mano: p.mano, lema: p.lema, atributos: p.atributos }
+        perfil: { apodo: p.apodo, dorsal: p.dorsal, posicion: p.posicion, mano: p.mano, lema: p.lema }
       },
       200,
       { "Cache-Control": "no-store" }
@@ -126,7 +138,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
 async function cargarMembresias(db: D1Database, emailNormalizado: string): Promise<MembresiaRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT e.id AS equipo_id, e.nombre AS equipo_nombre, e.posicion_final AS posicion_final,
+      `SELECT j.id AS jugador_id, e.id AS equipo_id, e.nombre AS equipo_nombre, e.posicion_final AS posicion_final,
               ed.id AS edicion_id, ed.anio AS anio, ed.nombre AS edicion_nombre, ed.estado AS estado,
               j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos
        FROM jugadores j
@@ -146,13 +158,17 @@ async function construirHistorial(
   emailNormalizado: string,
   edicionActualId: number | null
 ) {
-  const companerosPorEquipo = await cargarCompaneros(
-    db,
-    membresias.map((m) => m.equipo_id),
-    emailNormalizado
-  );
+  const [companerosPorEquipo, estadisticas] = await Promise.all([
+    cargarCompaneros(
+      db,
+      membresias.map((m) => m.equipo_id),
+      emailNormalizado
+    ),
+    totalesPorJugador(db, membresias.map((m) => m.jugador_id))
+  ]);
 
   return membresias.map((m) => ({
+    jugadorId: m.jugador_id,
     edicionId: m.edicion_id,
     anio: m.anio,
     nombreEdicion: m.edicion_nombre,
@@ -160,6 +176,7 @@ async function construirHistorial(
     equipoNombre: m.equipo_nombre,
     posicionFinal: m.posicion_final,
     esActual: edicionActualId != null && m.edicion_id === edicionActualId,
+    estadisticas: estadisticas.get(m.jugador_id) ?? mapEstadisticas(null),
     companeros: companerosPorEquipo.get(m.equipo_id) ?? []
   }));
 }

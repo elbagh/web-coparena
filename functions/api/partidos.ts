@@ -258,8 +258,9 @@ async function crearPartido(db: D1Database, body: Record<string, unknown>): Prom
   await db
     .prepare(
       `INSERT INTO partidos (id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre,
-         scheduled_at, status, sort_order)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'scheduled', ?8)`
+         scheduled_at, status, sort_order, edicion_id)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'scheduled', ?8,
+         (SELECT id FROM ediciones WHERE es_actual = 1))`
     )
     .bind(
       crypto.randomUUID(),
@@ -306,8 +307,10 @@ async function reemplazarPartidos(db: D1Database, partidos: ReturnType<typeof cr
       db
         .prepare(
           `INSERT INTO partidos (
-             id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, scheduled_at, sort_order, created_at, updated_at
-           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)`
+             id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, scheduled_at, sort_order,
+             created_at, updated_at, edicion_id
+           ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9,
+             (SELECT id FROM ediciones WHERE es_actual = 1))`
         )
         .bind(
           partido.id,

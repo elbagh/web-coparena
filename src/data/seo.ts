@@ -25,6 +25,7 @@ export const publicPages = [
   { path: "/donde-estamos/", priority: "0.8", changefreq: "monthly" },
   { path: "/competicion/", priority: "0.8", changefreq: "monthly" },
   { path: "/equipos/", priority: "0.7", changefreq: "daily" },
+  { path: "/jugadores/", priority: "0.7", changefreq: "daily" },
   { path: "/camisetas/", priority: "0.7", changefreq: "monthly" },
   { path: "/privacidad/", priority: "0.2", changefreq: "yearly" },
   { path: "/cookies/", priority: "0.2", changefreq: "yearly" },

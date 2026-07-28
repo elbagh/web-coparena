@@ -7,12 +7,12 @@
   const historialRoot = shell.querySelector("[data-historial]");
   const fichaForm = shell.querySelector("[data-ficha-form]");
   const fichaBanner = fichaForm?.querySelector("[data-ficha-banner]");
-  const fichaAtributos = fichaForm?.querySelector("[data-ficha-atributos]");
   const avatarInput = fichaForm?.querySelector("[data-ficha-avatar]");
   const avatarDelete = fichaForm?.querySelector("[data-ficha-avatar-delete]");
   const fichaSave = fichaForm?.querySelector("[data-ficha-save]");
 
-  // Debe coincidir con functions/api/perfil.ts (ATRIBUTOS / POSICIONES / MANOS).
+  // Debe coincidir con functions/_lib/perfil.ts (ATRIBUTOS) y con
+  // public/assets/players-list.js. Aquí solo se leen: los pone la organización.
   const ATRIBUTOS = [
     { key: "saque", label: "Saque" },
     { key: "remate", label: "Remate" },
@@ -25,18 +25,7 @@
   let perfil = null;
   let cargado = false;
 
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text != null) node.textContent = text;
-    return node;
-  };
-
-  const iniciales = (nombre, apellidos, email) => {
-    const a = (nombre || "").trim()[0] || "";
-    const b = (apellidos || "").trim()[0] || (email || "").trim()[0] || "";
-    return (a + b).toUpperCase() || "?";
-  };
+  const { el, iniciales } = window.CopaCromo;
 
   // ---------------------------------------------------------------- tabs ----
   function initTabs() {
@@ -69,30 +58,6 @@
   }
 
   // --------------------------------------------------------------- cromo ----
-  function chip(text) {
-    return el("span", "cromo-chip", text);
-  }
-
-  function statTile(valor, etiqueta, variante) {
-    const tile = el("div", "stat-tile" + (variante ? " stat-tile--" + variante : ""));
-    tile.appendChild(el("span", "stat-value", valor));
-    tile.appendChild(el("span", "stat-label", etiqueta));
-    return tile;
-  }
-
-  function barra(label, valor) {
-    const row = el("div", "atributo-row");
-    row.appendChild(el("span", "atributo-label", label));
-    const pips = el("span", "atributo-pips");
-    pips.setAttribute("role", "img");
-    pips.setAttribute("aria-label", `${label}: ${valor} de 5`);
-    for (let i = 1; i <= 5; i++) {
-      pips.appendChild(el("span", "pip" + (i <= valor ? " pip--on" : "")));
-    }
-    row.appendChild(pips);
-    return row;
-  }
-
   function renderCromo() {
     cromoWrap.textContent = "";
     if (!perfil) return;
@@ -102,81 +67,46 @@
     const nombre = jugador
       ? `${jugador.nombre} ${jugador.apellidos}`.trim()
       : perfil.user?.nombre || perfil.user?.email || "Jugador";
-
-    const card = el("article", "cromo");
-
-    // Cinta superior: edición + dorsal.
-    const top = el("div", "cromo-top");
     const ed = perfil.edicionActual;
-    const edTexto = ed ? `${ed.nombre} · ${estadoTexto(ed.estado)}` : "La Copa Arena";
-    top.appendChild(el("span", "cromo-edicion", edTexto));
-    if (p.dorsal != null) top.appendChild(el("span", "cromo-dorsal", String(p.dorsal)));
-    card.appendChild(top);
-
-    const body = el("div", "cromo-body");
-
-    // Columna foto.
-    const fotoCol = el("div", "cromo-foto-col");
-    const foto = el("div", "cromo-foto");
-    if (p.tieneAvatar) {
-      const img = el("img");
-      img.alt = `Foto de ${nombre}`;
-      img.src = `/api/avatar?t=${Date.now()}`;
-      foto.appendChild(img);
-    } else {
-      foto.appendChild(el("span", "cromo-inicial", iniciales(jugador?.nombre, jugador?.apellidos, perfil.user?.email)));
-    }
-    foto.appendChild(el("span", "cromo-sheen"));
-    fotoCol.appendChild(foto);
-    if (p.posicion) fotoCol.appendChild(el("span", "cromo-posicion", p.posicion));
-    body.appendChild(fotoCol);
-
-    // Columna identidad + stats.
-    const info = el("div", "cromo-info");
-    info.appendChild(el("h2", "cromo-nombre", nombre));
-    if (p.apodo) info.appendChild(el("p", "cromo-apodo", `«${p.apodo}»`));
-
-    const meta = el("div", "cromo-meta");
-    if (p.posicion) meta.appendChild(chip(p.posicion));
-    if (p.mano) meta.appendChild(chip(p.mano));
     const teamActual = (perfil.historial || []).find((h) => h.esActual);
-    if (teamActual) meta.appendChild(chip(teamActual.equipoNombre));
-    if (meta.childElementCount) info.appendChild(meta);
 
-    if (p.lema) info.appendChild(el("p", "cromo-lema", `“${p.lema}”`));
-
-    // Palmarés.
     const pal = perfil.palmares || {};
-    const palBlock = el("div", "cromo-block");
-    palBlock.appendChild(el("p", "cromo-block-label", "Palmarés"));
-    const tiles = el("div", "stat-tiles");
-    tiles.appendChild(statTile(String(pal.edicionesJugadas ?? 0), "Ediciones"));
-    tiles.appendChild(statTile(String(pal.podios?.oro ?? 0), "Oro", "oro"));
-    tiles.appendChild(statTile(String(pal.podios?.plata ?? 0), "Plata", "plata"));
-    tiles.appendChild(statTile(String(pal.podios?.bronce ?? 0), "Bronce", "bronce"));
-    tiles.appendChild(statTile(pal.mejorPuesto != null ? `${pal.mejorPuesto}º` : "—", "Mejor puesto"));
-    palBlock.appendChild(tiles);
     const sinPodios = !pal.mejorPuesto && !(pal.podios?.oro || pal.podios?.plata || pal.podios?.bronce);
-    if (sinPodios) palBlock.appendChild(el("p", "cromo-hint", "Aún sin podios: la Copa 2026 está en juego."));
-    info.appendChild(palBlock);
-
-    // Atributos (autovaloración).
-    const atribBlock = el("div", "cromo-block");
-    atribBlock.appendChild(el("p", "cromo-block-label", "Tu juego"));
     const valores = p.atributos || {};
     const conAtributos = ATRIBUTOS.filter((a) => valores[a.key] != null);
-    if (conAtributos.length) {
-      const bars = el("div", "atributos-view");
-      conAtributos.forEach((a) => bars.appendChild(barra(a.label, valores[a.key])));
-      atribBlock.appendChild(bars);
-    } else {
-      atribBlock.appendChild(el("p", "cromo-hint", "Puntúa tu juego del 1 al 5 en «Editar ficha»."));
-    }
-    info.appendChild(atribBlock);
 
-    body.appendChild(info);
-    card.appendChild(body);
-    cromoWrap.appendChild(card);
+    cromoWrap.appendChild(
+      window.CopaCromo.crear({
+        edicion: ed ? `${ed.nombre} · ${estadoTexto(ed.estado)}` : "La Copa Arena",
+        dorsal: p.dorsal,
+        nombre,
+        apodo: p.apodo,
+        posicion: p.posicion,
+        lema: p.lema,
+        chips: [p.posicion, p.mano, teamActual?.equipoNombre],
+        // El parámetro rompe la caché tras cambiar el avatar.
+        fotoUrl: p.tieneAvatar ? `/api/avatar?t=${Date.now()}` : null,
+        iniciales: iniciales(jugador?.nombre, jugador?.apellidos, perfil.user?.email),
+        bloques: [
+          {
+            label: "Palmarés",
+            tiles: [
+              { valor: String(pal.edicionesJugadas ?? 0), etiqueta: "Ediciones" },
+              { valor: String(pal.podios?.oro ?? 0), etiqueta: "Oro", variante: "oro" },
+              { valor: String(pal.podios?.plata ?? 0), etiqueta: "Plata", variante: "plata" },
+              { valor: String(pal.podios?.bronce ?? 0), etiqueta: "Bronce", variante: "bronce" },
+              { valor: pal.mejorPuesto != null ? `${pal.mejorPuesto}º` : "—", etiqueta: "Mejor puesto" }
+            ],
+            texto: sinPodios ? "Aún sin podios: la Copa 2026 está en juego." : null
+          },
+          {
+            label: "Tu juego",
+            atributos: conAtributos.map((a) => ({ label: a.label, valor: valores[a.key] })),
+            texto: conAtributos.length ? null : "La organización aún no ha puntuado tu juego."
+          }
+        ]
+      })
+    );
   }
 
   function estadoTexto(estado) {
@@ -222,12 +152,29 @@
     head.appendChild(medalla(h.posicionFinal, h.esActual));
     item.appendChild(head);
 
+    const resumen = resumenEstadisticas(h.estadisticas);
+    if (resumen) item.appendChild(el("p", "historial-stats", resumen));
+
     const companeros = h.companeros || [];
     if (companeros.length) {
       const linea = companeros.map((c) => `${c.nombre} ${c.apellido}`.trim()).join(" · ");
       item.appendChild(el("p", "historial-companeros", `Con ${linea}`));
     }
     return item;
+  }
+
+  /** Línea corta con lo que haya anotado; vacía si la edición aún no tiene datos. */
+  function resumenEstadisticas(stats) {
+    if (!stats) return "";
+    const partes = [
+      [stats.puntos, "puntos"],
+      [stats.remates, "remates"],
+      [stats.bloqueos, "bloqueos"],
+      [stats.aces, "aces"]
+    ]
+      .filter(([valor]) => valor > 0)
+      .map(([valor, etiqueta]) => `${valor} ${etiqueta}`);
+    return partes.join(" · ");
   }
 
   function medalla(posicion, esActual) {
@@ -239,32 +186,6 @@
   }
 
   // -------------------------------------------------------- editar ficha ----
-  function buildAtributoSliders() {
-    if (!fichaAtributos) return;
-    fichaAtributos.textContent = "";
-    const valores = perfil?.perfil?.atributos || {};
-    ATRIBUTOS.forEach((a) => {
-      const wrap = el("label", "atributo-slider");
-      wrap.appendChild(el("span", "atributo-slider-label", a.label));
-      const control = el("span", "atributo-slider-control");
-      const input = el("input");
-      input.type = "range";
-      input.min = "1";
-      input.max = "5";
-      input.step = "1";
-      input.value = String(valores[a.key] ?? 3);
-      input.dataset.atributo = a.key;
-      const salida = el("output", "atributo-slider-value", input.value);
-      input.addEventListener("input", () => {
-        salida.textContent = input.value;
-      });
-      control.appendChild(input);
-      control.appendChild(salida);
-      wrap.appendChild(control);
-      fichaAtributos.appendChild(wrap);
-    });
-  }
-
   function fillFichaForm() {
     if (!fichaForm) return;
     const p = perfil?.perfil || {};
@@ -277,7 +198,6 @@
     set("posicion", p.posicion);
     set("mano", p.mano);
     set("lema", p.lema);
-    buildAtributoSliders();
     if (avatarDelete) avatarDelete.hidden = !p.tieneAvatar;
   }
 
@@ -303,17 +223,12 @@
 
   function fichaPayload() {
     const value = (name) => fichaForm.querySelector(`[data-ficha-field="${name}"]`)?.value ?? "";
-    const atributos = {};
-    fichaAtributos?.querySelectorAll("input[data-atributo]").forEach((input) => {
-      atributos[input.dataset.atributo] = Number(input.value);
-    });
     return {
       apodo: value("apodo").trim(),
       dorsal: value("dorsal").trim(),
       posicion: value("posicion"),
       mano: value("mano"),
-      lema: value("lema").trim(),
-      atributos
+      lema: value("lema").trim()
     };
   }
 
@@ -334,7 +249,7 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        Object.entries(data.campos || {}).forEach(([name, message]) => setFichaError(name.replace("atributos.", ""), message));
+        Object.entries(data.campos || {}).forEach(([name, message]) => setFichaError(name, message));
         throw new Error(data.error || "No se ha podido guardar la ficha.");
       }
       perfil.perfil = { ...perfil.perfil, ...data.perfil };

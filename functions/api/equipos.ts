@@ -107,7 +107,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // Pre-checks de unicidad para poder señalar el campo exacto.
-  const duplicados = await buscarDuplicados(env.DB, registro);
+  const duplicados = await buscarDuplicados(env.DB, registro, edicion.id);
   if (Object.keys(duplicados).length > 0) {
     return json({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
   }
@@ -290,7 +290,16 @@ async function servirFotoEquipo(env: Env, idBruto: string): Promise<Response> {
   return servirFoto(env.FOTOS, equipo.foto_key, "public, max-age=300");
 }
 
-async function buscarDuplicados(db: D1Database, registro: RegistroValidado): Promise<Record<string, string>> {
+/**
+ * Duplicados en el alta. La unicidad de jugador es por edición (migración
+ * 0010), así que se busca dentro de `edicionId`: quien jugó ediciones
+ * anteriores puede volver a inscribirse con los mismos datos.
+ */
+async function buscarDuplicados(
+  db: D1Database,
+  registro: RegistroValidado,
+  edicionId: number
+): Promise<Record<string, string>> {
   const campos: Record<string, string> = {};
 
   const equipoExistente = await db
@@ -309,17 +318,18 @@ async function buscarDuplicados(db: D1Database, registro: RegistroValidado): Pro
     `nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`,
     `telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`
   ];
-  const binds: string[] = [...nombres, ...telefonos];
+  const binds: (string | number | null)[] = [...nombres, ...telefonos];
   if (emails.length > 0) {
     clausulas.push(`email_normalizado IN (${emails.map(() => "?").join(",")})`);
     binds.push(...emails);
   }
+  binds.push(edicionId);
 
   const { results } = await db
     .prepare(
       `SELECT nombre_completo_normalizado, telefono_normalizado, email_normalizado
        FROM jugadores
-       WHERE ${clausulas.join(" OR ")}`
+       WHERE (${clausulas.join(" OR ")}) AND edicion_id IS ?`
     )
     .bind(...binds)
     .all<{ nombre_completo_normalizado: string; telefono_normalizado: string; email_normalizado: string | null }>();

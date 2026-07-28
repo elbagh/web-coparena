@@ -125,7 +125,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
   const validado = validarJugador(valores);
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
-  const duplicados = await buscarDuplicados(env.DB, validado.jugador, null);
+  const duplicados = await buscarDuplicados(env.DB, validado.jugador, null, equipo.edicion_id);
   if (Object.keys(duplicados).length > 0) {
     return jsonAdmin({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
   }
@@ -192,9 +192,9 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   if (jugadorId === null) return accionNoValida();
 
   const actual = await env.DB
-    .prepare("SELECT id, equipo_id, foto_key FROM jugadores WHERE id = ?1")
+    .prepare("SELECT id, equipo_id, edicion_id, foto_key FROM jugadores WHERE id = ?1")
     .bind(jugadorId)
-    .first<{ id: number; equipo_id: number; foto_key: string | null }>();
+    .first<{ id: number; equipo_id: number; edicion_id: number | null; foto_key: string | null }>();
   if (!actual) return jsonAdmin({ error: "Ese jugador ya no existe." }, 404);
 
   const datos = await leerFormulario(request);
@@ -204,13 +204,9 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   const validado = validarJugador(valores);
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
-  const duplicados = await buscarDuplicados(env.DB, validado.jugador, jugadorId);
-  if (Object.keys(duplicados).length > 0) {
-    return jsonAdmin({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
-  }
-
   // Cambio de equipo: el jugador hereda la edición del equipo de destino y se
-  // coloca al final de su plantilla.
+  // coloca al final de su plantilla. Se resuelve antes que los duplicados
+  // porque la unicidad se comprueba en la edición a la que va a caer.
   let equipoDestino = actual.equipo_id;
   let edicionDestino: number | null | undefined;
   if (valores.equipoId !== undefined && valores.equipoId !== "") {
@@ -229,6 +225,16 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
       equipoDestino = nuevo;
       edicionDestino = equipo.edicion_id;
     }
+  }
+
+  const duplicados = await buscarDuplicados(
+    env.DB,
+    validado.jugador,
+    jugadorId,
+    edicionDestino !== undefined ? edicionDestino : actual.edicion_id
+  );
+  if (Object.keys(duplicados).length > 0) {
+    return jsonAdmin({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
   }
 
   let claveNueva: string | null | undefined;
@@ -448,11 +454,16 @@ function validarJugador(
   };
 }
 
-/** Los índices UNIQUE son globales: nombre, móvil y correo no se pueden repetir. */
+/**
+ * Nombre, móvil y correo no se pueden repetir **dentro de una edición**
+ * (migración 0010). `edicionId` es la del equipo de destino: al mover a alguien
+ * de año, lo que manda es dónde va a caer.
+ */
 async function buscarDuplicados(
   db: D1Database,
   jugador: JugadorSaneado,
-  excluirId: number | null
+  excluirId: number | null,
+  edicionId: number | null
 ): Promise<Record<string, string>> {
   const campos: Record<string, string> = {};
   const { results } = await db
@@ -460,9 +471,15 @@ async function buscarDuplicados(
       `SELECT nombre_completo_normalizado, telefono_normalizado, email_normalizado
        FROM jugadores
        WHERE (nombre_completo_normalizado = ?1 OR telefono_normalizado = ?2 OR email_normalizado = ?3)
-         AND id <> ?4`
+         AND id <> ?4 AND edicion_id IS ?5`
     )
-    .bind(jugador.nombreCompletoNormalizado, jugador.telefonoNormalizado, jugador.emailNormalizado, excluirId ?? -1)
+    .bind(
+      jugador.nombreCompletoNormalizado,
+      jugador.telefonoNormalizado,
+      jugador.emailNormalizado,
+      excluirId ?? -1,
+      edicionId
+    )
     .all<{ nombre_completo_normalizado: string; telefono_normalizado: string; email_normalizado: string | null }>();
 
   results.forEach((fila) => {
