@@ -17,6 +17,9 @@ interface EquipoRow {
   id: number;
   nombre: string;
   created_at: string;
+  foto_key: string | null;
+  edicion_id: number | null;
+  owner_user_id: number | null;
   owner_email: string | null;
   owner_name: string | null;
   jugadores: number;
@@ -65,6 +68,9 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         id: equipo.id,
         nombre: equipo.nombre,
         createdAt: equipo.created_at,
+        tieneFoto: Boolean(equipo.foto_key),
+        edicionId: equipo.edicion_id,
+        ownerUserId: equipo.owner_user_id,
         ownerEmail: equipo.owner_email,
         ownerName: equipo.owner_name,
         jugadores: jugadoresPorEquipo.get(equipo.id) || [],
@@ -90,7 +96,8 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 async function cargarEquipos(db: D1Database) {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.nombre, e.created_at, u.email AS owner_email, u.nombre AS owner_name, COUNT(j.id) AS jugadores
+      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.owner_user_id,
+              u.email AS owner_email, u.nombre AS owner_name, COUNT(j.id) AS jugadores
        FROM equipos e
        LEFT JOIN usuarios u ON u.id = e.owner_user_id
        LEFT JOIN jugadores j ON j.equipo_id = e.id

@@ -78,20 +78,36 @@
 
     toggle.append(nombre, cuenta, chevron);
 
+    // El panel desplegable envuelve foto + plantilla: así la cabecera cerrada
+    // mantiene su altura y su alineación, que es delicada entre tarjetas.
+    const panel = document.createElement("div");
+    panel.className = "team-panel";
+    panel.id = panelId;
+    panel.hidden = true;
+
+    if (equipo.tieneFoto && equipo.id) {
+      const foto = document.createElement("img");
+      foto.className = "team-foto";
+      foto.loading = "lazy";
+      foto.decoding = "async";
+      foto.alt = `Foto del equipo ${equipo.nombre || ""}`.trim();
+      foto.src = `/api/equipos?foto=${encodeURIComponent(equipo.id)}`;
+      panel.appendChild(foto);
+    }
+
     const jugadoresList = document.createElement("ul");
     jugadoresList.className = "team-players";
-    jugadoresList.id = panelId;
-    jugadoresList.hidden = true;
     jugadores.forEach((jugador) => jugadoresList.appendChild(crearJugadorRow(jugador)));
+    panel.appendChild(jugadoresList);
 
     toggle.addEventListener("click", () => {
       const expandido = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!expandido));
-      jugadoresList.hidden = expandido;
+      panel.hidden = expandido;
     });
 
     header.append(badge, toggle);
-    body.append(header, jugadoresList);
+    body.append(header, panel);
     item.appendChild(body);
     return item;
   }

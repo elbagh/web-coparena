@@ -1,14 +1,10 @@
 import { publicUser, requireUser, type UsuarioSesion } from "../_lib/auth";
 import { edicionActual } from "../_lib/ediciones";
-import {
-  equipoDeUsuario,
-  registroIncluyeEmailUsuario,
-  buscarDuplicadosEdicion,
-  mapearConflictoUnicoEdicion
-} from "../_lib/equipos";
+import { guardarEquipo } from "../_lib/equipo-editor";
+import { equipoDeUsuario, registroIncluyeEmailUsuario } from "../_lib/equipos";
 import { limpiarFotos } from "../_lib/fotos";
 import { json } from "../_lib/http";
-import { validarRegistro, type RegistroValidado } from "../_lib/validacion";
+import { validarRegistro } from "../_lib/validacion";
 
 interface Env {
   DB: D1Database;
@@ -75,22 +71,15 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
       );
     }
 
-    const duplicados = await buscarDuplicadosEdicion(env.DB, resultado.registro, currentTeam.id);
-    if (Object.keys(duplicados).length > 0) {
-      return json({ error: "Hay datos que ya están registrados.", campos: duplicados }, 409);
-    }
-
-    const fotoKeys = await fotosDeEquipo(env.DB, currentTeam.id);
-    await reemplazarEquipo(env.DB, currentTeam.id, resultado.registro);
-    await limpiarFotos(env.FOTOS, fotoKeys);
+    // Guardado incremental por id de jugador: conserva la foto de quien sigue
+    // en el equipo. Antes esto borraba y reinsertaba, y al capitán le
+    // desaparecían todas las fotos cada vez que guardaba.
+    const error = await guardarEquipo(env, currentTeam.id, resultado.registro);
+    if (error) return error;
 
     const team = await cargarEquipo(env.DB, user, edicion?.id);
     return json({ ok: true, user: publicUser(user), team }, 200, { "Cache-Control": "no-store" });
   } catch (err) {
-    const conflicto = mapearConflictoUnicoEdicion(err);
-    if (conflicto) {
-      return json({ error: "Hay datos que ya están registrados.", campos: conflicto }, 409);
-    }
     console.error("Error actualizando mi equipo:", err);
     return json({ error: "No se ha podido actualizar tu equipo." }, 500);
   }
@@ -135,10 +124,17 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
     .bind(team.id)
     .all<JugadorRow>();
 
+  // La foto de grupo la gestiona solo el administrador; aquí el capitán la ve.
+  const foto = await db
+    .prepare("SELECT foto_key FROM equipos WHERE id = ?1")
+    .bind(team.id)
+    .first<{ foto_key: string | null }>();
+
   return {
     id: team.id,
     nombre: team.nombre,
     createdAt: team.created_at,
+    tieneFoto: Boolean(foto?.foto_key),
     jugadores: results.map((jugador) => ({
       id: jugador.id,
       nombre: jugador.nombre,
@@ -151,41 +147,6 @@ async function cargarEquipo(db: D1Database, user: UsuarioSesion, edicionId?: num
       orden: jugador.orden
     }))
   };
-}
-
-async function reemplazarEquipo(db: D1Database, equipoId: number, registro: RegistroValidado): Promise<void> {
-  await db.batch([
-    db
-      .prepare("UPDATE equipos SET nombre = ?1, nombre_normalizado = ?2 WHERE id = ?3")
-      .bind(registro.equipo, registro.equipoNormalizado, equipoId),
-    db.prepare("DELETE FROM jugadores WHERE equipo_id = ?1").bind(equipoId),
-    ...registro.jugadores.map((j, i) =>
-      db
-        .prepare(
-          `INSERT INTO jugadores (
-             equipo_id, nombre, apellidos, nombre_completo_normalizado,
-             telefono, telefono_normalizado, email, email_normalizado,
-             red_social, foto_key, es_suplente, orden, edicion_id
-           ) VALUES (
-             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11,
-             (SELECT edicion_id FROM equipos WHERE id = ?1)
-           )`
-        )
-        .bind(
-          equipoId,
-          j.nombre,
-          j.apellidos,
-          j.nombreCompletoNormalizado,
-          j.telefono,
-          j.telefonoNormalizado,
-          j.email,
-          j.emailNormalizado,
-          j.redSocial,
-          i >= 2 ? 1 : 0,
-          i + 1
-        )
-    )
-  ]);
 }
 
 async function fotosDeEquipo(db: D1Database, equipoId: number): Promise<string[]> {

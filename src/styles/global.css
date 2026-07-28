@@ -2446,13 +2446,31 @@ html.js .reveal.in-view {
   transform: rotate(-135deg);
 }
 
+/* Panel desplegable de la tarjeta: la foto de grupo (si el equipo tiene) y
+   debajo la plantilla. La línea punteada separa la cabecera del contenido,
+   venga o no con foto. */
+.team-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--line);
+}
+
+.team-foto {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--dune);
+}
+
 .team-players {
   margin: 0;
-  padding: 10px 0 0;
+  padding: 0;
   list-style: none;
   display: grid;
   gap: 8px;
-  border-top: 2px dashed var(--line);
 }
 
 .player-row {
@@ -2617,6 +2635,31 @@ html.js .reveal.in-view {
 .shirt-card .player-remove {
   margin-left: auto;
 }
+
+/* Foto de grupo en la zona del capitán: solo lectura, la sube la organización
+   desde el panel. */
+.mi-equipo-foto {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.mi-equipo-foto img {
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--dune);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.mi-equipo-foto figcaption {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 
 /* ------------------------------ mi zona: ficha ----------------------------- */
 

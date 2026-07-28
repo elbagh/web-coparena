@@ -43,6 +43,9 @@
 
   function createPlayer(data = {}) {
     const card = template.content.firstElementChild.cloneNode(true);
+    // El id viaja en el guardado para que el servidor sepa quién sigue siendo
+    // quién: sin él borraría y reinsertaría a todo el equipo, y sus fotos con él.
+    if (data.id) card.dataset.playerId = String(data.id);
     card.querySelector('[data-field="nombre"]').value = data.nombre || "";
     card.querySelector('[data-field="apellidos"]').value = data.apellidos || "";
     card.querySelector('[data-field="telefono"]').value = data.telefono || "";
@@ -70,6 +73,19 @@
 
   function renderTeam(team) {
     form.querySelector('[data-field="equipo"]').value = team.nombre || "";
+
+    const figura = root.querySelector("[data-my-team-foto]");
+    if (figura) {
+      const img = figura.querySelector("[data-my-team-foto-img]");
+      if (team.tieneFoto && team.id) {
+        img.src = `/api/equipos?foto=${encodeURIComponent(team.id)}`;
+        img.alt = `Foto del equipo ${team.nombre || ""}`.trim();
+        figura.hidden = false;
+      } else {
+        figura.hidden = true;
+      }
+    }
+
     players.textContent = "";
     const jugadores = Array.isArray(team.jugadores) ? team.jugadores : [];
     jugadores.forEach((player) => createPlayer(player));
@@ -85,6 +101,7 @@
       apellidos: value("apellidos"),
       telefono: value("telefono")
     };
+    if (card.dataset.playerId) player.id = Number(card.dataset.playerId);
     const email = value("email");
     const redSocial = value("redSocial");
     if (email) player.email = email;
