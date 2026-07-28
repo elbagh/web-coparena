@@ -2,7 +2,7 @@
 // PUT    /api/avatar — sube/reemplaza el avatar (multipart, campo `foto`).
 // DELETE /api/avatar — elimina el avatar.
 
-import { requireUser } from "../_lib/auth";
+import { requireUser, requireUserContext } from "../_lib/auth";
 import { claveAvatar, contentTypePorClave, upsertAvatarKey } from "../_lib/avatar";
 import { json } from "../_lib/http";
 import { validarFoto } from "../_lib/validacion";
@@ -16,11 +16,13 @@ interface Env {
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const user = await requireUser(request, env);
-  if (user instanceof Response) return user;
+  const sesion = await requireUserContext(request, env);
+  if (sesion instanceof Response) return sesion;
+  const { user, impersonando } = sesion;
 
   try {
-    const key = await claveAvatar(env.DB, env.FOTOS, user);
+    // Un GET no siembra el avatar de nadie mientras se le suplanta.
+    const key = await claveAvatar(env.DB, env.FOTOS, user, { sembrar: !impersonando });
     if (!key) return json({ error: "No hay foto." }, 404);
 
     const objeto = await env.FOTOS.get(key);

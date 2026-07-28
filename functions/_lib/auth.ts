@@ -83,6 +83,20 @@ export async function requireUser(request: Request, env: AuthEnv): Promise<Usuar
   return user ?? json({ error: "Inicia sesión con Google para continuar." }, 401);
 }
 
+/**
+ * Como requireUser, pero devolviendo además si la sesión está suplantando. Lo
+ * necesitan los pocos GET que, además de leer, siembran algo: mientras se mira
+ * el sitio como otra persona no se le escribe nada en su nombre, ni siquiera un
+ * dato derivado.
+ */
+export async function requireUserContext(
+  request: Request,
+  env: AuthEnv
+): Promise<{ user: UsuarioSesion; impersonando: boolean } | Response> {
+  const { user, impersonando } = await getAuthContext(request, env);
+  return user ? { user, impersonando } : json({ error: "Inicia sesión con Google para continuar." }, 401);
+}
+
 async function cargarUsuario(db: D1Database, id: number): Promise<UsuarioSesion | null> {
   const row = await db
     .prepare(
