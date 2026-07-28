@@ -108,8 +108,8 @@ describe("las rutas públicas siguen siendo públicas", () => {
   });
 
   // Era la única escritura sin sesión de toda la API: cualquiera podía meter
-  // filas en `inscripciones`, que el panel enseña en /admin/heredado/. La tabla
-  // se sigue leyendo desde el panel; lo que ya no existe es la puerta de entrada.
+  // filas en `inscripciones`, la tabla de la primera versión del sitio. Hoy no
+  // queda ni la puerta de entrada ni la tabla.
   it("el alta anónima de /api/inscripciones ya no existe", async () => {
     const respuesta = await SELF.fetch(`${BASE}/api/inscripciones`, {
       method: "POST",
@@ -129,5 +129,16 @@ describe("las rutas públicas siguen siendo públicas", () => {
       body: JSON.stringify({ action: "draw" })
     });
     expect(respuesta.status).toBe(401);
+  });
+});
+
+describe("lo heredado ya no está cableado", () => {
+  // Con cookie de admin a propósito: así un 404 significa que la ruta no
+  // existe, y no que la petición se haya quedado en el 401 de requireAdmin.
+  it("GET /api/admin/heredado responde 404 incluso para un admin", async () => {
+    const admin = await crearAdmin({ email: "admin@example.com" });
+    const respuesta = await pedir("/api/admin/heredado", "GET", await cookieSesion(admin));
+
+    expect(respuesta.status).toBe(404);
   });
 });
