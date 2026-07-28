@@ -2186,6 +2186,15 @@ html.js .reveal.in-view {
   box-shadow: 3px 3px 0 var(--coral);
 }
 
+/* Solo lectura: el campo pierde la sombra dura —lo que en esta paleta significa
+   "esto se pulsa"— y se posa sobre la duna. Sigue siendo seleccionable, que es
+   la gracia de readonly frente a disabled: los datos se pueden copiar. */
+.field input[readonly] {
+  background: var(--dune);
+  box-shadow: none;
+  cursor: default;
+}
+
 .field input[type="file"] {
   width: 100%;
   min-width: 0;
