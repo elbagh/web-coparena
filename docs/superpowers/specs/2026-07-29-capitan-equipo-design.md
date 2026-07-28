@@ -221,6 +221,7 @@ Se revisan y actualizan `mi-equipo.test.ts`, `equipos-alta.test.ts`, `equipo-edi
 | `functions/api/equipos.ts` | alta con capitán, fuera `owner_user_id` |
 | `functions/api/mi-equipo.ts` | autorización por capitán, reglas de cesión |
 | `functions/api/admin/equipos.ts` | ficha: capitán en vez de cuenta |
+| `functions/api/admin/jugadores.ts` | contacto opcional salvo capitán; ni se borra ni se mueve de equipo al capitán |
 | `functions/api/admin/index.ts` | `capitanEmail` |
 | `public/assets/team-form.js` | capitán, aviso, rótulos opcionales |
 | `public/assets/my-team.js` | ídem + diálogo de cesión |
