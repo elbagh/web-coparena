@@ -1,0 +1,67 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { breadcrumb } from "../data/seo";
+
+const structuredData = [breadcrumb([{ name: "Jugadores", path: "/jugadores/" }])];
+---
+
+<BaseLayout
+  title="Jugadores | La Copa Arena"
+  description="El álbum de La Copa Arena: quién juega esta edición, su ficha, su palmarés y sus estadísticas."
+  structuredData={structuredData}
+>
+  <SiteHeader />
+
+  <main class="legal-page album-page" data-album>
+    <section class="legal-hero">
+      <p class="eyebrow reveal" data-edicion>La Copa Arena</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">El álbum</h1>
+      <p class="reveal" style="--reveal-delay: 180ms">
+        Todos los que juegan esta edición, cromo a cromo. Entra en cualquiera para ver su ficha,
+        su palmarés y lo que hace en la arena.
+      </p>
+    </section>
+
+    <p class="teams-status" data-status aria-live="polite">Cargando jugadores…</p>
+
+    <section class="album-controles reveal" style="--reveal-delay: 240ms" data-controles hidden>
+      <div class="album-buscador">
+        <label class="album-buscador-label" for="album-buscar">Buscar jugador</label>
+        <input
+          id="album-buscar"
+          type="search"
+          data-buscador
+          autocomplete="off"
+          placeholder="Nombre, apodo o equipo"
+        />
+        <p class="album-cuenta" data-cuenta></p>
+      </div>
+      <div class="album-filtros" role="group" aria-label="Filtrar por equipo" data-filtros></div>
+    </section>
+
+    <p class="teams-status" data-vacio hidden></p>
+
+    <div class="album-rejilla" data-rejilla hidden></div>
+
+    <section class="album-ranking" data-ranking-seccion hidden>
+      <h2>Ranking de la arena</h2>
+      <div data-ranking></div>
+    </section>
+
+    <section class="album-ficha" data-ficha hidden></section>
+
+    <div class="teams-actions">
+      <button type="button" class="add-player" data-retry hidden>Reintentar</button>
+      <a class="button button-primary" href="/inscripcion/">Inscribir equipo</a>
+      <a class="button button-secondary" href="/equipos/">Ver equipos</a>
+    </div>
+  </main>
+
+  <SiteFooter />
+
+  <script is:inline src="/assets/site-interactions.js" defer></script>
+  <script is:inline src="/assets/cromo.js" defer></script>
+  <script is:inline src="/assets/players-list.js" defer></script>
+</BaseLayout>

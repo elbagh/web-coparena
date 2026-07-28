@@ -76,6 +76,13 @@ export function registroIncluyeEmailUsuario(registro: RegistroValidado, user: Us
   return registro.jugadores.some((jugador) => jugador.emailNormalizado === emailNormalizado);
 }
 
+/**
+ * Duplicados al **editar** un equipo. La unicidad de jugador es por edición
+ * (migración 0010), así que solo se mira dentro de la edición de ese equipo: si
+ * alguien jugó en 2026 no puede bloquear una inscripción de 2027.
+ *
+ * El nombre de equipo sí sigue siendo único global.
+ */
 export async function buscarDuplicadosEdicion(
   db: D1Database,
   registro: RegistroValidado,
@@ -91,6 +98,12 @@ export async function buscarDuplicadosEdicion(
     campos.equipo = "Ya hay un equipo inscrito con ese nombre.";
   }
 
+  const equipo = await db
+    .prepare("SELECT edicion_id FROM equipos WHERE id = ?1")
+    .bind(equipoId)
+    .first<{ edicion_id: number | null }>();
+  const edicionId = equipo?.edicion_id ?? null;
+
   const nombres = registro.jugadores.map((j) => j.nombreCompletoNormalizado);
   const telefonos = registro.jugadores.map((j) => j.telefonoNormalizado);
   const emails = registro.jugadores.flatMap((j) => (j.emailNormalizado ? [j.emailNormalizado] : []));
@@ -99,18 +112,18 @@ export async function buscarDuplicadosEdicion(
     `nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`,
     `telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`
   ];
-  const binds: (string | number)[] = [...nombres, ...telefonos];
+  const binds: (string | number | null)[] = [...nombres, ...telefonos];
   if (emails.length > 0) {
     clausulas.push(`email_normalizado IN (${emails.map(() => "?").join(",")})`);
     binds.push(...emails);
   }
-  binds.push(equipoId);
+  binds.push(equipoId, edicionId);
 
   const { results } = await db
     .prepare(
       `SELECT nombre_completo_normalizado, telefono_normalizado, email_normalizado
        FROM jugadores
-       WHERE (${clausulas.join(" OR ")}) AND equipo_id <> ?`
+       WHERE (${clausulas.join(" OR ")}) AND equipo_id <> ? AND edicion_id IS ?`
     )
     .bind(...binds)
     .all<{ nombre_completo_normalizado: string; telefono_normalizado: string; email_normalizado: string | null }>();

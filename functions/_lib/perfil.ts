@@ -1,8 +1,15 @@
-// Ficha de jugador ("Mi zona"): valores admitidos y validación.
+// Ficha de jugador ("Mi zona" y el perfil público de /jugadores/): valores
+// admitidos y validación.
 //
 // Vive en _lib porque la usan dos endpoints con reglas idénticas: /api/perfil,
 // donde cada uno edita la suya, y /api/admin/usuarios, donde el administrador
 // edita la de cualquiera. Si las reglas se duplicaran, acabarían divergiendo.
+//
+// **Los atributos van por separado.** Apodo, dorsal, posición, mano y lema son
+// de la cuenta (tabla `perfiles`) y los edita su dueño; los atributos 1–5 los
+// pone la organización sobre el jugador de una edición (tabla
+// `jugador_atributos`), así que se validan y se guardan aparte y `validarPerfil`
+// ignora lo que llegue en ese campo.
 //
 // Los mismos valores están replicados en public/assets/perfil.js: al tocar
 // aquí, tocar allí.
@@ -19,7 +26,6 @@ export interface PerfilValidado {
   posicion: string | null;
   mano: string | null;
   lema: string | null;
-  atributos: Record<string, number>;
 }
 
 /** Lee la columna `atributos` (JSON) descartando lo que no sea un 1–5 conocido. */
@@ -69,12 +75,37 @@ export function validarPerfil(raw: unknown): { perfil: PerfilValidado } | { camp
     else mano = String(body.mano);
   }
 
+  if (Object.keys(campos).length > 0) return { campos };
+  return { perfil: { apodo: apodo || null, dorsal, posicion, mano, lema: lema || null } };
+}
+
+/** Upsert de la ficha. `usuarioId` permite al panel guardar la de otra persona. */
+export async function guardarPerfil(db: D1Database, usuarioId: number, perfil: PerfilValidado): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO perfiles (usuario_id, apodo, dorsal, posicion, mano, lema, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))
+       ON CONFLICT(usuario_id) DO UPDATE SET
+         apodo = ?2, dorsal = ?3, posicion = ?4, mano = ?5, lema = ?6,
+         updated_at = datetime('now')`
+    )
+    .bind(usuarioId, perfil.apodo, perfil.dorsal, perfil.posicion, perfil.mano, perfil.lema)
+    .run();
+}
+
+// ---------------------------------------------------------------- atributos ---
+
+export function validarAtributos(
+  raw: unknown
+): { atributos: Record<string, number> } | { campos: Record<string, string> } {
+  const campos: Record<string, string> = {};
   const atributos: Record<string, number> = {};
-  if (body.atributos !== undefined && body.atributos !== null) {
-    if (typeof body.atributos !== "object") {
+
+  if (raw !== undefined && raw !== null) {
+    if (typeof raw !== "object") {
       campos.atributos = "Los atributos no son válidos.";
     } else {
-      const src = body.atributos as Record<string, unknown>;
+      const src = raw as Record<string, unknown>;
       for (const key of ATRIBUTOS) {
         const valor = src[key];
         if (valor === undefined || valor === null || valor === "") continue;
@@ -86,19 +117,40 @@ export function validarPerfil(raw: unknown): { perfil: PerfilValidado } | { camp
   }
 
   if (Object.keys(campos).length > 0) return { campos };
-  return { perfil: { apodo: apodo || null, dorsal, posicion, mano, lema: lema || null, atributos } };
+  return { atributos };
 }
 
-/** Upsert de la ficha. `usuarioId` permite al panel guardar la de otra persona. */
-export async function guardarPerfil(db: D1Database, usuarioId: number, perfil: PerfilValidado): Promise<void> {
-  await db
+/** Upsert de los atributos de un jugador de una edición. Solo lo llama el panel. */
+export function sentenciaAtributos(
+  db: D1Database,
+  jugadorId: number,
+  atributos: Record<string, number>
+): D1PreparedStatement {
+  return db
     .prepare(
-      `INSERT INTO perfiles (usuario_id, apodo, dorsal, posicion, mano, lema, atributos, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))
-       ON CONFLICT(usuario_id) DO UPDATE SET
-         apodo = ?2, dorsal = ?3, posicion = ?4, mano = ?5, lema = ?6, atributos = ?7,
-         updated_at = datetime('now')`
+      `INSERT INTO jugador_atributos (jugador_id, atributos, updated_at)
+       VALUES (?1, ?2, datetime('now'))
+       ON CONFLICT(jugador_id) DO UPDATE SET atributos = ?2, updated_at = datetime('now')`
     )
-    .bind(usuarioId, perfil.apodo, perfil.dorsal, perfil.posicion, perfil.mano, perfil.lema, JSON.stringify(perfil.atributos))
-    .run();
+    .bind(jugadorId, JSON.stringify(atributos));
+}
+
+/** Atributos de una lista de jugadores. Devuelve un mapa id → atributos. */
+export async function atributosPorJugador(
+  db: D1Database,
+  jugadorIds: number[]
+): Promise<Map<number, Record<string, number>>> {
+  const mapa = new Map<number, Record<string, number>>();
+  if (jugadorIds.length === 0) return mapa;
+
+  const placeholders = jugadorIds.map(() => "?").join(",");
+  const { results } = await db
+    .prepare(`SELECT jugador_id, atributos FROM jugador_atributos WHERE jugador_id IN (${placeholders})`)
+    .bind(...jugadorIds)
+    .all<{ jugador_id: number; atributos: string | null }>();
+
+  for (const fila of results) {
+    mapa.set(fila.jugador_id, parseAtributos(fila.atributos));
+  }
+  return mapa;
 }
