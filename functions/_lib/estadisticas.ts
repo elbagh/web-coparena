@@ -5,8 +5,8 @@
 // que una cifra tecleada a mano, sin partido detras, no es representable. Lo
 // que se muestra es siempre la SUMA de las filas del jugador.
 //
-// La lista de metricas esta replicada en public/assets/players-list.js y en
-// public/assets/cromo.js: al tocar aqui, tocar alli
+// La lista de metricas esta replicada en public/assets/players-list.js:
+// al tocar aqui, tocar alli
 // (test/unit/paridad-validacion.test.ts lo comprueba).
 
 export interface Metrica {
