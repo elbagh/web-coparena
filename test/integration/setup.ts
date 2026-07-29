@@ -25,6 +25,7 @@ const TABLAS = [
   "torneo_grupo_equipos",
   "torneo_grupos",
   "torneo_fases",
+  "ajustes",
   "camisetas_reservas",
   "perfiles",
   "equipos",
@@ -53,6 +54,18 @@ afterEach(async () => {
    * El batch de D1 es secuencial, de modo que cada rol ya existe cuando entran
    * sus permisos por subconsulta sobre la clave.
    */
+  // Los ajustes del directo también los siembra su migración (0018). Sin
+  // reponerlos, `leerAjustes` caería a sus valores por defecto y un test sobre
+  // la cadencia pasaría o fallaría según el orden.
+  await env.DB
+    .prepare(
+      `INSERT INTO ajustes (clave, valor) VALUES
+         ('directo_sondeo_ms', '3000'),
+         ('directo_sondeo_lento_ms', '60000'),
+         ('directo_modo_ahorro', '0')`
+    )
+    .run();
+
   await env.DB.batch(
     ROLES_SISTEMA.flatMap((rol) => [
       env.DB
