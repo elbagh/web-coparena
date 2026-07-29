@@ -156,14 +156,6 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   if (rolNuevo) {
     sets.push(`rol_id = ?${binds.length + 1}`);
     binds.push(rolNuevo.id);
-    /*
-     * Espejo de un solo sentido sobre la columna vieja. Nada la lee ya, pero
-     * mientras siga existiendo tiene que decir la verdad: es la red por si hay
-     * que volver a una versión anterior del código. Se va con la columna, en la
-     * migración que la retira.
-     */
-    sets.push(`is_admin = ?${binds.length + 1}`);
-    binds.push(rolNuevo.clave === ROL_ADMIN ? 1 : 0);
   }
 
   // La ficha de jugador se guarda aparte, con las mismas reglas que /api/perfil.
