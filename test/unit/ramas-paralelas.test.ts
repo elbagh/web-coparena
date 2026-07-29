@@ -7,6 +7,7 @@ import {
   normalizarRama,
   puertosDeSlot,
   ramasBorrables,
+  ramasSostenidas,
   retirables,
   siguienteNumeroMigracion,
   slotLibre
@@ -184,6 +185,31 @@ describe("retirables", () => {
   it("retira un promote-main olvidado, que está en sincronía sin estar integrado", () => {
     const promote = wt({ rama: "main", integrada: false, enSincronia: true });
     expect(retirables([promote]).retirables).toHaveLength(1);
+  });
+});
+
+describe("ramasSostenidas", () => {
+  const worktrees = [
+    { ruta: "D:/repo", rama: "development" },
+    { ruta: "D:/repo/.worktrees/viva", rama: "feature/viva" },
+    { ruta: "D:/repo/.worktrees/acabada", rama: "feature/acabada" }
+  ];
+
+  // El informe tiene que anunciar exactamente lo que borrará `--aplicar`. Con
+  // los worktrees de ahora, `feature/acabada` parece sostenida y no sale en el
+  // informe, pero `--aplicar` retira su worktree y acto seguido la borra.
+  it("no cuenta las ramas de los worktrees que se van a retirar", () => {
+    const aRetirar = [{ ruta: "D:/repo/.worktrees/acabada", rama: "feature/acabada" }];
+    expect(ramasSostenidas({ worktrees, aRetirar })).toEqual(["development", "feature/viva"]);
+  });
+
+  it("compara las rutas como Windows, no como texto", () => {
+    const aRetirar = [{ ruta: "D:\\repo\\.worktrees\\Acabada", rama: "feature/acabada" }];
+    expect(ramasSostenidas({ worktrees, aRetirar })).not.toContain("feature/acabada");
+  });
+
+  it("con nada que retirar, las sostiene todas", () => {
+    expect(ramasSostenidas({ worktrees, aRetirar: [] })).toHaveLength(3);
   });
 });
 

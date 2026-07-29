@@ -31,7 +31,14 @@ import {
   rutaPrincipal,
   verde
 } from "./_lib/git.mjs";
-import { PROTEGIDAS, clasificarWorktrees, mismaRuta, ramasBorrables, retirables } from "./_lib/ramas.mjs";
+import {
+  PROTEGIDAS,
+  clasificarWorktrees,
+  mismaRuta,
+  ramasBorrables,
+  ramasSostenidas,
+  retirables
+} from "./_lib/ramas.mjs";
 
 const argv = process.argv.slice(2);
 const aplicar = argv.includes("--aplicar");
@@ -86,10 +93,11 @@ const ramasLocales = git(["for-each-ref", "--format=%(refname:short)", "refs/hea
     integrada: esAncestro(nombre, DEV),
     enMain: esAncestro(nombre, MAIN)
   }));
+const ramaActual = worktrees.find((wt) => wt.esActual)?.rama ?? null;
 const borrables = ramasBorrables({
   ramas: ramasLocales,
-  conWorktree: worktrees.map((wt) => wt.rama).filter(Boolean),
-  actual: worktrees.find((wt) => wt.esActual)?.rama ?? null
+  conWorktree: ramasSostenidas({ worktrees, aRetirar }),
+  actual: ramaActual
 });
 const soloEnMain = ramasLocales
   .filter((r) => !r.integrada && r.enMain && !PROTEGIDAS.includes(r.nombre))
@@ -130,7 +138,7 @@ if (!aplicar) {
   const pendiente = aRetirar.length + borrables.length + (conHuerfanos ? huerfanos.length : 0);
   console.log(
     pendiente
-      ? `\n${gris("Nada tocado. Para hacerlo:")} npm run ramas:limpiar -- --aplicar\n`
+      ? `\n${gris("Nada retirado. Para hacerlo:")} npm run ramas:limpiar -- --aplicar\n`
       : `\n${verde("✓")} Nada que limpiar.\n`
   );
   process.exit(0);
@@ -152,11 +160,10 @@ for (const wt of aRetirar) {
 }
 gitPregunta(["worktree", "prune"], principal);
 
-for (const rama of ramasBorrables({
-  ramas: ramasLocales,
-  conWorktree: listarWorktrees().map((wt) => wt.rama).filter(Boolean),
-  actual: worktrees.find((wt) => wt.esActual)?.rama ?? null
-})) {
+// Se borra la lista que se anunció, no una recalculada: si un `worktree
+// remove` ha fallado, su rama sigue hecha checkout y el `branch -d` fallará
+// también, y eso se ve en el informe en vez de desaparecer de él.
+for (const rama of borrables) {
   const borrada = gitPregunta(["branch", "-d", rama], principal);
   console.log(
     borrada.ok

@@ -25,8 +25,10 @@ export function gitVisible(args, cwd) {
 }
 
 export function npmVisible(args, cwd) {
-  // shell: true porque en Windows «npm» es npm.cmd y execFile no lo resuelve.
-  const r = spawnSync("npm", args, { stdio: "inherit", cwd, shell: true });
+  // npm.cmd explícito en Windows en vez de shell: true, que con argumentos
+  // sueltos los concatena sin escapar (DEP0190 en Node 22).
+  const binario = process.platform === "win32" ? "npm.cmd" : "npm";
+  const r = spawnSync(binario, args, { stdio: "inherit", cwd });
   return r.status === 0;
 }
 
