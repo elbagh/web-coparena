@@ -96,7 +96,11 @@ CREATE INDEX idx_estadisticas_por_partido ON estadisticas (partido_id);
 
 Notas:
 
-- El `DELETE` previo es seguro: en producción no hay ninguna estadística cargada. Aun así va explícito, porque el `INSERT ... SELECT` fallaría contra el `NOT NULL` si existieran.
+- El `DELETE` previo es seguro, y esto está **comprobado contra la base real** (2026-07-29), no supuesto: producción tiene exactamente **una** fila en `estadisticas`, manual, con todas sus cifras a cero. Borrarla no pierde ningún dato.
+
+  De dónde salió merece un párrafo, porque es un argumento a favor de este cambio: el `PATCH` antiguo llamaba a `sentenciaCargaManual` **incondicionalmente**, aunque el cuerpo no trajera cifras — `validarEstadisticas(undefined)` devolvía ceros y el upsert los escribía igual. Bastaba con abrir la ficha de alguien en el panel y guardar un atributo para fabricar de paso una fila de estadísticas. El endpoint no sabía guardar una valoración sin inventarse un registro de juego.
+
+  El `DELETE` va explícito de todas formas: si alguna vez existieran filas manuales con datos, sin él el `INSERT ... SELECT` fallaría contra el `NOT NULL`.
 - `DROP TABLE` se lleva por delante sus propios índices; no hay que borrarlos a mano.
 - Ninguna otra tabla apunta a `estadisticas`, así que el `RENAME` no tiene referencias externas que reescribir.
 - El índice por `partido_id` no lo necesita la fase 1 (nadie consulta por partido todavía). Va ahora porque es el que sostendrá la ficha y porque recrear la tabla es el momento natural de dejarla con sus índices definitivos.
