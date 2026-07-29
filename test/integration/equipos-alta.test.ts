@@ -68,7 +68,7 @@ describe("POST /api/equipos: capitán", () => {
   // El capitán se identifica por índice, no por buscar el correo de la sesión
   // en la plantilla: el alta tiene que nombrar capitán al jugador correcto sea
   // cual sea su posición, siempre que su correo sea el de la sesión.
-  it("nombra capitán al jugador que lleva el correo de la sesión aunque no sea el primero", async () => {
+  it("nombra capitán al jugador del índice indicado aunque no sea el primero", async () => {
     const user = await crearUsuario({ email: "ana@example.com" });
     const form = new FormData();
     form.set(
@@ -98,6 +98,38 @@ describe("POST /api/equipos: capitán", () => {
       .first<{ email: string }>();
 
     expect(capitan?.email).toBe(user.email);
+  });
+
+  // El móvil vacío no puede tratarse como un valor más a buscar en la base:
+  // dos jugadores sin móvil (uno ya sembrado, otro en el alta) no son "el
+  // mismo móvil repetido". Antes de esta prueba, ninguna de las dos guardas
+  // de buscarDuplicados (el filtrado de la lista para el IN, y el `&&` al
+  // marcar el campo) tenía cobertura: si ambas se caían a la vez, nada lo
+  // avisaba. La que de verdad decide el resultado aquí es la del marcado —
+  // el filtrado del IN es solo para no traerse de la base filas irrelevantes.
+  it("no rechaza a un jugador sin móvil por el hueco vacío de otro equipo", async () => {
+    await crearEquipo({ jugadores: [{ telefono: "" }, {}] });
+
+    const user = await crearUsuario({ email: "capi2@example.com" });
+    const form = new FormData();
+    form.set(
+      "payload",
+      JSON.stringify({
+        equipo: "Equipo Sin Móvil",
+        consentimiento: true,
+        capitan: 0,
+        jugadores: [
+          { nombre: "Marta", apellidos: "Novo", telefono: "600222333", email: user.email },
+          { nombre: "Sara", apellidos: "Bao", telefono: "", email: "" }
+        ]
+      })
+    );
+
+    const respuesta = await onRequestPost(
+      ctx(await peticion("/api/equipos", { method: "POST", user, body: form }), env)
+    );
+
+    expect(respuesta.status).toBe(201);
   });
 
   it("guarda al capitán indicado en el alta", async () => {

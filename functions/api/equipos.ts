@@ -161,6 +161,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           `UPDATE equipos SET capitan_jugador_id = (
              SELECT j.id FROM jugadores j
              WHERE j.equipo_id = equipos.id AND j.orden = ?2
+             ORDER BY j.id ASC LIMIT 1
            ) WHERE nombre_normalizado = ?1`
         )
         .bind(registro.equipoNormalizado, registro.capitan + 1)
