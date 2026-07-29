@@ -17,8 +17,8 @@
 // con los resultados, y corregir un marcador viejo dejaría una tabla mintiendo.
 
 import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
-import { clasificacionDeGrupo, type PartidoClasificable } from "../../_lib/clasificacion";
-import { CRITERIOS, normalizarReglas, reglasEfectivas, setsMaximos, validarReglas } from "../../_lib/reglas";
+import { CRITERIOS, normalizarReglas, validarReglas } from "../../_lib/reglas";
+import { cargarTorneo } from "../../_lib/torneo-vista";
 import {
   generarEliminatoria,
   generarLiga,
@@ -28,33 +28,6 @@ import {
   type GrupoRow
 } from "../../_lib/torneo";
 import { limpiar } from "../../_lib/validacion";
-
-interface PartidoRow {
-  id: string;
-  ronda: string;
-  fase_id: number | null;
-  grupo_id: number | null;
-  ronda_orden: number | null;
-  posicion: number | null;
-  equipo_a_id: number | null;
-  equipo_b_id: number | null;
-  equipo_a_nombre: string;
-  equipo_b_nombre: string;
-  scheduled_at: string | null;
-  pista: string | null;
-  status: "scheduled" | "live" | "finished";
-  sets_a: number;
-  sets_b: number;
-  points_a: number;
-  points_b: number;
-  set_history: string;
-  winner: "A" | "B" | null;
-  reglas: string;
-  siguiente_partido_id: string | null;
-  siguiente_slot: "A" | "B" | null;
-  perdedor_partido_id: string | null;
-  perdedor_slot: "A" | "B" | null;
-}
 
 export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) => {
   const acceso = await requirePermiso(request, env, "torneo.ver");
@@ -176,149 +149,6 @@ export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env })
 };
 
 // --------------------------------------------------------------- lectura ---
-
-async function cargarTorneo(db: D1Database, edicionId: number) {
-  const [fases, grupos, asignados, partidos, equipos] = await Promise.all([
-    db
-      .prepare("SELECT * FROM torneo_fases WHERE edicion_id = ?1 ORDER BY orden ASC, id ASC")
-      .bind(edicionId)
-      .all<FaseRow>(),
-    db
-      .prepare(
-        `SELECT g.* FROM torneo_grupos g
-           JOIN torneo_fases f ON f.id = g.fase_id
-          WHERE f.edicion_id = ?1
-          ORDER BY g.orden ASC, g.id ASC`
-      )
-      .bind(edicionId)
-      .all<GrupoRow>(),
-    db
-      .prepare(
-        `SELECT ge.grupo_id, ge.equipo_id, e.nombre
-           FROM torneo_grupo_equipos ge
-           JOIN equipos e ON e.id = ge.equipo_id
-           JOIN torneo_fases f ON f.id = ge.fase_id
-          WHERE f.edicion_id = ?1
-          ORDER BY ge.orden ASC, e.nombre COLLATE NOCASE ASC`
-      )
-      .bind(edicionId)
-      .all<{ grupo_id: number; equipo_id: number; nombre: string }>(),
-    db
-      .prepare(
-        `SELECT * FROM partidos
-          WHERE edicion_id = ?1
-          ORDER BY ronda_orden ASC, posicion ASC, sort_order ASC, created_at ASC`
-      )
-      .bind(edicionId)
-      .all<PartidoRow>(),
-    db
-      .prepare("SELECT id, nombre FROM equipos WHERE edicion_id = ?1 ORDER BY nombre COLLATE NOCASE ASC")
-      .bind(edicionId)
-      .all<{ id: number; nombre: string }>()
-  ]);
-
-  const grupoDeEquipo = new Map<number, number>();
-  asignados.results.forEach((fila) => grupoDeEquipo.set(fila.equipo_id, fila.grupo_id));
-
-  const fasesSalida = fases.results.map((fase) => {
-    const gruposDeFase = grupos.results.filter((g) => g.fase_id === fase.id);
-    const partidosDeFase = partidos.results.filter((p) => p.fase_id === fase.id);
-
-    return {
-      id: fase.id,
-      clave: fase.clave,
-      nombre: fase.nombre,
-      tipo: fase.tipo,
-      orden: fase.orden,
-      clasifican: fase.clasifican,
-      reglas: normalizarReglas(fase.reglas),
-      grupos: gruposDeFase.map((grupo) => {
-        const equiposDelGrupo = asignados.results
-          .filter((a) => a.grupo_id === grupo.id)
-          .map((a) => ({ id: a.equipo_id, nombre: a.nombre }));
-        const reglas = reglasEfectivas(fase, grupo);
-
-        return {
-          id: grupo.id,
-          nombre: grupo.nombre,
-          orden: grupo.orden,
-          /** null si hereda; el panel necesita distinguirlo de "iguales por casualidad". */
-          reglasPropias: grupo.reglas === null ? null : normalizarReglas(grupo.reglas),
-          reglas,
-          equipos: equiposDelGrupo,
-          clasificacion: clasificacionDeGrupo(
-            equiposDelGrupo,
-            partidosDeFase.filter((p) => p.grupo_id === grupo.id).map(aClasificable),
-            reglas.clasificacion
-          )
-        };
-      }),
-      partidos: partidosDeFase.map(mapPartido)
-    };
-  });
-
-  return {
-    fases: fasesSalida,
-    equipos: equipos.results.map((e) => ({ ...e, grupoId: grupoDeEquipo.get(e.id) ?? null })),
-    // Los partidos sueltos (amistoso, repesca) siguen existiendo y el panel
-    // tiene que poder verlos aunque no cuelguen de ninguna fase.
-    sueltos: partidos.results.filter((p) => p.fase_id === null).map(mapPartido)
-  };
-}
-
-/** Suma de los puntos de todos los sets, no el marcador del set en curso. */
-function puntosTotales(historial: string, caidaA: number, caidaB: number): { a: number; b: number } {
-  try {
-    const sets = JSON.parse(historial);
-    if (Array.isArray(sets) && sets.length > 0) {
-      return sets.reduce(
-        (total: { a: number; b: number }, set: { a?: number; b?: number }) => ({
-          a: total.a + (Number(set.a) || 0),
-          b: total.b + (Number(set.b) || 0)
-        }),
-        { a: 0, b: 0 }
-      );
-    }
-  } catch {
-    /* historial ilegible: se cae al marcador plano */
-  }
-  // Un partido cerrado a mano puede no tener historial: queda lo que se tecleó.
-  return { a: caidaA, b: caidaB };
-}
-
-function aClasificable(partido: PartidoRow): PartidoClasificable {
-  const reglas = normalizarReglas(partido.reglas).partido;
-  const puntos = puntosTotales(partido.set_history, partido.points_a, partido.points_b);
-  return {
-    equipoAId: partido.equipo_a_id,
-    equipoBId: partido.equipo_b_id,
-    setsA: partido.sets_a,
-    setsB: partido.sets_b,
-    puntosA: puntos.a,
-    puntosB: puntos.b,
-    status: partido.status,
-    setDecisivo: partido.sets_a + partido.sets_b >= setsMaximos(reglas)
-  };
-}
-
-const mapPartido = (partido: PartidoRow) => ({
-  id: partido.id,
-  ronda: partido.ronda,
-  grupoId: partido.grupo_id,
-  rondaOrden: partido.ronda_orden,
-  posicion: partido.posicion,
-  scheduledAt: partido.scheduled_at,
-  pista: partido.pista,
-  status: partido.status,
-  sets: { A: partido.sets_a, B: partido.sets_b },
-  winner: partido.winner,
-  teams: {
-    A: { id: partido.equipo_a_id, name: partido.equipo_a_nombre },
-    B: { id: partido.equipo_b_id, name: partido.equipo_b_nombre }
-  },
-  siguientePartidoId: partido.siguiente_partido_id,
-  perdedorPartidoId: partido.perdedor_partido_id
-});
 
 const respuesta = async (db: D1Database, status = 200) => {
   const edicion = await db.prepare("SELECT id, anio, nombre FROM ediciones WHERE es_actual = 1").first<{
