@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { onRequestPost } from "../../functions/api/equipos";
 import { ctx } from "../helpers/ctx";
-import { crearEquipo, crearUsuario, peticion } from "../helpers/db";
+import { cerrarInscripcionesEdicionActual, crearEquipo, crearUsuario, peticion } from "../helpers/db";
 
 /*
  * Ya estar en un equipo cierra la inscripción, pero por dos motivos distintos:
@@ -61,6 +61,22 @@ describe("POST /api/equipos cuando ya figuras en un equipo", () => {
     expect(respuesta.status).toBe(409);
     expect(cuerpo.error).toContain("Los Delfines");
     expect(cuerpo.error).not.toContain("Mi zona");
+  });
+});
+
+describe("POST /api/equipos con las inscripciones cerradas", () => {
+  it("responde 423 y no crea el equipo", async () => {
+    await cerrarInscripcionesEdicionActual();
+    const user = await crearUsuario({ email: "tarde@example.com" });
+
+    const respuesta = await alta(user);
+
+    expect(respuesta.status).toBe(423);
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("cerradas");
+
+    const { results } = await env.DB.prepare("SELECT id FROM equipos WHERE nombre = 'Equipo Nuevo'").all();
+    expect(results).toHaveLength(0);
   });
 });
 

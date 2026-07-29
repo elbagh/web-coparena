@@ -18,6 +18,7 @@ interface EdicionPanelRow {
   nombre: string;
   estado: string;
   es_actual: number;
+  inscripciones_abiertas: number;
   equipos: number;
 }
 
@@ -87,7 +88,7 @@ async function cargarPanel(db: D1Database): Promise<Response> {
   const [ediciones, equipos] = await Promise.all([
     db
       .prepare(
-        `SELECT ed.id, ed.anio, ed.nombre, ed.estado, ed.es_actual,
+        `SELECT ed.id, ed.anio, ed.nombre, ed.estado, ed.es_actual, ed.inscripciones_abiertas,
                 (SELECT COUNT(*) FROM equipos e WHERE e.edicion_id = ed.id) AS equipos
          FROM ediciones ed
          ORDER BY ed.anio DESC, ed.id DESC`
@@ -110,6 +111,7 @@ async function cargarPanel(db: D1Database): Promise<Response> {
       nombre: e.nombre,
       estado: e.estado,
       esActual: e.es_actual === 1,
+      inscripcionesAbiertas: e.inscripciones_abiertas === 1,
       equipos: e.equipos
     })),
     equipos: equipos.results.map((e) => ({
@@ -182,6 +184,10 @@ async function actualizarEdicion(db: D1Database, id: number, raw: unknown): Prom
       sets.push(`estado = ?${binds.length + 1}`);
       binds.push(estado);
     }
+  }
+  if (body.inscripcionesAbiertas !== undefined) {
+    sets.push(`inscripciones_abiertas = ?${binds.length + 1}`);
+    binds.push(body.inscripcionesAbiertas === true ? 1 : 0);
   }
   if (Object.keys(campos).length > 0) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos }, 400);

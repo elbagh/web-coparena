@@ -61,6 +61,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.error("No hay edicion actual: falta la migracion 0006_perfiles_ediciones.sql.");
     return json({ error: ERROR_500 }, 500);
   }
+  if (!edicion.inscripcionesAbiertas) {
+    return json({ error: "Las inscripciones de esta edición están cerradas." }, 423);
+  }
 
   // Figurar ya en un equipo cierra la inscripción, pero el motivo no es el mismo
   // y la salida tampoco: quien lo inscribió lo edita, y a quien solo aparece
