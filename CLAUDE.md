@@ -107,7 +107,22 @@ Vitest, with three projects declared in [vitest.config.ts](vitest.config.ts). Ea
   - `bugfix/<nombre-corto>` — non-urgent bug fixes found on `development`.
   - `release/<version>` — stabilizes `development` for a release (version bump, final polish) before it goes to `main`.
   - `hotfix/<nombre-corto>` — urgent fix branched from `main` to patch production, merged back into **both** `main` and `development`.
-- Before starting any requested change: check out `development` (create it from `main` if it doesn't exist yet), pull latest, then branch off it with the right prefix for the kind of change (feature/bugfix/release/hotfix).
+- **Every session works in its own git worktree — always, from the very first request.** Two agents (or two terminals) sharing the main checkout switch branches out from under each other: a `checkout` in one makes the other's files vanish mid-edit, and uncommitted work can be lost outright. This has already happened here. So before starting any requested change, create the branch **and its worktree** together:
+
+  ```bash
+  git checkout development && git pull --ff-only
+  git worktree add .worktrees/<nombre-corto> -b feature/<nombre-corto> development
+  cd .worktrees/<nombre-corto> && npm install
+  ```
+
+  Use the right prefix for the kind of change (feature/bugfix/release/hotfix); create `development` from `main` first if it doesn't exist yet. Worktrees go under `.worktrees/` (already gitignored), **not** in sibling directories, so cleanup tooling finds them. The `npm install` is not optional: `node_modules/` does not travel with a worktree.
+- **The main checkout stays on `development` and is nobody's workspace.** If you had to move it, put it back where you found it.
+- When the work is merged, remove the worktree **before** deleting the branch — git refuses to delete a branch that is still checked out somewhere:
+
+  ```bash
+  git worktree remove .worktrees/<nombre-corto> && git worktree prune
+  git branch -d <rama>
+  ```
 - Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first. **`npm run verify` must be green first**, and the branch must carry tests for what it changed (see Tests above).
 - **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) ask for explicit confirmation before merging `development` into `main` and pushing.
 
