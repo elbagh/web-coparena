@@ -6,6 +6,7 @@ import {
   onRequestPatch as jugadoresAdminPatch,
   onRequestPost as jugadoresAdminPost
 } from "../../functions/api/admin/jugadores";
+import { MENSAJE_CAPITAN_CONTACTO } from "../../functions/_lib/validacion";
 import { ctx } from "../helpers/ctx";
 import { crearAdmin, crearEdicion, crearEquipo, peticion } from "../helpers/db";
 
@@ -204,7 +205,12 @@ describe("el capitán en /api/admin/jugadores", () => {
 
   it("sigue exigiendo contacto al jugador que es capitán", async () => {
     const admin = await crearAdmin();
-    const equipo = await crearEquipo();
+    // Nombres explícitos por la misma razón que en el test anterior: los que
+    // genera crearEquipo() por defecto llevan dígitos y NOMBRE_PATTERN los
+    // rechaza, lo que daría 400 por el nombre en vez de por el contacto.
+    const equipo = await crearEquipo({
+      jugadores: [{ nombre: "Capi", apellidos: "Contacto", telefono: "622333444", email: "capi.contacto@example.com" }, {}]
+    });
 
     const datos = new FormData();
     datos.append("equipoId", String(equipo.id));
@@ -225,5 +231,31 @@ describe("el capitán en /api/admin/jugadores", () => {
     );
 
     expect(respuesta.status).toBe(400);
+    expect(await respuesta.json()).toMatchObject({
+      campos: { telefono: MENSAJE_CAPITAN_CONTACTO, email: MENSAJE_CAPITAN_CONTACTO }
+    });
+  });
+
+  it("dos jugadores sin móvil en el mismo equipo no chocan entre sí como duplicados", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Capi", apellidos: "Duplicado", telefono: "633444555", email: "capi.duplicado@example.com" },
+        { nombre: "Suplente", apellidos: "Sinmovil", telefono: "" }
+      ]
+    });
+
+    const datos = new FormData();
+    datos.append("equipoId", String(equipo.id));
+    datos.append("nombre", "Otro");
+    datos.append("apellidos", "Sinmovil");
+    datos.append("telefono", "");
+    datos.append("email", "");
+
+    const respuesta = await jugadoresAdminPost(
+      ctx(await peticion("/api/admin/jugadores", { method: "POST", user: admin, body: datos }), env)
+    );
+
+    expect(respuesta.status).toBe(201);
   });
 });

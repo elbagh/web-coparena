@@ -232,6 +232,22 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     }
   }
 
+  const cambioDeEquipo = equipoDestino !== actual.equipo_id;
+
+  // Mover al capitán a otro equipo dejaría a su equipo apuntando a alguien que
+  // ya no está en la plantilla. Primero se cede el mando. Se comprueba antes
+  // de duplicados y de subir la foto para no tener que deshacer nada si se
+  // corta aquí.
+  if (cambioDeEquipo && esCapitan) {
+    return jsonAdmin(
+      {
+        error: "Es el capitán de su equipo. Nombra antes a otro capitán desde el editor del equipo.",
+        campos: { equipoId: "No se puede mover al capitán." }
+      },
+      409
+    );
+  }
+
   const duplicados = await buscarDuplicados(
     env.DB,
     validado.jugador,
@@ -254,21 +270,6 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     }
   } else if (eliminarFoto) {
     claveNueva = null;
-  }
-
-  const cambioDeEquipo = equipoDestino !== actual.equipo_id;
-
-  // Mover al capitán a otro equipo dejaría a su equipo apuntando a alguien que
-  // ya no está en la plantilla. Primero se cede el mando.
-  if (cambioDeEquipo && esCapitan) {
-    if (claveNueva) await limpiarFotos(env.FOTOS, [claveNueva]);
-    return jsonAdmin(
-      {
-        error: "Es el capitán de su equipo. Nombra antes a otro capitán desde el editor del equipo.",
-        campos: { equipoId: "No se puede mover al capitán." }
-      },
-      409
-    );
   }
 
   const sets = [
