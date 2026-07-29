@@ -304,6 +304,8 @@ export interface OpcionesPartido {
   winner?: "A" | "B" | null;
   setsA?: number;
   setsB?: number;
+  puntosA?: number;
+  puntosB?: number;
   /**
    * Un hueco de cuadro todavía sin equipos: nombres vacíos y los dos lados
    * marcados como `progresion`. Sin esto heredarían el `manual` por defecto de
@@ -329,8 +331,8 @@ export async function crearPartido(opciones: OpcionesPartido = {}): Promise<stri
     `INSERT INTO partidos (
        id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, edicion_id,
        fase_id, grupo_id, ronda_orden, posicion, reglas, status, winner, sets_a, sets_b,
-       origen_equipo_a, origen_equipo_b
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17)`
+       origen_equipo_a, origen_equipo_b, points_a, points_b
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17, ?18, ?19)`
   )
     .bind(
       id,
@@ -353,7 +355,9 @@ export async function crearPartido(opciones: OpcionesPartido = {}): Promise<stri
       opciones.winner ?? null,
       opciones.setsA ?? 0,
       opciones.setsB ?? 0,
-      opciones.vacio ? "progresion" : "manual"
+      opciones.vacio ? "progresion" : "manual",
+      opciones.puntosA ?? 0,
+      opciones.puntosB ?? 0
     )
     .run();
 

@@ -34,6 +34,22 @@ const ESTADOS: PartidoEstado[] = ["scheduled", "live", "finished"];
  */
 const EDICION_ACTUAL = "(SELECT id FROM ediciones WHERE es_actual = 1)";
 
+/**
+ * Un partido cuyo marcador lo lleva el log de eventos no se toca desde aquí.
+ *
+ * Los campos que describe `CAMPOS_DEL_MARCADOR` son los que el pliegue del log
+ * reescribe en cada punto: dejar que este endpoint los cambie a la vez sería
+ * garantizar que uno de los dos pierda. Lo demás —la hora, la pista, el nombre
+ * de la ronda— sigue siendo del panel, porque el anotador no lo toca.
+ */
+const loLlevaUnAnotador = (partido: Pick<PartidoRow, "origen_marcador">) =>
+  partido.origen_marcador === "eventos";
+
+const MENSAJE_ANOTADOR =
+  "Este partido lo lleva un anotador en directo. Corrígelo desde el anotador, o suéltalo antes desde ahí.";
+
+const CAMPOS_DEL_MARCADOR = ["pointsA", "pointsB", "setsA", "setsB", "setNumber", "winner", "status"];
+
 type PartidoEstado = "scheduled" | "live" | "finished";
 type Lado = "A" | "B";
 
@@ -66,6 +82,13 @@ interface PartidoRow {
   ronda_orden: number | null;
   posicion: number | null;
   pista: string | null;
+  /*
+   * Quién manda en el marcador: 'manual' (este endpoint) o 'eventos' (el log de
+   * /api/anotacion). Sin este discriminador, anotar un punto, corregir a mano
+   * aquí y anotar otro punto perdía la corrección en silencio, porque el
+   * siguiente recálculo desde el log la sobrescribía.
+   */
+  origen_marcador: string;
 }
 
 interface EquipoRow {
@@ -131,6 +154,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         .bind(new Date().toISOString(), partido.id)
         .run();
     } else if (action === "point") {
+      if (loLlevaUnAnotador(partido)) return json({ error: MENSAJE_ANOTADOR }, 409);
       const lado = body.team === "B" ? "B" : "A";
       const delta = Number(body.delta) < 0 ? -1 : 1;
       const siguiente = aplicarPunto(partido, lado, delta);
@@ -139,6 +163,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       // al cruce siguiente igual que si se hubiera cerrado a mano.
       if (siguiente.status === "finished") await propagarResultado(env.DB, partido.id);
     } else if (action === "finish") {
+      if (loLlevaUnAnotador(partido)) return json({ error: MENSAJE_ANOTADOR }, 409);
       const winner =
         ganadorDelPartido(reglasDe(partido), partido.sets_a, partido.sets_b) ??
         (partido.points_a >= partido.points_b ? "A" : "B");
@@ -238,6 +263,11 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos }, 400);
   }
   if (sets.length === 0) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);
+
+  // Renombrar la ronda o cambiar la hora sigue permitido; tocar el marcador no.
+  if (loLlevaUnAnotador(partido) && CAMPOS_DEL_MARCADOR.some((campo) => body[campo] !== undefined)) {
+    return jsonAdmin({ error: MENSAJE_ANOTADOR }, 409);
+  }
 
   sets.push(`updated_at = ?${binds.length + 1}`);
   binds.push(new Date().toISOString());
@@ -483,6 +513,9 @@ function mapearPartido(partido: PartidoRow) {
     rondaOrden: partido.ronda_orden,
     posicion: partido.posicion,
     pista: partido.pista,
+    // Quién lleva el marcador: el panel lo usa para no ofrecer botones que van
+    // a responder 409.
+    origenMarcador: partido.origen_marcador,
     // Las que rigen este partido, para que el marcador del cliente no repita
     // los 21/21/15 a mano como hacía antes.
     reglas: normalizarReglas(partido.reglas).partido,

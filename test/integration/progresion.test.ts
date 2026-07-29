@@ -229,12 +229,13 @@ describe("las reglas salen de la foto del partido, no de literales", () => {
 
   it("sin reglas propias se arbitra con las de siempre: 21 y dos de ventaja", async () => {
     const admin = await crearAdmin();
-    const partidoId = await crearPartido();
+    // Se siembra en 20-0 y se manda UN punto, en vez de mandar veintiuno: lo que
+    // se prueba es que el objetivo por defecto son 21, no que el bucle sume.
+    // Veintiuna idas y vueltas a D1 dentro de un test hacían saltar el tiempo
+    // límite de forma intermitente cuando la suite iba cargada.
+    const partidoId = await crearPartido({ status: "live", puntosA: 20 });
 
-    await accion(admin, { action: "start", id: partidoId });
-    for (let i = 0; i < 21; i += 1) {
-      await accion(admin, { action: "point", id: partidoId, team: "A", delta: 1 });
-    }
+    await accion(admin, { action: "point", id: partidoId, team: "A", delta: 1 });
 
     const fila = await env.DB
       .prepare("SELECT sets_a, points_a, status FROM partidos WHERE id = ?1")

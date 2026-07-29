@@ -1,0 +1,16 @@
+---
+import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
+---
+
+<AnotadorLayout titulo="Anotar" volverA="/">
+  <p class="anot-lede">Elige el partido que vas a llevar.</p>
+
+  <div class="anot-lista" data-anot-lista>
+    <p class="anot-vacio" data-anot-lista-vacio>Cargando los partidos…</p>
+  </div>
+
+  <Fragment slot="scripts">
+    <script is:inline src="/assets/anotador/core.js" defer></script>
+    <script is:inline src="/assets/anotador/lista.js" defer></script>
+  </Fragment>
+</AnotadorLayout>
