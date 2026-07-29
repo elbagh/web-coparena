@@ -2,12 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Preflight — several sessions work on this repo at once
+
+Before your first edit, always:
+
+1. `git rev-parse --show-toplevel`. If it is the main checkout (`D:/Repositorio/web-coparena`), **stop and open a worktree**: `npm run rama -- feature/<nombre-corto>`. A directory inside `.worktrees/` with **no `.git` file is not a worktree** — git walks up and writes into the main checkout instead.
+2. `npm run ramas:limpiar` (reports only): who else is working and on what. If a worktree already covers your task, ask instead of guessing.
+3. Say in your first message which worktree, which branch and which port slot you took.
+
+Everything else is in «Git workflow» at the end of this file. Read it before working around it.
+
 ## Project
 
 Astro 5 site for "La Copa Arena", a beach volleyball event at Playa O Pozo (Porto do Son). All content is in Spanish. Deployed to Cloudflare Pages (build command `npm run build`, output directory `dist`). The site output is static; a backend scaffold exists as Cloudflare Pages Functions + D1 (see Backend below).
 
 ## Commands
 
+- `npm run rama -- feature/<nombre>` — opens the branch **and its worktree**, installs, and assigns a port slot. The way to start any work (see Git workflow)
+- `npm run integrar -- -m "…"` — merges `development` in, runs `verify`, and publishes the branch to `development` without checking it out anywhere
+- `npm run ramas:limpiar` — reports leftover worktrees, orphan directories and merged branches (`--aplicar` to act)
 - `npm run dev` — dev server at 127.0.0.1
 - `npm run build` — runs `astro check` (TypeScript/type checking) then `astro build`, then builds the worker
 - `npm test` — unit + integration tests (no build needed, ~10 s). The everyday command.
@@ -154,45 +167,99 @@ Vitest, with three projects declared in [vitest.config.ts](vitest.config.ts). Ea
 
 1. Add or update tests for everything the branch touches. Any new endpoint or `_lib/` function arrives with its tests.
 2. Re-read the existing tests of the areas affected and update the ones the change invalidates — a test that had to be weakened to keep passing is a finding, not a chore.
-3. Run `npm run verify`. Do not merge with anything red.
+3. Run `npm run verify`. Do not merge with anything red — `npm run integrar` runs it for you and stops there if it isn't green.
 
-## Git workflow (Git Flow)
+## Git workflow (Git Flow, with several sessions at once)
 
+- **Three commands do all of this, and they exist because the recipes by hand are what collide.** `npm run rama -- feature/x` opens the branch and its worktree; `npm run integrar -- -m "…"` publishes it to `development`; `npm run ramas:limpiar` reports what is left over (`--aplicar` to act on it). What follows is what they do and why.
 - This repo follows **Git Flow**. `main` only ever receives merges from `development` — never commit or push directly to `main`.
 - `development` is the integration branch and the base/target for all work. Every branch below is cut **from `development`** and merged **back into `development`** via PR/merge, never straight into `main`:
   - `feature/<nombre-corto>` — new functionality or enhancements.
   - `bugfix/<nombre-corto>` — non-urgent bug fixes found on `development`.
   - `release/<version>` — stabilizes `development` for a release (version bump, final polish) before it goes to `main`.
   - `hotfix/<nombre-corto>` — urgent fix branched from `main` to patch production, merged back into **both** `main` and `development`.
-- **Every session works in its own git worktree — always, from the very first request.** Two agents (or two terminals) sharing the main checkout switch branches out from under each other: a `checkout` in one makes the other's files vanish mid-edit, and uncommitted work can be lost outright. This has already happened here. So before starting any requested change, create the branch **and its worktree** together:
 
-  ```bash
-  git checkout development && git pull --ff-only
-  git worktree add .worktrees/<nombre-corto> -b feature/<nombre-corto> development
-  cd .worktrees/<nombre-corto> && npm install
-  ```
+### The two invariants
 
-  Use the right prefix for the kind of change (feature/bugfix/release/hotfix); create `development` from `main` first if it doesn't exist yet. Worktrees go under `.worktrees/` (already gitignored), **not** in sibling directories, so cleanup tooling finds them. The `npm install` is not optional: `node_modules/` does not travel with a worktree.
-- **The main checkout stays on `development` and is nobody's workspace.** If you had to move it, put it back where you found it.
-- When the work is merged, remove the worktree **before** deleting the branch — git refuses to delete a branch that is still checked out somewhere:
+1. **A branch is checked out in exactly one place, and that is the only lock there is.** `git worktree add` failing with «already used by worktree at …» is not an obstacle to route around: it is another session saying it is busy. Never `--force` past it. The same refusal is what serialises a promotion, because `.worktrees/promote-main` can only exist once.
+2. **The main checkout is nobody's workspace, and that includes its git state.** No session runs `checkout`, `merge`, `rebase`, `reset` or `branch -d` there. Two agents (or two terminals) sharing it switch branches out from under each other: a `checkout` in one makes the other's files vanish mid-edit, and uncommitted work can be lost outright. This has already happened here. The **one** allowed command is `git -C <principal> pull --ff-only` — clean tree, fast-forward only, so it cannot lose anything — which is what `npm run integrar` runs at the end to keep its view current. On `index.lock`, another session is doing the same: wait and retry, never delete the lock.
 
-  ```bash
-  git worktree remove .worktrees/<nombre-corto> && git worktree prune
-  git branch -d <rama>
-  ```
-- Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first. **`npm run verify` must be green first**, and the branch must carry tests for what it changed (see Tests above).
+### Starting work
+
+```bash
+npm run rama -- feature/<nombre-corto>     # o bugfix/…, release/…, hotfix/…
+cd .worktrees/<nombre-corto>
+```
+
+By hand it is `git fetch origin`, then `git worktree add .worktrees/<n> -b feature/<n> origin/development`, then `npm install` **inside the worktree**. The branch is cut from **`origin/development`**, never by checking `development` out — the old recipe here did `git checkout development && git pull` in the shared checkout, which is precisely what two sessions starting at the same time collide on. The `npm install` is not optional: `node_modules/` does not travel with a worktree. A `hotfix/` is cut from `origin/main`, because it patches what production is running.
+
+Worktrees go under `.worktrees/` (gitignored), **not** in sibling directories, so the cleanup tooling finds them. A `.claude/worktrees/<nombre-aleatorio>` with a detached HEAD on a `claude/*` branch is what the built-in worktree tool creates; it sidesteps every convention here — location, branch name, cleanup — so don't use it.
+
+### Publishing to `development`
+
+```bash
+npm run integrar -- -m "qué aporta la rama"
+```
+
+Merge `development` into the branch, verify, push the branch, then the merge commit — in that order, and **`development` is never checked out anywhere**:
+
+```bash
+git fetch origin && git merge origin/development   # los conflictos se resuelven AQUÍ, donde son tuyos
+npm run verify                                    # verde DESPUÉS de ese merge, no antes
+git push -u origin feature/<x>
+git worktree add --detach .worktrees/_merge-<x> origin/development
+git -C .worktrees/_merge-<x> merge --no-ff feature/<x> -m "Merge feature/<x> into development: …"
+git -C .worktrees/_merge-<x> push origin HEAD:development
+git worktree remove .worktrees/_merge-<x>
+```
+
+A **detached** worktree does not claim the branch, so this works while the main checkout sits on `development`. If the push comes back rejected as non-fast-forward, another session integrated while verify was running: the whole cycle repeats — merge again, **verify again** — because publishing a combination nobody verified is what all of this exists to prevent. There is no `push --force`, ever.
+
+This does not require asking first. What it does require is verify green and tests for what the branch changed (see Tests above).
+
+### Migrations with several branches open
+
+`db/migrations/` carries two `0003_` and two `0022_` because two sessions each took "the next number", and the order migrations apply in is the difference between a deploy and a downed login. `npm run rama` prints the number that is free; `npm run integrar` **refuses to merge** when a number in your branch also exists in `development` under a different filename. That check runs *before* the merge — afterwards both files coexist and the duplicate is already in. Renumber **yours**, never one already applied in production.
+
+### Ports, servers and shared side effects
+
+- `npm run rama` assigns a **slot**: worktree N runs on `4321+10N` / `8788+10N`, and the port always goes on the command line (`npm run dev -- --port 4331`, `npx wrangler dev --port 8798`). Slot 0 is the main checkout's pair, the one `.claude/launch.json` fixes — and the preview pane reads *that* file, not the worktree's copy. The assignment lives in `.git/copa-slots.json`.
+- Local D1/R2 live in each worktree's own `.wrangler/state`, so they are already isolated. A busy port is a stale `workerd` from another session, not a bug in the code.
+- **Don't run `npm run verify` in two worktrees at once.** Each boots workerd and a real D1, and that parallel load is exactly what pushes the `integration` project past its 20 s timeout (see Tests).
+- `npm run db:status` and `npm run db:migrate` are `--remote`: they hit **production** from any worktree. Promotion only, one session.
+
+### Finishing
+
+```bash
+npm run ramas:limpiar               # informa
+npm run ramas:limpiar -- --aplicar  # retira worktrees y ramas ya integradas
+```
+
+It never retires the main checkout, the worktree you are in, one with uncommitted changes, or a branch that is not integrated — **another session's worktree can be alive even when its branch is already merged**, so it reports instead of guessing. By hand the order matters: `git worktree remove` **before** `git branch -d`, because git refuses to delete a branch that is still checked out somewhere. And never `rm -rf` a worktree: what is left is a directory git does not know, and any git command run inside it walks up and operates **on the main checkout** — `.worktrees/publica` was exactly that.
+### Promoting to `main` — its own ceremony, and you ask first
+
 - **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) name the migrations production is missing (`npm run db:status`), (3) ask for explicit confirmation before merging `development` into `main` and pushing.
 - **Promoting to `main` *is* applying the migrations. Always, in every flow, no exceptions.** A deploy ships code, not schema. `main` is what production runs, so the moment `development` lands on `main`, production's D1 has to be at the same migration as the branch — otherwise the new code queries tables that do not exist. This has already taken the site down: the promotion carrying RBAC + torneo + directo shipped code needing 0013–0021 against a database stuck at 0012, and what broke was **login itself**, because `permisosDeUsuario` joins `roles`. Once the promotion is confirmed, it is these four steps in this order:
 
   ```bash
-  npm run db:status          # what production is missing
-  npm run db:migrate         # apply it — BEFORE the code ships
-  git checkout main && git merge development && git push
-  npm run db:status          # must say "No migrations to apply!"
+  git fetch origin
+  git worktree add .worktrees/promote-main main   # si git se niega, otra sesión está promoviendo
+  npm run db:status                               # what production is missing
+  npm run db:migrate                              # apply it — BEFORE the code ships
+  git -C .worktrees/promote-main merge origin/development
+  git -C .worktrees/promote-main push origin main
+  npm run db:status                               # must say "No migrations to apply!"
+  git worktree remove .worktrees/promote-main
   ```
+
+  It goes in a worktree of its own, and **its existence is the lock**: `main` can only be checked out in one place, so a second session trying to promote is refused instead of racing. Remove it when done — while it exists, `git checkout main` fails everywhere else. And check `git log origin/main..main` before anything: **a local `main` ahead of `origin/main` is a promotion that was merged and never pushed**, so production is running the old code with nothing saying so. `npm run ramas:limpiar` refuses to retire that worktree for exactly this reason.
 
   Migrations go **first** so that during the seconds the deploy takes, the old code still serving traffic meets a schema that is a *superset* of what it knows. That is why migrations are additive by default (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN`, `INSERT OR IGNORE`), and it is exactly what a **destructive** migration gives up: for those seconds the schema is a *subset*, so anything the live code still touches breaks. Hence the rule that pays for it — drop a column only a full release after the code stops using it, which is why `is_admin` survived 0013–0021 and only fell in 0022.
 - **`predeploy:worker` is a safety net, not the mechanism — never assume it ran.** It only fires if Cloudflare Workers Builds' *Deploy command* is `npm run deploy:worker`; with the default `npx wrangler deploy`, npm never runs the hook and the migrations are skipped in silence, deploy green. The closing `npm run db:status` above is what turns that silence into an answer.
+
+### This file
+
+Every branch documents itself here, which makes CLAUDE.md the most conflict-prone file in the repo. Add your couple of lines to the section they belong to, keep them short, and when it conflicts, resolve it by keeping **both** sides — the other session's paragraph is describing code that is already in `development`.
 
 ## Conventions
 
