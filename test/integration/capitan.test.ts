@@ -1,6 +1,11 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { onRequestPatch as equiposAdminPatch } from "../../functions/api/admin/equipos";
+import {
+  onRequestDelete as jugadoresAdminDelete,
+  onRequestPatch as jugadoresAdminPatch,
+  onRequestPost as jugadoresAdminPost
+} from "../../functions/api/admin/jugadores";
 import { ctx } from "../helpers/ctx";
 import { crearAdmin, crearEdicion, crearEquipo, peticion } from "../helpers/db";
 
@@ -128,5 +133,97 @@ describe("PATCH /api/admin/equipos?accion=ficha: capitanJugadorId", () => {
     expect(respuesta.status).toBe(400);
     expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("móvil y correo") });
     expect(await capitanDe(equipo.id)).toBe(capitanOriginal);
+  });
+});
+
+describe("el capitán en /api/admin/jugadores", () => {
+  it("no deja borrar al capitán de un equipo", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+
+    const respuesta = await jugadoresAdminDelete(
+      ctx(await peticion(`/api/admin/jugadores?id=${equipo.capitanId}`, { method: "DELETE", user: admin }), env)
+    );
+
+    expect(respuesta.status).toBe(409);
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("capitán");
+  });
+
+  it("no deja mover al capitán a otro equipo", async () => {
+    const admin = await crearAdmin();
+    // Nombres explícitos: los que genera crearEquipo() por defecto llevan
+    // dígitos (Jugador7, Apellido7) y NOMBRE_PATTERN no los admite, así que
+    // reenviarlos tal cual fallaría por un 400 de nombre ajeno a este test.
+    const origen = await crearEquipo({
+      jugadores: [
+        { nombre: "Capi", apellidos: "Trasladado", telefono: "611222333", email: "capi.trasladado@example.com" },
+        {}
+      ]
+    });
+    const destino = await crearEquipo();
+
+    const datos = new FormData();
+    datos.append("equipoId", String(destino.id));
+    datos.append("nombre", origen.jugadores[0]!.nombre);
+    datos.append("apellidos", origen.jugadores[0]!.apellidos);
+    datos.append("telefono", origen.jugadores[0]!.telefono);
+    datos.append("email", origen.jugadores[0]!.email ?? "");
+
+    const respuesta = await jugadoresAdminPatch(
+      ctx(
+        await peticion(`/api/admin/jugadores?id=${origen.capitanId}`, {
+          method: "PATCH",
+          user: admin,
+          body: datos
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(409);
+  });
+
+  it("admite crear un jugador sin móvil ni correo", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+
+    const datos = new FormData();
+    datos.append("equipoId", String(equipo.id));
+    datos.append("nombre", "Sinsa");
+    datos.append("apellidos", "Contacto");
+    datos.append("telefono", "");
+    datos.append("email", "");
+
+    const respuesta = await jugadoresAdminPost(
+      ctx(await peticion("/api/admin/jugadores", { method: "POST", user: admin, body: datos }), env)
+    );
+
+    expect(respuesta.status).toBe(201);
+  });
+
+  it("sigue exigiendo contacto al jugador que es capitán", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+
+    const datos = new FormData();
+    datos.append("equipoId", String(equipo.id));
+    datos.append("nombre", equipo.jugadores[0]!.nombre);
+    datos.append("apellidos", equipo.jugadores[0]!.apellidos);
+    datos.append("telefono", "");
+    datos.append("email", "");
+
+    const respuesta = await jugadoresAdminPatch(
+      ctx(
+        await peticion(`/api/admin/jugadores?id=${equipo.capitanId}`, {
+          method: "PATCH",
+          user: admin,
+          body: datos
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(400);
   });
 });
