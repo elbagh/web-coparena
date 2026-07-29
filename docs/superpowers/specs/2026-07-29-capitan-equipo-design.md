@@ -102,6 +102,28 @@ Orden de las sentencias:
 
 Consecuencia asumida: un equipo creado desde el panel cuyo jugador 1 no tenga correo queda sin capitán con cuenta, y por tanto no editable desde `/mi-equipo/` — exactamente igual que hoy sin propietario, y se arregla dándole correo a ese jugador desde el panel.
 
+### Checklist de despliegue
+
+El backfill no lo ejercita ningún test: en `test/integration` las migraciones corren sobre una base vacía (`test/integration/setup.ts` la reconstruye desde cero), así que el `UPDATE` que resuelve el capitán a partir de `owner_user_id` solo se pone a prueba de verdad la primera vez que corre contra datos reales. Es la única parte de esta rama que toca datos de producción, así que antes y después de aplicarla en real (`npx wrangler d1 migrations apply DB --remote`) hay que mirar lo siguiente a mano:
+
+**Antes de migrar** — equipos cuyo dueño no figura en su propia plantilla (el backfill 1 no los va a resolver, y caerán al backfill 2, que asigna al jugador de menor orden en vez de al dueño real):
+
+```sql
+SELECT e.id, e.nombre, u.email FROM equipos e JOIN usuarios u ON u.id = e.owner_user_id
+WHERE NOT EXISTS (SELECT 1 FROM jugadores j WHERE j.equipo_id = e.id AND j.email_normalizado = lower(trim(u.email)));
+```
+
+Si esta consulta devuelve filas, esos equipos van a perder a su editor real: el capitán quedará en el jugador 1, no en quien inscribió el equipo. Antes de migrar, decide si mereces corregir a mano cuál es el jugador 1 de esos equipos (reordenando la plantilla desde `/admin/equipos/`) para que el backfill acierte, o si asumes el resultado y lo arreglas después con la segunda consulta.
+
+**Después de migrar** — equipos sin capitán, o con capitán sin correo (nadie puede editarlos desde `/mi-equipo/`):
+
+```sql
+SELECT e.id, e.nombre FROM equipos e LEFT JOIN jugadores c ON c.id = e.capitan_jugador_id
+WHERE e.capitan_jugador_id IS NULL OR c.email IS NULL;
+```
+
+Lo que salga aquí hay que arreglarlo a mano: dale correo (y, si hace falta, designa capitán) al jugador que deba mandar en ese equipo, desde `/admin/equipos/` (`?accion=ficha`). Hasta entonces esos equipos se ven pero no se editan desde `/mi-equipo/` — igual que hoy un equipo sin propietario.
+
 ## Autorización
 
 `functions/_lib/equipos.ts`:

@@ -105,38 +105,6 @@ describe("PATCH /api/mi-equipo", () => {
   });
 });
 
-describe("DELETE /api/mi-equipo", () => {
-  it("el propietario borra su equipo", async () => {
-    const { dueño, equipo } = await equipoConMiembro();
-
-    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: dueño }), env));
-
-    expect(respuesta.status).toBe(200);
-    expect(await existe(equipo.id)).toBe(false);
-  });
-
-  it("quien solo figura como jugador no puede borrarlo", async () => {
-    const { miembro, equipo } = await equipoConMiembro();
-
-    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: miembro }), env));
-
-    expect(respuesta.status).toBe(403);
-    expect(await existe(equipo.id), "el equipo debería seguir ahí").toBe(true);
-    const jugadores = await env.DB
-      .prepare("SELECT COUNT(*) AS n FROM jugadores WHERE equipo_id = ?1")
-      .bind(equipo.id)
-      .first<{ n: number }>();
-    expect(jugadores?.n).toBe(2);
-  });
-
-  it("sin equipo ninguno, borrar no es un error", async () => {
-    const suelto = await crearUsuario();
-    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: suelto }), env));
-
-    expect(respuesta.status).toBe(200);
-  });
-});
-
 const basico = (j: { id: number; nombre: string; apellidos: string; telefono: string; email: string | null }) => ({
   id: j.id,
   nombre: j.nombre,
@@ -157,24 +125,7 @@ describe("cesión del mando", () => {
     });
 
     const cesion = await onRequestPatch(
-      ctx(
-        await peticion("/api/mi-equipo", {
-          method: "PATCH",
-          user: capi,
-          json: {
-            equipo: equipo.nombre,
-            capitan: 1,
-            jugadores: equipo.jugadores.map((j) => ({
-              id: j.id,
-              nombre: j.nombre,
-              apellidos: j.apellidos,
-              telefono: j.telefono,
-              email: j.email
-            }))
-          }
-        }),
-        env
-      )
+      ctx(await peticion("/api/mi-equipo", { method: "PATCH", user: capi, json: payloadDe(equipo, equipo.nombre, 1) }), env)
     );
     expect(cesion.status).toBe(200);
 
@@ -185,6 +136,64 @@ describe("cesión del mando", () => {
     expect(fila?.capitan_jugador_id).toBe(equipo.jugadores[1]!.id);
 
     // El anterior capitán ya no manda.
+    const segundoIntento = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: { equipo: "Otro nombre", capitan: 0, jugadores: [] }
+        }),
+        env
+      )
+    );
+    expect(segundoIntento.status).toBe(403);
+  });
+
+  // sigueMandando solo aplica la guarda anti-cesión-encubierta cuando el
+  // capitán del registro tiene el mismo id que el actual. Una fila NUEVA (sin
+  // id) nunca lo tiene, así que se trata como cesión desde el primer momento
+  // — que es justo lo que el diseño permite: designar capitán a alguien que
+  // entra en la misma plantilla que se guarda.
+  it("cede a un jugador nuevo, sin id, en el mismo guardado que lo da de alta", async () => {
+    const capi = await crearUsuario({ email: "capi5@example.com" });
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Hugo", apellidos: "Rial", email: capi.email, telefono: "600111222" },
+        { nombre: "Iria", apellidos: "Pena", telefono: "600333444" }
+      ]
+    });
+
+    const respuesta = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: {
+            equipo: equipo.nombre,
+            capitan: 2,
+            jugadores: [
+              basico(equipo.jugadores[0]!),
+              basico(equipo.jugadores[1]!),
+              { nombre: "Jon", apellidos: "Etxe", telefono: "600555777", email: "jon@example.com" }
+            ]
+          }
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(200);
+    const cuerpo = (await respuesta.json()) as { team: { jugadores: { id: number; nombre: string }[] } };
+    const jon = cuerpo.team.jugadores.find((j) => j.nombre === "Jon");
+    expect(jon).toBeDefined();
+
+    const fila = await env.DB
+      .prepare("SELECT capitan_jugador_id FROM equipos WHERE id = ?1")
+      .bind(equipo.id)
+      .first<{ capitan_jugador_id: number }>();
+    expect(fila?.capitan_jugador_id).toBe(jon!.id);
+
+    // El capitán original ya no manda.
     const segundoIntento = await onRequestPatch(
       ctx(
         await peticion("/api/mi-equipo", {
@@ -258,6 +267,38 @@ describe("cesión del mando", () => {
 
     expect(respuesta.status).toBe(200);
     expect(await respuesta.json()).toMatchObject({ ok: true, team: null });
+  });
+});
+
+describe("DELETE /api/mi-equipo", () => {
+  it("el propietario borra su equipo", async () => {
+    const { dueño, equipo } = await equipoConMiembro();
+
+    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: dueño }), env));
+
+    expect(respuesta.status).toBe(200);
+    expect(await existe(equipo.id)).toBe(false);
+  });
+
+  it("quien solo figura como jugador no puede borrarlo", async () => {
+    const { miembro, equipo } = await equipoConMiembro();
+
+    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: miembro }), env));
+
+    expect(respuesta.status).toBe(403);
+    expect(await existe(equipo.id), "el equipo debería seguir ahí").toBe(true);
+    const jugadores = await env.DB
+      .prepare("SELECT COUNT(*) AS n FROM jugadores WHERE equipo_id = ?1")
+      .bind(equipo.id)
+      .first<{ n: number }>();
+    expect(jugadores?.n).toBe(2);
+  });
+
+  it("sin equipo ninguno, borrar no es un error", async () => {
+    const suelto = await crearUsuario();
+    const respuesta = await onRequestDelete(ctx(await peticion(RUTA, { method: "DELETE", user: suelto }), env));
+
+    expect(respuesta.status).toBe(200);
   });
 });
 

@@ -37,7 +37,6 @@
   let capitanOriginalId = null;
 
   const limpiar = (value) => String(value || "").trim().replace(/\s+/g, " ");
-  const emailNormalizado = (value) => limpiar(value).toLowerCase();
   const cards = () => Array.from(players.querySelectorAll("[data-player]"));
   const currentUserEmail = () => window.CopaAuth?.state?.user?.email || "";
   const valorDe = (card, campo) => limpiar(card.querySelector(`[data-field="${campo}"]`)?.value || "");
@@ -169,7 +168,17 @@
     });
   }
 
+  /** El aviso de cesión solo tiene sentido justo tras el guardado que la
+   *  produce: si el usuario carga o entra en un equipo después, sea el mismo
+   *  u otro, es un aviso de la sesión anterior y hay que quitarlo. */
+  function ocultarAvisoCedido() {
+    if (!cedido) return;
+    cedido.hidden = true;
+    cedido.textContent = "";
+  }
+
   function renderTeam(team) {
+    ocultarAvisoCedido();
     soloLectura = team.puedeEditar === false;
     form.querySelector('[data-field="equipo"]').value = team.nombre || "";
 
@@ -239,6 +248,7 @@
   }
 
   async function loadTeam() {
+    ocultarAvisoCedido();
     show("loading");
     try {
       const response = await fetch("/api/mi-equipo", {

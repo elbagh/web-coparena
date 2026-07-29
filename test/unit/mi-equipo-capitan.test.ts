@@ -156,6 +156,34 @@ describe("el capitán en Mi zona", () => {
     expect(document.querySelector("[data-my-team-cedido]")!.textContent).toContain("cedido");
   });
 
+  it("oculta el aviso de cesión al cargar otro equipo sin recargar la página", async () => {
+    await montar(equipo());
+    globalThis.fetch = vi.fn(() => respuesta({ ok: true, team: null })) as unknown as typeof fetch;
+
+    cards()[1]!.querySelector<HTMLButtonElement>("[data-make-capitan]")!.click();
+    guardar();
+    await esperar();
+
+    expect(document.querySelector<HTMLElement>("[data-my-team-cedido]")!.hidden).toBe(false);
+
+    // Sin recargar: el usuario entra en otro equipo (o el mismo se recarga) y
+    // copa:auth dispara una carga nueva. El aviso de la cesión anterior ya no
+    // pinta nada aquí y no debe seguir en pantalla.
+    globalThis.fetch = vi.fn(() =>
+      respuesta({ team: equipo({ id: 2, nombre: "Equipo Nuevo" }) })
+    ) as unknown as typeof fetch;
+    window.dispatchEvent(
+      new CustomEvent("copa:auth", {
+        detail: { loading: false, user: { email: "capi@example.com" }, team: { id: 2 } }
+      })
+    );
+    await esperar();
+
+    const cedido = document.querySelector<HTMLElement>("[data-my-team-cedido]")!;
+    expect(cedido.hidden).toBe(true);
+    expect(cedido.textContent).toBe("");
+  });
+
   it("en modo lectura no ofrece ceder", async () => {
     await montar(equipo({ puedeEditar: false }));
     cards().forEach((card) => {

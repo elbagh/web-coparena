@@ -150,8 +150,21 @@
 
       const boton = carta.querySelector("[data-make-capitan]");
       boton.hidden = esCapitan;
-      boton.disabled = !tieneContacto(carta);
-      boton.title = boton.disabled ? "Necesita móvil y correo para ser capitán." : "";
+      // En el alta el capitán tiene que ser quien ha iniciado sesión: el
+      // servidor lo exige (emailCapitanObligatorio), y sin este aviso previo el
+      // botón dejaba mover la insignia a un compañero para rechazarlo recién al
+      // enviar. En /mi-equipo/ ceder a otro es lo que se quiere, así que esta
+      // condición no se replica en my-team.js.
+      const sinContacto = !tieneContacto(carta);
+      const userEmail = usuarioActual()?.email;
+      const correoDistintoDeSesion =
+        !sinContacto && Boolean(userEmail) && emailNormalizado(valorDe(carta, "email")) !== emailNormalizado(userEmail);
+      boton.disabled = sinContacto || correoDistintoDeSesion;
+      boton.title = sinContacto
+        ? "Necesita móvil y correo para ser capitán."
+        : correoDistintoDeSesion
+          ? "En el alta el capitán tienes que ser tú: usa el correo de tu cuenta."
+          : "";
 
       carta.querySelector('[data-opt="telefono"]').hidden = esCapitan;
       carta.querySelector('[data-opt="email"]').hidden = esCapitan;

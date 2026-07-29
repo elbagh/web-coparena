@@ -70,8 +70,9 @@ describe("capitán y aviso de contacto en la inscripción", () => {
     expect(segunda!.querySelector("[data-capitan-badge]")!.hasAttribute("hidden")).toBe(true);
     expect(segunda!.querySelector("[data-make-capitan]")!.hasAttribute("hidden")).toBe(false);
 
-    // La primera tarjeta está vacía de móvil y correo y aun así es la capitana:
-    // su aviso de contacto debe quedar oculto, no mostrar lo que le falta.
+    // La primera tarjeta está vacía de móvil (el correo lo autorrellena
+    // rellenarEmailGoogle() con el de la sesión) y aun así es la capitana: su
+    // aviso de contacto debe quedar oculto, no mostrar lo que le falta.
     expect(primera!.querySelector<HTMLElement>("[data-contacto-aviso]")!.hidden).toBe(true);
   });
 
@@ -101,15 +102,30 @@ describe("capitán y aviso de contacto en la inscripción", () => {
     const boton = segunda.querySelector<HTMLButtonElement>("[data-make-capitan]")!;
     expect(boton.disabled).toBe(true);
 
+    // El correo de la sesión: con contacto completo y ese correo, sí se puede.
+    escribir(segunda, "telefono", "600111222");
+    escribir(segunda, "email", "capi@example.com");
+    expect(boton.disabled).toBe(false);
+  });
+
+  it("no deja hacer capitán en el alta a quien no usa el correo de la sesión", () => {
+    // POST /api/equipos exige emailCapitanObligatorio: el capitán del alta
+    // tiene que ser quien ha iniciado sesión. Sin este aviso, el botón dejaba
+    // mover la insignia a un compañero para que el envío lo rechazara igual.
+    const segunda = cartas()[1]!;
+    const boton = segunda.querySelector<HTMLButtonElement>("[data-make-capitan]")!;
+
     escribir(segunda, "telefono", "600111222");
     escribir(segunda, "email", "otro@example.com");
-    expect(boton.disabled).toBe(false);
+
+    expect(boton.disabled).toBe(true);
+    expect(boton.title).toContain("correo de tu cuenta");
   });
 
   it("mueve la capitanía al pulsar el botón", () => {
     const [primera, segunda] = cartas();
     escribir(segunda!, "telefono", "600111222");
-    escribir(segunda!, "email", "otro@example.com");
+    escribir(segunda!, "email", "capi@example.com");
     segunda!.querySelector<HTMLButtonElement>("[data-make-capitan]")!.click();
 
     expect(segunda!.querySelector("[data-capitan-badge]")!.hasAttribute("hidden")).toBe(false);
@@ -125,7 +141,7 @@ describe("capitán y aviso de contacto en la inscripción", () => {
     expect(tercera.querySelector("[data-remove]")!.hasAttribute("hidden")).toBe(false);
 
     escribir(tercera, "telefono", "600999888");
-    escribir(tercera, "email", "tercero@example.com");
+    escribir(tercera, "email", "capi@example.com");
     tercera.querySelector<HTMLButtonElement>("[data-make-capitan]")!.click();
 
     expect(tercera.querySelector("[data-remove]")!.hasAttribute("hidden")).toBe(true);

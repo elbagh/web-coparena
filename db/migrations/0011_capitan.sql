@@ -15,6 +15,14 @@ ALTER TABLE equipos ADD COLUMN capitan_jugador_id INTEGER
 CREATE INDEX IF NOT EXISTS idx_equipos_capitan ON equipos (capitan_jugador_id);
 
 -- Backfill 1: el jugador cuyo correo es el de la cuenta propietaria.
+--
+-- lower(trim()) aqui es ASCII-only (SQLite no baja de caso letras acentuadas),
+-- mientras que email_normalizado se escribio con el toLowerCase() de JS
+-- (functions/_lib/validacion.ts, normalizarEmail), que si es Unicode-aware.
+-- SQL no puede llamar a toLowerCase(): un correo con mayusculas acentuadas no
+-- casaria aqui aunque coincida en JS. Se conoce y se acepta -- ningun correo de
+-- Google lleva acentos en la practica, y es el mismo desajuste que ya vive en
+-- el resto del proyecto entre columnas *_normalizado y SQL suelto.
 UPDATE equipos SET capitan_jugador_id = (
   SELECT j.id FROM jugadores j
   JOIN usuarios u ON u.id = equipos.owner_user_id

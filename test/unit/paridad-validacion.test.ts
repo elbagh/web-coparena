@@ -11,11 +11,22 @@ import { describe, expect, it } from "vitest";
  *
  * Este test no ejecuta la validación de cliente: compara los literales
  * compartidos entre los dos ficheros. Es un detector de deriva.
+ *
+ * El mensaje de contacto del capitán (MENSAJE_CAPITAN_CONTACTO) vive en CUATRO
+ * copias — team-form.js (/inscripcion/), my-team.js (/mi-equipo/),
+ * admin/equipos.js (editor de plantilla del panel) y admin/jugadores.js (alta y
+ * edición sueltas) — porque las cuatro se cargan con <script is:inline> y
+ * ninguna puede importar del servidor. Los avisos de "sin contacto"
+ * (AVISO_SIN_MOVIL/CORREO/CONTACTO) solo hacen falta en los dos formularios
+ * públicos, team-form.js y my-team.js: el panel no los pinta.
  */
 
 const raiz = path.resolve(import.meta.dirname, "../..");
 const servidor = readFileSync(path.join(raiz, "functions/_lib/validacion.ts"), "utf8");
 const cliente = readFileSync(path.join(raiz, "public/assets/team-form.js"), "utf8");
+const miEquipo = readFileSync(path.join(raiz, "public/assets/my-team.js"), "utf8");
+const adminEquipos = readFileSync(path.join(raiz, "public/assets/admin/equipos.js"), "utf8");
+const adminJugadores = readFileSync(path.join(raiz, "public/assets/admin/jugadores.js"), "utf8");
 
 const AVISO = "team-form.js ha derivado de validacion.ts: las reglas de cliente y servidor ya no coinciden.";
 
@@ -95,6 +106,39 @@ describe("paridad entre team-form.js y validacion.ts", () => {
       /MENSAJE_CAPITAN_CONTACTO\s*=\s*(.+);/,
       /MENSAJE_CAPITAN_CONTACTO\s*=\s*(.+);/
     );
+  });
+
+  it("el mensaje de contacto del capitán no diverge entre los cuatro clientes", () => {
+    // team-form.js ya se comparó con el servidor arriba; aquí se comprueba que
+    // los otros tres no se han quedado atrás, que es justo lo que le pasó a
+    // admin/jugadores.js antes de este test.
+    const patron = /MENSAJE_CAPITAN_CONTACTO\s*=\s*(.+);/;
+    const enTeamForm = extraer(cliente, patron);
+    const enMiEquipo = extraer(miEquipo, patron);
+    const enAdminEquipos = extraer(adminEquipos, patron);
+    const enAdminJugadores = extraer(adminJugadores, patron);
+
+    expect(enTeamForm, "no se ha encontrado MENSAJE_CAPITAN_CONTACTO en team-form.js").not.toBeNull();
+    expect(enMiEquipo, "no se ha encontrado MENSAJE_CAPITAN_CONTACTO en my-team.js").not.toBeNull();
+    expect(enAdminEquipos, "no se ha encontrado MENSAJE_CAPITAN_CONTACTO en admin/equipos.js").not.toBeNull();
+    expect(enAdminJugadores, "no se ha encontrado MENSAJE_CAPITAN_CONTACTO en admin/jugadores.js").not.toBeNull();
+
+    expect(enMiEquipo, `my-team.js: ${AVISO}`).toBe(enTeamForm);
+    expect(enAdminEquipos, `admin/equipos.js: ${AVISO}`).toBe(enTeamForm);
+    expect(enAdminJugadores, `admin/jugadores.js: ${AVISO}`).toBe(enTeamForm);
+  });
+
+  it("los avisos de «sin contacto» no divergen entre team-form.js y my-team.js", () => {
+    // Solo los dos formularios públicos los pintan; el panel no los usa.
+    ["AVISO_SIN_MOVIL", "AVISO_SIN_CORREO", "AVISO_SIN_CONTACTO"].forEach((nombre) => {
+      const patron = new RegExp(`${nombre}\\s*=\\s*([\\s\\S]+?);`);
+      const enTeamForm = extraer(cliente, patron);
+      const enMiEquipo = extraer(miEquipo, patron);
+
+      expect(enTeamForm, `no se ha encontrado ${nombre} en team-form.js`).not.toBeNull();
+      expect(enMiEquipo, `no se ha encontrado ${nombre} en my-team.js`).not.toBeNull();
+      expect(enMiEquipo, `${nombre}: ${AVISO}`).toBe(enTeamForm);
+    });
   });
 });
 
