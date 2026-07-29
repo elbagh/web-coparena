@@ -7,7 +7,7 @@
 // jugador y son de sólo lectura. Si llegan en el cuerpo de un PATCH, se
 // ignoran (test/integration/estadisticas-admin.test.ts lo comprueba).
 
-import { requireAdmin, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
+import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { edicionActual } from "../../_lib/ediciones";
 import { mapEstadisticas, METRICAS, totalesPorJugador } from "../../_lib/estadisticas";
 import { ATRIBUTOS, atributosPorJugador, sentenciaAtributos, validarAtributos } from "../../_lib/perfil";
@@ -23,8 +23,8 @@ interface FilaPlantilla {
 }
 
 export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "estadisticas.ver");
+  if (acceso instanceof Response) return acceso;
 
   try {
     const edicion = await edicionActual(env.DB);
@@ -71,8 +71,8 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 };
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "estadisticas.editar");
+  if (acceso instanceof Response) return acceso;
 
   const jugadorId = idDeQuery(new URL(request.url), "jugador");
   if (jugadorId === null) return accionNoValida();

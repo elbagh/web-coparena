@@ -32,6 +32,7 @@
   const CAMPOS_PERFIL = ["apodo", "dorsal", "posicion", "mano", "lema"];
 
   let usuarios = [];
+  let roles = [];
   let enEdicion = null;
 
   const campo = (nombre) => form?.querySelector(`[data-usuario-field="${nombre}"]`);
@@ -41,6 +42,9 @@
   onReady(async () => {
     const datos = await api("/api/admin/usuarios");
     usuarios = Array.isArray(datos.usuarios) ? datos.usuarios : [];
+    // La lista de roles llega aquí y no de /api/admin/roles: administrar cuentas
+    // no debería exigir además el permiso de ver los roles.
+    roles = Array.isArray(datos.roles) ? datos.roles : [];
     pintar();
   });
 
@@ -53,10 +57,10 @@
       : usuarios;
 
     if (contador) {
-      const admins = usuarios.filter((u) => u.esAdmin).length;
+      const conRol = usuarios.filter((u) => u.rolClave).length;
       contador.textContent =
         visibles.length === usuarios.length
-          ? `${usuarios.length} cuentas · ${admins} admin`
+          ? `${usuarios.length} cuentas · ${conRol} con acceso al panel`
           : `${visibles.length} de ${usuarios.length} cuentas`;
     }
 
@@ -80,7 +84,10 @@
           {
             etiqueta: "Rol",
             clase: "is-shrink",
-            render: (u) => (u.esAdmin ? etiqueta("Admin", "info") : etiqueta("Jugador", "mute"))
+            render: (u) =>
+              u.rolClave
+                ? etiqueta(u.rolNombre || u.rolClave, u.esAdmin ? "info" : "ok")
+                : etiqueta("Sin acceso", "mute")
           },
           {
             etiqueta: "Acciones",
@@ -136,7 +143,22 @@
 
   function limpiarErrores() {
     setBanner("");
-    ["nombre", "esAdmin", ...CAMPOS_PERFIL].forEach((n) => setErrorCampo(n, ""));
+    ["nombre", "rolId", ...CAMPOS_PERFIL].forEach((n) => setErrorCampo(n, ""));
+  }
+
+  /** Rellena el desplegable de rol. «Sin acceso al panel» ya está en el HTML. */
+  function pintarRoles(rolActual) {
+    const select = campo("rolId");
+    if (!select) return;
+    [...select.querySelectorAll("option[data-rol]")].forEach((o) => o.remove());
+    roles.forEach((rol) => {
+      const option = document.createElement("option");
+      option.value = String(rol.id);
+      option.textContent = rol.nombre;
+      option.dataset.rol = rol.clave;
+      select.append(option);
+    });
+    select.value = rolActual == null ? "" : String(rolActual);
   }
 
   function pintarAtributos(valores) {
@@ -206,7 +228,7 @@
       `${enEdicion.email} · cuenta #${enEdicion.id} desde ${String(enEdicion.createdAt).slice(0, 10)}`;
 
     campo("nombre").value = enEdicion.nombre || "";
-    campo("esAdmin").checked = Boolean(enEdicion.esAdmin);
+    pintarRoles(enEdicion.rolId);
     CAMPOS_PERFIL.forEach((n) => {
       const input = campo(n);
       if (input) input.value = enEdicion.perfil?.[n] ?? "";
@@ -227,7 +249,7 @@
 
     const datos = {
       nombre: limpiar(campo("nombre").value),
-      esAdmin: campo("esAdmin").checked,
+      rolId: campo("rolId").value === "" ? null : Number(campo("rolId").value),
       perfil: {
         apodo: limpiar(campo("apodo").value),
         dorsal: campo("dorsal").value,
@@ -243,10 +265,9 @@
     try {
       await apiJson(`/api/admin/usuarios?id=${encodeURIComponent(enEdicion.id)}`, "PATCH", datos);
       dialogo.close();
+      // recargar() vuelve a ejecutar el cargador de la sección, que reescribe
+      // `usuarios` y `roles` y repinta: no hace falta pedir la lista otra vez.
       await recargar();
-      const lista = await api("/api/admin/usuarios");
-      usuarios = Array.isArray(lista.usuarios) ? lista.usuarios : [];
-      pintar();
     } catch (err) {
       Object.entries(err.campos || {}).forEach(([n, m]) => setErrorCampo(n.replace(/^atributos\./, ""), m));
       setBanner(err.message);

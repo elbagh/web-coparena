@@ -3,15 +3,15 @@
 //   PATCH ?id=N     edita nombre, talla, cantidad, notas, edición y propietario
 //   DELETE ?id=N    borra una reserva
 
-import { requireAdmin, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
+import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { edicionActual } from "../../_lib/ediciones";
 import { limpiar } from "../../_lib/validacion";
 
 const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
 
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "camisetas.editar");
+  if (acceso instanceof Response) return acceso;
 
   let body: unknown;
   try {
@@ -36,7 +36,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
       )
       .bind(
-        admin.id,
+        acceso.user.id,
         resultado.reserva.nombre,
         resultado.reserva.talla,
         resultado.reserva.cantidad,
@@ -62,8 +62,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
 };
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "camisetas.editar");
+  if (acceso instanceof Response) return acceso;
 
   const id = idDeQuery(new URL(request.url));
   if (id === null) return accionNoValida();
@@ -126,8 +126,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 };
 
 export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "camisetas.borrar");
+  if (acceso instanceof Response) return acceso;
 
   const id = idDeQuery(new URL(request.url));
   if (id === null) return accionNoValida();

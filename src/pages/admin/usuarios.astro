@@ -6,7 +6,7 @@ import { MANOS, POSICIONES } from "../../../functions/_lib/perfil";
 <AdminLayout
   titulo="Usuarios"
   seccion="usuarios"
-  lede="Cuentas de Google que han entrado alguna vez. Puedes editar su ficha, darles permiso de administración y ver el sitio con sus ojos."
+  lede="Cuentas de Google que han entrado alguna vez. Puedes editar su ficha, darles un rol y ver el sitio con sus ojos."
 >
   <div class="admin-toolbar">
     <input
@@ -41,12 +41,12 @@ import { MANOS, POSICIONES } from "../../../functions/_lib/perfil";
               <p class="admin-field-error" data-usuario-error="nombre" hidden></p>
             </div>
             <div class="admin-field">
-              <span class="admin-label">Permisos</span>
-              <label class="admin-check">
-                <input type="checkbox" data-usuario-field="esAdmin" />
-                Puede entrar en el panel de administración
-              </label>
-              <p class="admin-field-error" data-usuario-error="esAdmin" hidden></p>
+              <label for="usuario-rol">Rol</label>
+              <select id="usuario-rol" class="admin-select" data-usuario-field="rolId">
+                <option value="">Sin acceso al panel</option>
+              </select>
+              <p class="admin-hint">Los permisos de cada rol se editan en <a href="/admin/roles/">Roles</a>.</p>
+              <p class="admin-field-error" data-usuario-error="rolId" hidden></p>
             </div>
           </div>
 

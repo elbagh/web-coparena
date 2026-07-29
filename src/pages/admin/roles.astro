@@ -1,0 +1,81 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout
+  titulo="Roles y permisos"
+  seccion="roles"
+  lede="Un rol es un conjunto de permisos. Cada cuenta lleva uno, y es lo que decide qué secciones del panel ve y qué puede tocar en cada una."
+>
+  <div class="admin-toolbar" slot="acciones">
+    <button type="button" class="admin-btn admin-btn--primary" data-rol-nuevo>Nuevo rol</button>
+  </div>
+
+  <div data-admin-roles></div>
+
+  <dialog class="admin-dialog admin-dialog--wide" slot="dialogos" data-rol-dialog>
+    <div class="admin-dialog-shell">
+      <div class="admin-dialog-head">
+        <div>
+          <h2 class="admin-dialog-title" data-rol-titulo>Rol</h2>
+          <p class="admin-dialog-sub" data-rol-sub></p>
+        </div>
+        <button type="button" class="admin-dialog-close" data-rol-cerrar aria-label="Cerrar">×</button>
+      </div>
+
+      <div class="admin-dialog-body">
+        <p class="roles-nota" data-rol-nota hidden></p>
+
+        <form class="admin-form" data-rol-form novalidate>
+          <div class="admin-form-grid">
+            <div class="admin-field">
+              <label for="rol-nombre">Nombre</label>
+              <input id="rol-nombre" class="admin-input" type="text" maxlength="60" data-rol-field="nombre" />
+              <p class="admin-field-error" data-rol-error="nombre" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="rol-clave">Clave</label>
+              <input id="rol-clave" class="admin-input" type="text" maxlength="40" data-rol-field="clave" />
+              <p class="admin-hint">Minúsculas, números y guiones. No se puede cambiar después.</p>
+              <p class="admin-field-error" data-rol-error="clave" hidden></p>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <label for="rol-descripcion">Descripción</label>
+            <input
+              id="rol-descripcion"
+              class="admin-input"
+              type="text"
+              maxlength="160"
+              data-rol-field="descripcion"
+            />
+            <p class="admin-field-error" data-rol-error="descripcion" hidden></p>
+          </div>
+
+          <hr class="admin-separador" />
+
+          <p class="admin-label">Permisos</p>
+          <p class="admin-hint">
+            Un hueco significa que esa acción no existe para ese recurso. Ver los partidos, por ejemplo, no necesita
+            permiso: el cuadro es público.
+          </p>
+          <p class="admin-field-error" data-rol-error="permisos" hidden></p>
+
+          <div class="roles-matriz-scroll">
+            <table class="roles-matriz" data-rol-matriz></table>
+          </div>
+        </form>
+      </div>
+
+      <div class="admin-dialog-foot">
+        <span class="roles-cuenta" data-rol-cuenta></span>
+        <p class="admin-alert" role="alert" data-rol-banner hidden></p>
+        <button type="button" class="admin-btn" data-rol-cancelar>Cancelar</button>
+        <button type="button" class="admin-btn admin-btn--primary" data-rol-guardar>Guardar rol</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script is:inline slot="scripts" src="/assets/admin/roles.js" defer></script>
+</AdminLayout>

@@ -11,7 +11,7 @@
 // entera por los dos lados.
 
 import {
-  requireAdmin,
+  requirePermiso,
   jsonAdmin,
   accionNoValida,
   idDeQuery,
@@ -58,8 +58,8 @@ export function calcularNombresNormalizados(jugadores: JugadorNombreRow[]): Juga
 // ------------------------------------------------------------------ lectura ---
 
 export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "jugadores.ver");
+  if (acceso instanceof Response) return acceso;
 
   const url = new URL(request.url);
   const id = idDeQuery(url);
@@ -100,8 +100,8 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 // -------------------------------------------------------------------- altas ---
 
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "jugadores.editar");
+  if (acceso instanceof Response) return acceso;
 
   if (new URL(request.url).searchParams.get("accion") === "normalizar-nombres") {
     return normalizarNombres(env.DB);
@@ -187,8 +187,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
 // ------------------------------------------------------------------ edición ---
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "jugadores.editar");
+  if (acceso instanceof Response) return acceso;
 
   const jugadorId = idDeQuery(new URL(request.url));
   if (jugadorId === null) return accionNoValida();
@@ -326,8 +326,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 // ------------------------------------------------------------------ borrado ---
 
 export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "jugadores.borrar");
+  if (acceso instanceof Response) return acceso;
 
   const jugadorId = idDeQuery(new URL(request.url));
   if (jugadorId === null) return accionNoValida();

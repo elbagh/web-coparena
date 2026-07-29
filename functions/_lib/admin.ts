@@ -1,27 +1,46 @@
 import { requireUser, type AuthEnv, type UsuarioSesion } from "./auth";
 import { json } from "./http";
+import { permisosDeUsuario, tieneAlguno, type ContextoPermisos, type Permiso } from "./permisos";
 
 export interface AdminEnv extends AuthEnv {
   DB: D1Database;
   FOTOS?: R2Bucket;
 }
 
+export interface Acceso {
+  user: UsuarioSesion;
+  permisos: ContextoPermisos;
+}
+
 /**
- * Puerta de todas las rutas /api/admin/*. El flag no viaja en la sesión: se
- * relee de la base en cada petición, así que revocar `is_admin` tiene efecto
- * inmediato sin esperar a que caduque la cookie.
+ * Puerta de las rutas del panel. Sustituye al viejo `requireAdmin`: cada
+ * endpoint dice qué permiso concreto exige, en vez de pedir «ser admin».
+ *
+ * El rol no viaja en la sesión: se relee de la base en cada petición, así que
+ * quitarle el rol a alguien lo deja fuera al momento, sin esperar a que caduque
+ * la cookie.
  */
-export async function requireAdmin(request: Request, env: AdminEnv): Promise<UsuarioSesion | Response> {
+export async function requirePermiso(
+  request: Request,
+  env: AdminEnv,
+  permiso: Permiso
+): Promise<Acceso | Response> {
+  return requireAlgunPermiso(request, env, [permiso]);
+}
+
+/** Igual, pero basta con tener uno de los de la lista. */
+export async function requireAlgunPermiso(
+  request: Request,
+  env: AdminEnv,
+  permisos: readonly Permiso[]
+): Promise<Acceso | Response> {
   const user = await requireUser(request, env);
   if (user instanceof Response) return user;
 
-  const row = await env.DB
-    .prepare("SELECT is_admin FROM usuarios WHERE id = ?1")
-    .bind(user.id)
-    .first<{ is_admin: number | null }>();
+  const contexto = await permisosDeUsuario(env.DB, user.id);
+  if (tieneAlguno(contexto, permisos)) return { user, permisos: contexto };
 
-  if (row?.is_admin === 1) return user;
-  return json({ error: "No tienes permiso para entrar en el panel de administración." }, 403);
+  return json({ error: "No tienes permiso para hacer eso en el panel de administración." }, 403);
 }
 
 /** Respuesta JSON del panel: nada de lo que sirve se cachea. */

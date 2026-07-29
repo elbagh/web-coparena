@@ -5,6 +5,7 @@ import {
   type UsuarioSesion
 } from "../../functions/_lib/auth";
 import { capitalizarPropio } from "../../functions/_lib/nombres";
+import { ROL_ADMIN } from "../../functions/_lib/permisos";
 import { normalizarEmail, normalizarTelefono, normalizarTexto } from "../../functions/_lib/validacion";
 
 // Sembradores para los tests de integración. Todo test que necesite datos pasa
@@ -16,25 +17,55 @@ const siguiente = () => ++contador;
 export interface OpcionesUsuario {
   email?: string;
   nombre?: string;
-  admin?: boolean;
+  /** Clave de un rol ya sembrado. Sin rol, la cuenta no tiene ningún permiso. */
+  rol?: string | null;
   emailVerified?: boolean;
+}
+
+/** Id de un rol por su clave. Revienta si no existe: siempre es un error del test. */
+export async function rolPorClave(clave: string): Promise<number> {
+  const fila = await env.DB.prepare("SELECT id FROM roles WHERE clave = ?1").bind(clave).first<{ id: number }>();
+  if (!fila) throw new Error(`No existe el rol "${clave}". ¿Falta sembrarlo en test/integration/setup.ts?`);
+  return fila.id;
+}
+
+/** Un rol a medida, para probar permisos sueltos sin depender de los de sistema. */
+export async function crearRol(clave: string, permisos: readonly string[], nombre?: string): Promise<number> {
+  const fila = await env.DB.prepare(
+    "INSERT INTO roles (clave, nombre, es_sistema) VALUES (?1, ?2, 0) RETURNING id"
+  )
+    .bind(clave, nombre ?? clave)
+    .first<{ id: number }>();
+
+  if (permisos.length > 0) {
+    await env.DB.batch(
+      permisos.map((permiso) =>
+        env.DB.prepare("INSERT INTO rol_permisos (rol_id, permiso) VALUES (?1, ?2)").bind(fila!.id, permiso)
+      )
+    );
+  }
+  return fila!.id;
+}
+
+/**
+ * Cambia (o quita, con null) el rol de una cuenta ya creada. Es lo que usan los
+ * tests que comprueban que conceder o revocar surte efecto con la misma cookie.
+ */
+export async function asignarRol(usuarioId: number, clave: string | null): Promise<void> {
+  const rolId = clave === null ? null : await rolPorClave(clave);
+  await env.DB.prepare("UPDATE usuarios SET rol_id = ?1 WHERE id = ?2").bind(rolId, usuarioId).run();
 }
 
 export async function crearUsuario(opciones: OpcionesUsuario = {}): Promise<UsuarioSesion> {
   const n = siguiente();
   const email = opciones.email ?? `usuario${n}@example.com`;
+  const rolId = opciones.rol ? await rolPorClave(opciones.rol) : null;
   const fila = await env.DB.prepare(
-    `INSERT INTO usuarios (google_sub, email, email_verified, nombre, foto_url, is_admin)
+    `INSERT INTO usuarios (google_sub, email, email_verified, nombre, foto_url, rol_id)
      VALUES (?1, ?2, ?3, ?4, NULL, ?5)
      RETURNING id`
   )
-    .bind(
-      `sub-${n}`,
-      email,
-      opciones.emailVerified === false ? 0 : 1,
-      opciones.nombre ?? `Usuario ${n}`,
-      opciones.admin ? 1 : 0
-    )
+    .bind(`sub-${n}`, email, opciones.emailVerified === false ? 0 : 1, opciones.nombre ?? `Usuario ${n}`, rolId)
     .first<{ id: number }>();
 
   return {
@@ -47,7 +78,22 @@ export async function crearUsuario(opciones: OpcionesUsuario = {}): Promise<Usua
   };
 }
 
-export const crearAdmin = (opciones: OpcionesUsuario = {}) => crearUsuario({ ...opciones, admin: true });
+/**
+ * Adaptar este helper es lo que mantiene en pie la cuarentena de tests que ya
+ * existían: casi todos abren el panel con él, y ninguno necesita saber que por
+ * debajo dejó de haber un booleano.
+ */
+export const crearAdmin = (opciones: OpcionesUsuario = {}) => crearUsuario({ ...opciones, rol: ROL_ADMIN });
+
+/** Una cuenta con exactamente los permisos pedidos, en un rol recién hecho. */
+export async function crearUsuarioConPermisos(
+  permisos: readonly string[],
+  opciones: OpcionesUsuario = {}
+): Promise<UsuarioSesion> {
+  const clave = `rol-test-${siguiente()}`;
+  await crearRol(clave, permisos);
+  return crearUsuario({ ...opciones, rol: clave });
+}
 
 export interface JugadorSemilla {
   nombre?: string;

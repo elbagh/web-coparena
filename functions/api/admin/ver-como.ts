@@ -6,19 +6,19 @@
 // firmada. Mientras está activa, functions/_middleware.ts bloquea cualquier
 // escritura, así que es un modo estrictamente de consulta.
 
-import { requireAdmin, jsonAdmin, type AdminEnv } from "../../_lib/admin";
+import { requirePermiso, jsonAdmin, type AdminEnv } from "../../_lib/admin";
 import { clearVerComoCookie, createVerComoCookie, getAuthContext } from "../../_lib/auth";
 
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "usuarios.ver_como");
+  if (acceso instanceof Response) return acceso;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const usuarioId = Number(body?.usuarioId);
   if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
     return jsonAdmin({ error: "Indica a qué usuario quieres ver." }, 400);
   }
-  if (usuarioId === admin.id) {
+  if (usuarioId === acceso.user.id) {
     return jsonAdmin({ error: "Ya estás viendo el sitio con tu propia cuenta." }, 400);
   }
 
@@ -28,7 +28,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
     .first<{ id: number; email: string; nombre: string | null }>();
   if (!objetivo) return jsonAdmin({ error: "Esa cuenta ya no existe." }, 404);
 
-  const cookie = await createVerComoCookie(request, env, admin.id, objetivo.id);
+  const cookie = await createVerComoCookie(request, env, acceso.user.id, objetivo.id);
   return conCookie(
     { ok: true, verComo: { usuarioId: objetivo.id, usuarioNombre: objetivo.nombre || objetivo.email } },
     cookie
@@ -37,8 +37,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
 
 /**
  * Se valida contra el administrador **real**, no contra el usuario efectivo:
- * durante la suplantación el efectivo no es admin, así que requireAdmin
- * rechazaría la salida y dejaría al administrador atrapado.
+ * durante la suplantación el efectivo no tiene `usuarios.ver_como`, así que
+ * requirePermiso rechazaría la salida y dejaría al administrador atrapado.
  */
 export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env }) => {
   const { realUser } = await getAuthContext(request, env);
