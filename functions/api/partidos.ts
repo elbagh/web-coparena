@@ -3,11 +3,12 @@
 // PATCH  /api/partidos — edita un partido a mano (ronda, equipos, marcador…).
 // DELETE /api/partidos — borra un partido, o todos con ?todos=1.
 //
-// Solo el GET es público. Todo lo que escribe pasa por requireAdmin: antes no
-// lo hacía, y cualquiera podía lanzar action:"draw", que borra la tabla entera
-// y rehace el cuadro.
+// Solo el GET es público: lo lee la portada sin sesión, así que no hay permiso
+// de lectura que valga. Escribir exige `partidos.editar` y borrar
+// `partidos.borrar`; antes no exigían nada y cualquiera podía lanzar
+// action:"draw", que rehace el cuadro entero.
 
-import { requireAdmin, jsonAdmin, type AdminEnv } from "../_lib/admin";
+import { requirePermiso, jsonAdmin, type AdminEnv } from "../_lib/admin";
 import { json } from "../_lib/http";
 import { limpiar } from "../_lib/validacion";
 
@@ -64,8 +65,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "partidos.editar");
+  if (acceso instanceof Response) return acceso;
 
   let body: Record<string, unknown>;
   try {
@@ -134,8 +135,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
  * del papel a pie de pista.
  */
 export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "partidos.editar");
+  if (acceso instanceof Response) return acceso;
 
   const id = new URL(request.url).searchParams.get("id") || "";
   const partido = await obtenerPartido(env.DB, id);
@@ -222,8 +223,8 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
 };
 
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "partidos.borrar");
+  if (acceso instanceof Response) return acceso;
 
   const url = new URL(request.url);
   try {

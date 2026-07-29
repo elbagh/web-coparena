@@ -1,0 +1,165 @@
+/* ============================================================================
+   admin · roles y permisos
+   ----------------------------------------------------------------------------
+   El catálogo de permisos ES una matriz: cada clave es `recurso.accion`. Así que
+   se pinta como una matriz y no como una lista de casillas, con los recursos en
+   las filas y las acciones en las columnas.
+
+   Las celdas vacías son la parte más informativa de la pantalla. `partidos` no
+   tiene columna «Ver» porque el listado de partidos es público, y `panel` solo
+   tiene «Entrar». Un hueco dice «esto no existe», que es cierto; una casilla
+   desmarcada diría «esto existe y está apagado», que sería mentira.
+   ========================================================================== */
+
+.roles-grid {
+  display: grid;
+  gap: var(--adm-gap);
+}
+
+/* ------------------------------------------------------------- la matriz --- */
+
+.roles-matriz {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.roles-matriz th,
+.roles-matriz td {
+  border-bottom: 1px solid var(--adm-line);
+  padding: 7px 10px;
+  text-align: center;
+}
+
+.roles-matriz thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--adm-surface);
+  border-bottom: 1px solid var(--adm-line-strong);
+  color: var(--adm-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* La primera columna es el recurso: se lee en vertical, así que va a la izquierda. */
+.roles-matriz th[scope="row"],
+.roles-matriz thead th:first-child {
+  text-align: left;
+}
+
+.roles-matriz th[scope="row"] {
+  color: var(--adm-ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.roles-matriz tbody tr:hover th[scope="row"],
+.roles-matriz tbody tr:hover td {
+  background: var(--adm-surface-alt);
+}
+
+.roles-matriz tbody tr:last-child th,
+.roles-matriz tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Hueco: esa acción no existe para ese recurso. */
+.roles-celda-vacia {
+  color: var(--adm-faint);
+  user-select: none;
+}
+
+.roles-matriz input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--adm-accent);
+  cursor: pointer;
+}
+
+.roles-matriz input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Permiso fuera del alcance de quien edita: se ve, no se toca. */
+.roles-celda--vetada {
+  background: var(--adm-danger-soft);
+}
+
+/* Atajo por fila: marca o desmarca todo un recurso de una vez. */
+.roles-fila-toggle {
+  background: none;
+  border: 0;
+  color: var(--adm-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.roles-fila-toggle:hover {
+  color: var(--adm-ink);
+}
+
+/* ------------------------------------------------------- pie del diálogo --- */
+
+.roles-cuenta {
+  color: var(--adm-muted);
+  font-family: var(--adm-mono);
+  font-size: 0.78rem;
+  margin-right: auto;
+}
+
+.roles-nota {
+  background: var(--adm-accent-soft);
+  border-left: 3px solid var(--adm-accent);
+  border-radius: 0 var(--adm-radius-sm) var(--adm-radius-sm) 0;
+  color: var(--adm-ink);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0 0 var(--adm-gap);
+  padding: 9px 12px;
+}
+
+.roles-nota--aviso {
+  background: var(--adm-danger-soft);
+  border-left-color: var(--adm-danger);
+}
+
+/* --------------------------------------------------------------- móvil --- */
+
+/*
+ * Bajo 720px la tabla de datos del panel se rompe en fichas (tables.css), pero
+ * la matriz no puede: una matriz apilada deja de ser una matriz. Se deja
+ * desplazable en horizontal dentro de su caja, con la columna de recurso fija
+ * para no perder la referencia de qué fila se está tocando.
+ */
+.roles-matriz-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 720px) {
+  .roles-matriz {
+    font-size: 0.8rem;
+    min-width: 460px;
+  }
+
+  .roles-matriz th[scope="row"] {
+    background: var(--adm-surface);
+    left: 0;
+    position: sticky;
+    z-index: 1;
+  }
+
+  .roles-matriz th,
+  .roles-matriz td {
+    padding: 6px 8px;
+  }
+}

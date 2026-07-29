@@ -65,9 +65,15 @@ En Google Cloud Console, el cliente OAuth debe permitir el dominio de producció
 - `dist/` y `.worker/` no se commitean; Cloudflare los genera durante el build/deploy.
 - Cada cuenta de Google solo puede tener un equipo asociado.
 - Las reservas de camisetas quedan ligadas a la cuenta de Google y se consultan desde Mi zona.
-- El panel `/admin/` no está enlazado públicamente y solo carga datos si `usuarios.is_admin = 1`.
-  Para dar acceso a una cuenta ya registrada:
+- El panel `/admin/` no está enlazado públicamente y solo carga datos si la cuenta tiene un rol con los
+  permisos correspondientes. Los roles se gestionan desde `/admin/roles/`, pero el **primero** hay que
+  darlo a mano, porque hasta que exista un administrador no hay quien reparta permisos:
 
 ```sql
-UPDATE usuarios SET is_admin = 1 WHERE email = 'tu-correo@gmail.com';
+UPDATE usuarios SET rol_id = (SELECT id FROM roles WHERE clave = 'admin')
+ WHERE email = 'tu-correo@gmail.com';
 ```
+
+  A partir de ahí, todo lo demás (crear roles, asignarlos) se hace desde el panel. La columna
+  `usuarios.is_admin` sigue existiendo pero **ya no la lee nadie**: se conserva un despliegue más como red
+  para poder volver atrás, y se retirará en una migración posterior.

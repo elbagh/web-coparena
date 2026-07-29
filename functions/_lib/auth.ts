@@ -1,4 +1,5 @@
 import { json } from "./http";
+import { permisosDeUsuario, tienePermiso } from "./permisos";
 
 export interface AuthEnv {
   DB: D1Database;
@@ -45,9 +46,9 @@ export interface ContextoAuth {
 /**
  * Resuelve quién está pidiendo. Si hay cookie de suplantación válida, el
  * usuario efectivo pasa a ser el suplantado, pero solo tras comprobar en la
- * base que el usuario real sigue siendo administrador: la cookie por sí sola
- * no basta, así que revocar `is_admin` corta la suplantación al instante y
- * copiar la cookie a otro navegador no sirve de nada.
+ * base que el usuario real conserva el permiso `usuarios.ver_como`: la cookie
+ * por sí sola no basta, así que quitarle el rol a alguien corta la suplantación
+ * al instante y copiar la cookie a otro navegador no sirve de nada.
  */
 export async function getAuthContext(request: Request, env: AuthEnv): Promise<ContextoAuth> {
   const payload = await readSession(request, env);
@@ -61,11 +62,10 @@ export async function getAuthContext(request: Request, env: AuthEnv): Promise<Co
     return { user: realUser, realUser, impersonando: false };
   }
 
-  const esAdmin = await env.DB
-    .prepare("SELECT is_admin FROM usuarios WHERE id = ?1")
-    .bind(realUser.id)
-    .first<{ is_admin: number | null }>();
-  if (esAdmin?.is_admin !== 1) return { user: realUser, realUser, impersonando: false };
+  const permisosReales = await permisosDeUsuario(env.DB, realUser.id);
+  if (!tienePermiso(permisosReales, "usuarios.ver_como")) {
+    return { user: realUser, realUser, impersonando: false };
+  }
 
   const target = await cargarUsuario(env.DB, verComo.targetUid);
   if (!target) return { user: realUser, realUser, impersonando: false };

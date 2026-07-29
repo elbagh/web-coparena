@@ -3,9 +3,23 @@
     user: null,
     team: null,
     verComo: null,
+    /*
+     * Rol y permisos efectivos, tal y como los da /api/me. Sirven para pintar:
+     * ocultar una sección que no se puede usar es mejor que enseñarla y que
+     * responda 403. La autorización de verdad la sigue haciendo el servidor en
+     * cada endpoint; esto no es una puerta, es cortesía.
+     */
+    acceso: null,
     googleClientId: "",
     loading: true
   };
+
+  /** ¿El usuario efectivo tiene este permiso? El rol admin los tiene todos. */
+  function puede(permiso) {
+    if (!state.acceso) return false;
+    if (state.acceso.esAdmin) return true;
+    return Array.isArray(state.acceso.permisos) && state.acceso.permisos.includes(permiso);
+  }
 
   const $all = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -77,10 +91,12 @@
       state.user = data.user || null;
       state.team = data.team || null;
       state.verComo = data.verComo || null;
+      state.acceso = data.acceso || null;
     } catch {
       state.user = null;
       state.team = null;
       state.verComo = null;
+      state.acceso = null;
     } finally {
       state.loading = false;
       renderAuthState();
@@ -205,6 +221,7 @@
 
   window.CopaAuth = {
     state,
+    puede,
     refresh,
     logout,
     loginWithCredential,

@@ -1,21 +1,46 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { onRequestGet, onRequestPatch } from "../../functions/api/admin/usuarios";
 import type { UsuarioSesion } from "../../functions/_lib/auth";
 import { ctx } from "../helpers/ctx";
-import { crearAdmin, crearEdicion, crearEquipo, crearUsuario, peticion } from "../helpers/db";
+import {
+  crearAdmin,
+  crearEdicion,
+  crearEquipo,
+  crearRol,
+  crearUsuario,
+  crearUsuarioConPermisos,
+  peticion,
+  rolPorClave
+} from "../helpers/db";
 
 /*
- * Los candados sobre is_admin. Si fallan, el panel puede quedarse sin ningún
- * administrador y recuperarlo exigiría tocar D1 a mano con wrangler.
+ * Los candados sobre el rol. Si fallan, el panel puede quedarse sin ningún
+ * administrador y recuperarlo exigiría tocar D1 a mano con wrangler; o peor,
+ * alguien con permiso para editar cuentas puede ascenderse a sí mismo.
  */
 
+let idAdmin = 0;
+beforeEach(async () => {
+  idAdmin = await rolPorClave("admin");
+});
+
 const esAdmin = async (id: number) =>
-  (await env.DB.prepare("SELECT is_admin FROM usuarios WHERE id = ?1").bind(id).first<{ is_admin: number }>())
-    ?.is_admin === 1;
+  (
+    await env.DB
+      .prepare(
+        "SELECT r.clave FROM usuarios u LEFT JOIN roles r ON r.id = u.rol_id WHERE u.id = ?1"
+      )
+      .bind(id)
+      .first<{ clave: string | null }>()
+  )?.clave === "admin";
 
 const cuantosAdmins = async () =>
-  (await env.DB.prepare("SELECT COUNT(*) AS n FROM usuarios WHERE is_admin = 1").first<{ n: number }>())?.n ?? 0;
+  (
+    await env.DB
+      .prepare("SELECT COUNT(*) AS n FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE r.clave = 'admin'")
+      .first<{ n: number }>()
+  )?.n ?? 0;
 
 async function cambiar(admin: UsuarioSesion, objetivoId: number, cuerpo: Record<string, unknown>) {
   const request = await peticion(`/api/admin/usuarios?id=${objetivoId}`, {
@@ -26,12 +51,12 @@ async function cambiar(admin: UsuarioSesion, objetivoId: number, cuerpo: Record<
   return onRequestPatch(ctx(request, env));
 }
 
-describe("nadie se quita a sí mismo el permiso", () => {
+describe("nadie se quita a sí mismo el rol de administración", () => {
   it("rechaza la auto-degradación aunque haya más administradores", async () => {
     const admin = await crearAdmin();
     await crearAdmin();
 
-    const respuesta = await cambiar(admin, admin.id, { esAdmin: false });
+    const respuesta = await cambiar(admin, admin.id, { rolId: null });
 
     expect(respuesta.status).toBe(400);
     expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("a ti mismo") });
@@ -42,7 +67,7 @@ describe("nadie se quita a sí mismo el permiso", () => {
     const admin = await crearAdmin();
     expect(await cuantosAdmins()).toBe(1);
 
-    expect((await cambiar(admin, admin.id, { esAdmin: false })).status).toBe(400);
+    expect((await cambiar(admin, admin.id, { rolId: null })).status).toBe(400);
     expect(await cuantosAdmins()).toBe(1);
   });
 
@@ -58,21 +83,13 @@ describe("nadie se quita a sí mismo el permiso", () => {
  * El invariante real que sostiene el sistema, comprobado por el resultado y no
  * por la rama concreta que lo produce: hagas lo que hagas desde el panel, nunca
  * te quedas sin administradores.
- *
- * Nota sobre la rama 409 ("Tiene que quedar al menos un administrador") de
- * validarCambioDeAdmin: hoy es inalcanzable. requireAdmin garantiza que quien
- * pide es administrador, y el caso "soy yo mismo" ya lo corta el 400 anterior;
- * por tanto, al contar administradores excluyendo al objetivo siempre queda al
- * menos quien hace la petición. Es defensa en profundidad, no una rama viva, y
- * por eso no se testea directamente: un test que la cubriera tendría que
- * falsear el estado de forma imposible en producción.
  */
 describe("nunca se queda el sistema sin administradores", () => {
   it("degradar a otro administrador solo se permite si queda alguno", async () => {
     const admin = await crearAdmin();
     const otro = await crearAdmin();
 
-    expect((await cambiar(admin, otro.id, { esAdmin: false })).status).toBe(200);
+    expect((await cambiar(admin, otro.id, { rolId: null })).status).toBe(200);
     expect(await esAdmin(otro.id)).toBe(false);
     expect(await cuantosAdmins()).toBe(1);
   });
@@ -82,11 +99,28 @@ describe("nunca se queda el sistema sin administradores", () => {
     const segundo = await crearAdmin();
     const tercero = await crearAdmin();
 
-    await cambiar(admin, segundo.id, { esAdmin: false });
-    await cambiar(admin, tercero.id, { esAdmin: false });
+    await cambiar(admin, segundo.id, { rolId: null });
+    await cambiar(admin, tercero.id, { rolId: null });
     expect(await cuantosAdmins()).toBe(1);
 
-    expect((await cambiar(admin, admin.id, { esAdmin: false })).status).toBe(400);
+    expect((await cambiar(admin, admin.id, { rolId: null })).status).toBe(400);
+    expect(await cuantosAdmins()).toBe(1);
+  });
+
+  /*
+   * Con el booleano is_admin esta rama era inalcanzable: quien pedía el cambio
+   * era siempre administrador, así que al contar excluyendo al objetivo siempre
+   * quedaba él. Con RBAC ya no: `usuarios.editar` es delegable a alguien que no
+   * es admin, y esa persona sí puede intentar degradar al último que queda.
+   */
+  it("quien no es admin tampoco puede degradar al último administrador", async () => {
+    const admin = await crearAdmin();
+    const gestor = await crearUsuarioConPermisos(["usuarios.ver", "usuarios.editar"]);
+
+    const respuesta = await cambiar(gestor, admin.id, { rolId: null });
+
+    expect(respuesta.status).toBe(409);
+    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("al menos un administrador") });
     expect(await cuantosAdmins()).toBe(1);
   });
 
@@ -94,26 +128,72 @@ describe("nunca se queda el sistema sin administradores", () => {
     const admin = await crearAdmin();
     const user = await crearUsuario();
 
-    expect((await cambiar(admin, user.id, { esAdmin: true })).status).toBe(200);
+    expect((await cambiar(admin, user.id, { rolId: idAdmin })).status).toBe(200);
     expect(await esAdmin(user.id)).toBe(true);
   });
 
-  it("volver a conceder el permiso a quien lo perdió funciona", async () => {
+  it("volver a conceder el rol a quien lo perdió funciona", async () => {
     const admin = await crearAdmin();
     const otro = await crearAdmin();
 
-    await cambiar(admin, otro.id, { esAdmin: false });
-    expect((await cambiar(admin, otro.id, { esAdmin: true })).status).toBe(200);
+    await cambiar(admin, otro.id, { rolId: null });
+    expect((await cambiar(admin, otro.id, { rolId: idAdmin })).status).toBe(200);
     expect(await cuantosAdmins()).toBe(2);
   });
 });
 
+/*
+ * Sin este candado, delegar `usuarios.editar` sería delegar el acceso total:
+ * bastaría con asignarse a uno mismo un rol mejor que el propio.
+ */
+describe("nadie reparte permisos que no tiene", () => {
+  it("quien no es admin no puede conceder el rol de administración", async () => {
+    await crearAdmin();
+    const gestor = await crearUsuarioConPermisos(["usuarios.ver", "usuarios.editar"]);
+    const victima = await crearUsuario();
+
+    const respuesta = await cambiar(gestor, victima.id, { rolId: idAdmin });
+
+    expect(respuesta.status).toBe(403);
+    expect(await esAdmin(victima.id)).toBe(false);
+  });
+
+  it("quien no es admin no puede asignar un rol con permisos fuera de su alcance", async () => {
+    await crearAdmin();
+    const gestor = await crearUsuarioConPermisos(["usuarios.ver", "usuarios.editar"]);
+    const objetivo = await crearUsuario();
+    const rolPotente = await crearRol("rol-potente", ["equipos.borrar", "roles.editar"]);
+
+    const respuesta = await cambiar(gestor, objetivo.id, { rolId: rolPotente });
+
+    expect(respuesta.status).toBe(403);
+    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("no tienes") });
+  });
+
+  it("sí puede asignar un rol contenido en el suyo", async () => {
+    await crearAdmin();
+    const gestor = await crearUsuarioConPermisos(["usuarios.ver", "usuarios.editar", "equipos.ver"]);
+    const objetivo = await crearUsuario();
+    const rolMenor = await crearRol("rol-menor", ["equipos.ver"]);
+
+    expect((await cambiar(gestor, objetivo.id, { rolId: rolMenor })).status).toBe(200);
+  });
+
+  it("un admin puede asignar cualquier rol", async () => {
+    const admin = await crearAdmin();
+    const objetivo = await crearUsuario();
+    const rolPotente = await crearRol("rol-potente-2", ["roles.editar", "ediciones.borrar"]);
+
+    expect((await cambiar(admin, objetivo.id, { rolId: rolPotente })).status).toBe(200);
+  });
+});
+
 describe("acceso y validación del endpoint", () => {
-  it("un usuario sin permiso no puede tocar cuentas", async () => {
+  it("una cuenta sin rol no puede tocar cuentas", async () => {
     const user = await crearUsuario();
     const objetivo = await crearUsuario();
 
-    expect((await cambiar(user, objetivo.id, { esAdmin: true })).status).toBe(403);
+    expect((await cambiar(user, objetivo.id, { rolId: idAdmin })).status).toBe(403);
     expect(await esAdmin(objetivo.id)).toBe(false);
   });
 
@@ -121,7 +201,7 @@ describe("acceso y validación del endpoint", () => {
     const objetivo = await crearUsuario();
     const request = await peticion(`/api/admin/usuarios?id=${objetivo.id}`, {
       method: "PATCH",
-      json: { esAdmin: true }
+      json: { rolId: idAdmin }
     });
 
     expect((await onRequestPatch(ctx(request, env))).status).toBe(401);
@@ -130,7 +210,7 @@ describe("acceso y validación del endpoint", () => {
 
   it("responde 404 si la cuenta no existe", async () => {
     const admin = await crearAdmin();
-    expect((await cambiar(admin, 99999, { esAdmin: true })).status).toBe(404);
+    expect((await cambiar(admin, 99999, { rolId: idAdmin })).status).toBe(404);
   });
 
   it("rechaza un id que no es un entero positivo", async () => {
@@ -138,9 +218,18 @@ describe("acceso y validación del endpoint", () => {
     const request = await peticion("/api/admin/usuarios?id=abc", {
       method: "PATCH",
       user: admin,
-      json: { esAdmin: true }
+      json: { rolId: idAdmin }
     });
     expect((await onRequestPatch(ctx(request, env))).status).toBe(400);
+  });
+
+  it("rechaza un rol que no existe", async () => {
+    const admin = await crearAdmin();
+    const user = await crearUsuario();
+
+    const respuesta = await cambiar(admin, user.id, { rolId: 99999 });
+    expect(respuesta.status).toBe(400);
+    expect(((await respuesta.json()) as { campos: Record<string, string> }).campos.rolId).toBeTruthy();
   });
 
   it("rechaza un nombre de más de 80 caracteres", async () => {
@@ -159,7 +248,7 @@ describe("acceso y validación del endpoint", () => {
   });
 });
 
-describe("GET /api/admin/usuarios: equipo del listado", () => {
+describe("GET /api/admin/usuarios", () => {
   // owner_user_id tenía un índice UNIQUE global: una cuenta era dueña de un
   // equipo para siempre. capitan_jugador_id no lo tiene —la migración 0010
   // habilitó a propósito volver a inscribirse cada edición— así que el
@@ -189,5 +278,28 @@ describe("GET /api/admin/usuarios: equipo del listado", () => {
     const fila = cuerpo.usuarios.find((u) => u.id === capitana.id);
     expect(fila?.equipoId).toBe(reciente.id);
     expect(fila?.equipoNombre).toBe("Equipo Nuevo");
+  });
+
+  // El desplegable de rol se pinta con esta lista: sin ella habría que pedir
+  // además `roles.ver` solo para poder editar una cuenta.
+  it("trae la lista de roles para el desplegable", async () => {
+    const admin = await crearAdmin();
+    const respuesta = await onRequestGet(ctx(await peticion("/api/admin/usuarios", { user: admin }), env));
+
+    const cuerpo = (await respuesta.json()) as { roles: { clave: string }[] };
+    expect(cuerpo.roles.map((r) => r.clave)).toEqual(expect.arrayContaining(["admin", "organizacion"]));
+  });
+
+  it("expone el rol de cada cuenta", async () => {
+    const admin = await crearAdmin();
+    const sinRol = await crearUsuario();
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/admin/usuarios", { user: admin }), env));
+    const cuerpo = (await respuesta.json()) as {
+      usuarios: { id: number; rolClave: string | null; esAdmin: boolean }[];
+    };
+
+    expect(cuerpo.usuarios.find((u) => u.id === admin.id)).toMatchObject({ rolClave: "admin", esAdmin: true });
+    expect(cuerpo.usuarios.find((u) => u.id === sinRol.id)).toMatchObject({ rolClave: null, esAdmin: false });
   });
 });

@@ -6,7 +6,7 @@
 //   DELETE ?id=N                 borra el equipo con sus jugadores y sus fotos
 
 import {
-  requireAdmin,
+  requirePermiso,
   jsonAdmin,
   accionNoValida,
   idDeQuery,
@@ -24,8 +24,8 @@ import { MAX_BODY_BYTES, limpiar, normalizarTexto, validarRegistro, validarFoto 
  * administrador a tener todos los datos a mano para poder empezar.
  */
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "equipos.editar");
+  if (acceso instanceof Response) return acceso;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const nombre = limpiar(body?.nombre);
@@ -68,8 +68,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
 };
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "equipos.editar");
+  if (acceso instanceof Response) return acceso;
 
   const url = new URL(request.url);
   const equipoId = idDeQuery(url);
@@ -98,8 +98,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 };
 
 export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "equipos.borrar");
+  if (acceso instanceof Response) return acceso;
 
   const equipoId = idDeQuery(new URL(request.url));
   if (equipoId === null) return accionNoValida();

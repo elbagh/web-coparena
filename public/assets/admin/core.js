@@ -266,6 +266,28 @@
     }
   }
 
+  // -------------------------------------------------------- permisos ---
+
+  /**
+   * ¿El usuario efectivo tiene este permiso? Sale de /api/me a través de
+   * auth.js.
+   *
+   * Sirve para **pintar**, no para autorizar: esconder un botón que va a dar
+   * 403 es mejor experiencia, pero la puerta de verdad la pone el servidor en
+   * cada endpoint. Nada de lo que se decida aquí protege nada.
+   */
+  const puede = (permiso) => Boolean(window.CopaAuth?.puede?.(permiso));
+
+  /**
+   * Oculta los nodos que declaran un permiso que no se tiene. Lo usa la barra
+   * lateral para no ofrecer secciones que responderían 403.
+   */
+  function aplicarPermisos(raiz = document) {
+    raiz.querySelectorAll("[data-permiso]").forEach((nodo) => {
+      nodo.hidden = !puede(nodo.dataset.permiso);
+    });
+  }
+
   // ------------------------------------------------------- arranque ---
 
   /**
@@ -317,6 +339,7 @@
       setError("");
       return;
     }
+    aplicarPermisos();
     ejecutarCargadores({ recargarResumen: true });
   });
 
@@ -324,6 +347,8 @@
     api,
     apiJson,
     resumen,
+    puede,
+    aplicarPermisos,
     onReady,
     recargar,
     setError,
@@ -347,7 +372,10 @@
   // no se han registrado con onReady() cuando core.js termina de ejecutarse.
   function arranqueManual() {
     const estado = window.CopaAuth?.state;
-    if (estado && !estado.loading && estado.user) ejecutarCargadores();
+    if (estado && !estado.loading && estado.user) {
+      aplicarPermisos();
+      ejecutarCargadores();
+    }
   }
 
   if (document.readyState === "loading") {

@@ -42,6 +42,9 @@ describe("el middleware de «ver como» está enganchado a todas las rutas", () 
       ["/api/admin/jugadores", "POST"],
       ["/api/admin/usuarios", "PATCH"],
       ["/api/admin/ediciones", "POST"],
+      ["/api/admin/roles", "POST"],
+      ["/api/admin/roles", "PATCH"],
+      ["/api/admin/roles", "DELETE"],
       ["/api/avatar", "POST"]
     ];
 
