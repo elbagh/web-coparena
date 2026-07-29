@@ -12,6 +12,11 @@
  * bloques propios de la Copa Arena (palmarés, «en pista») van al final, fuera
  * de esa anatomía.
  *
+ * `bloques` lo usa hoy solo /mi-equipo/, que enseña la carta sola. La ficha
+ * pública de /jugadores/ pone esos números en un bocadillo al lado del cromo y
+ * llama a `crear()` sin ellos, así que la carta sale más corta ahí: el despiece
+ * en tres tramos es lo que permite que las dos midan distinto.
+ *
  * Uso:
  *   CopaCromo.crear({
  *     nivel: "oro",              // "bronce" | "plata" | "oro"; por defecto bronce
