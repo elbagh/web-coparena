@@ -179,7 +179,16 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               <div class="admin-field" data-fase-solo-grupos>
                 <label for="fase-clasifican">Clasifican por grupo</label>
                 <input id="fase-clasifican" class="admin-input" type="number" min="0" max="8" data-fase-field="clasifican" />
+                <p class="admin-hint">Plazas directas. Un grupo puede llevar las suyas.</p>
                 <p class="admin-field-error" data-fase-error="clasifican" hidden></p>
+              </div>
+              <div class="admin-field" data-fase-solo-grupos>
+                <label for="fase-repesca">Plazas de repesca</label>
+                <input id="fase-repesca" class="admin-input" type="number" min="0" max="8" data-fase-field="repesca" />
+                <p class="admin-hint">
+                  Plazas extra que se disputan entre grupos los que quedan justo fuera del cupo.
+                </p>
+                <p class="admin-field-error" data-fase-error="repesca" hidden></p>
               </div>
             </div>
 
@@ -274,7 +283,30 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
                 <label for="grupo-orden">Orden</label>
                 <input id="grupo-orden" class="admin-input" type="number" min="0" max="99" data-grupo-field="orden" />
               </div>
+              <div class="admin-field">
+                <label for="grupo-clasifican">Clasifican de este grupo</label>
+                <input
+                  id="grupo-clasifican"
+                  class="admin-input"
+                  type="number"
+                  min="0"
+                  max="8"
+                  placeholder="Hereda de la fase"
+                  data-grupo-field="clasifican"
+                />
+                <p class="admin-hint">Vacío = el cupo de la fase. Un grupo más grande puede dar más plazas.</p>
+                <p class="admin-field-error" data-grupo-error="clasifican" hidden></p>
+              </div>
             </div>
+
+            <label class="admin-check">
+              <input type="checkbox" data-grupo-field="enRepesca" />
+              El siguiente de este grupo entra en la repesca
+            </label>
+            <p class="admin-hint">
+              Desmárcalo si este grupo no es comparable con los demás: con formatos distintos, sus puntos y sus sets
+              no miden lo mismo.
+            </p>
 
             <hr class="admin-separador" />
 

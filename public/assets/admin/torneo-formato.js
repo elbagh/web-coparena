@@ -60,7 +60,11 @@
       etiqueta(fase.tipo === "grupos" ? "Grupos" : "Eliminatoria", fase.tipo === "grupos" ? "info" : "ok")
     );
     cabecera.append(titulo, accionesDeFase(fase));
-    caja.append(cabecera, el("p", "admin-hint", resumenDeReglas(fase.reglas, fase.tipo, fase.clasifican)));
+    const resumen = resumenDeReglas(fase.reglas, fase.tipo, fase.clasifican);
+    caja.append(
+      cabecera,
+      el("p", "admin-hint", fase.repesca > 0 ? `${resumen} + ${fase.repesca} de repesca` : resumen)
+    );
 
     if (fase.tipo === "grupos") {
       const grupos = el("div", "torneo-grupos");
@@ -152,6 +156,9 @@
     titulo.append(el("h4", "", grupo.nombre));
     // Que un grupo tenga reglas propias cambia cómo se juega: se dice.
     if (grupo.reglasPropias) titulo.append(etiqueta("Reglas propias", "warn"));
+    // Y que tenga su propio cupo cambia quién pasa, que es más gordo todavía.
+    if (grupo.clasificanPropio != null) titulo.append(etiqueta(`Pasan ${grupo.clasificanPropio}`, "info"));
+    if (grupo.enRepesca === false) titulo.append(etiqueta("Sin repesca", "warn"));
     cabecera.append(
       titulo,
       celdaAcciones(
@@ -258,6 +265,8 @@
         if (indice !== 1) td.className = "is-num";
         tr.append(td);
       });
+      // Pasar directo y pasar por repesca no son lo mismo: colores distintos.
+      if (fila.clasifica) tr.classList.add(`is-${fila.clasifica}`);
       // Saber qué deshizo un empate evita la pregunta de por qué voy tercero.
       if (fila.desempatadoPor) {
         tr.title = `Desempatado por ${etiquetaCriterio(fila.desempatadoPor)}`;
@@ -353,16 +362,26 @@
   }
 
   async function sembrar(fase) {
-    const grupos = (torneo.fases || []).filter((f) => f.tipo === "grupos" && f.clasifican > 0);
+    // Una fase sin cupo por grupo sigue valiendo si reparte plazas de repesca.
+    const grupos = (torneo.fases || []).filter((f) => f.tipo === "grupos" && (f.clasifican > 0 || f.repesca > 0));
     if (grupos.length === 0) {
       setError("No hay ninguna fase de grupos que diga cuántos equipos clasifican.");
       return;
     }
     const origen = grupos[0];
 
+    /*
+     * El texto cuenta lo que va a pasar de verdad. Decir «los N primeros de cada
+     * grupo» cuando hay cupos propios y repesca sería mentir justo en el diálogo
+     * que pide confirmación.
+     */
+    const cupos = [...new Set(origen.grupos.map((g) => g.clasifican))];
+    const directas = cupos.length === 1 ? `los ${cupos[0]} primeros de cada grupo` : "las plazas directas de cada grupo";
+    const conRepesca = origen.repesca > 0 ? `, más ${origen.repesca} de repesca` : "";
+
     const ok = await confirmar({
       titulo: `Sembrar «${fase.nombre}»`,
-      texto: `Se colocarán los ${origen.clasifican} primeros de cada grupo de «${origen.nombre}», cruzando primeros con últimos.`,
+      texto: `Se colocarán ${directas}${conRepesca} de «${origen.nombre}», cruzando primeros con últimos.`,
       aviso: "Sobrescribe los equipos que ya hubiera en la primera ronda del cuadro.",
       accion: "Sembrar"
     });
@@ -420,6 +439,7 @@
     "clave",
     "tipo",
     "clasifican",
+    "repesca",
     "reglas.sets",
     "reglas.puntosPorSet",
     "reglas.puntosSetDecisivo",
@@ -480,6 +500,7 @@
     campoFase("tipo").value = fase?.tipo || "grupos";
     campoFase("orden").value = String(fase?.orden ?? 0);
     campoFase("clasifican").value = String(fase?.clasifican ?? 2);
+    campoFase("repesca").value = String(fase?.repesca ?? 0);
 
     Object.entries(reglas.partido).forEach(([clave, valor]) => {
       const campo = campoFase(clave);
@@ -503,6 +524,7 @@
       tipo: campoFase("tipo").value,
       orden: numero("orden") || 0,
       clasifican: numero("clasifican") || 0,
+      repesca: numero("repesca") || 0,
       reglas: {
         partido: {
           sets: numero("sets"),
@@ -579,6 +601,9 @@
     campoGrupo("nombre").value = grupo?.nombre || "";
     campoGrupo("orden").value = String(grupo?.orden ?? 0);
     campoGrupo("propias").checked = Boolean(grupo?.reglasPropias);
+    // Vacío significa «hereda de la fase», que no es lo mismo que 0.
+    campoGrupo("clasifican").value = grupo?.clasificanPropio == null ? "" : String(grupo.clasificanPropio);
+    campoGrupo("enRepesca").checked = grupo ? grupo.enRepesca !== false : true;
 
     const reglas = (grupo?.reglasPropias || grupo?.reglas || fase.reglas).partido;
     Object.entries(reglas).forEach(([clave, valor]) => {
@@ -599,6 +624,9 @@
     const datos = {
       nombre: limpiar(campoGrupo("nombre").value),
       orden: numero("orden") || 0,
+      // Cadena vacía = hereda; el endpoint distingue null de 0.
+      clasifican: campoGrupo("clasifican").value.trim() === "" ? null : numero("clasifican"),
+      enRepesca: campoGrupo("enRepesca").checked,
       // null significa "hereda de la fase", que es distinto de "las mismas por casualidad".
       reglas: campoGrupo("propias").checked
         ? {
