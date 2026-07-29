@@ -38,6 +38,10 @@
   const URL_SOCIAL_RE = /^https:\/\/\S{5,110}$/;
   const MENSAJE_CAPITAN_CONTACTO = "El capitán necesita móvil y correo para que podamos avisaros.";
   const CAMPOS = ["nombre", "apellidos", "telefono", "email", "redSocial"];
+  /* Ficha del cromo. Van aparte de CAMPOS porque el bucle de `validar()` solo
+     tiene reglas de contacto: estas las valida el servidor, que devuelve el
+     error con la misma clave que su `[data-jugador-error]`. */
+  const CAMPOS_FICHA = ["apodo", "dorsal", "posicion", "mano", "lema"];
 
   let jugadores = [];
   let equipos = [];
@@ -189,7 +193,7 @@
 
   function limpiarErrores() {
     setBanner("");
-    [...CAMPOS, "equipoId", "foto"].forEach((n) => setErrorCampo(n, ""));
+    [...CAMPOS, ...CAMPOS_FICHA, "equipoId", "foto"].forEach((n) => setErrorCampo(n, ""));
   }
 
   function abrir(jugador) {
@@ -207,6 +211,11 @@
     CAMPOS.forEach((n) => {
       const input = campo(n);
       if (input) input.value = jugador ? jugador[n] || "" : "";
+    });
+    CAMPOS_FICHA.forEach((n) => {
+      const input = campo(n);
+      // `?? ""` y no `|| ""`: el dorsal 0 es un dorsal válido.
+      if (input) input.value = jugador ? (jugador[n] ?? "") : "";
     });
     campo("equipoId").value = jugador?.equipoId ? String(jugador.equipoId) : equipos[0] ? String(equipos[0].id) : "";
     campo("eliminarFoto").checked = false;
@@ -327,6 +336,7 @@
     const envio = new FormData();
     envio.append("equipoId", campo("equipoId").value);
     CAMPOS.forEach((n) => envio.append(n, valores[n]));
+    CAMPOS_FICHA.forEach((n) => envio.append(n, campo(n)?.value ?? ""));
     const archivo = campo("foto").files?.[0];
     if (archivo) envio.append("foto", archivo);
     if (campo("eliminarFoto").checked) envio.append("eliminarFoto", "1");

@@ -2,12 +2,15 @@
  * /admin/estadisticas/ — lo que alimenta el álbum público de /jugadores/.
  *
  * Una fila por jugador de la edición en juego. El diálogo enseña las cifras de
- * juego en sólo lectura (salen de los partidos) y guarda las dos cosas que sí
- * se anotan a mano: los atributos 1–5 y si la persona aparece o no en el
- * álbum.
+ * juego en sólo lectura (salen de los partidos) y guarda lo que sí decide la
+ * organización: los atributos 1–99, el metal del cromo y si la persona aparece
+ * o no en el álbum. La identidad (apodo, dorsal, posición, mano, lema) se edita
+ * en /admin/jugadores/, que es la página persona a persona.
  *
- * Las métricas y los atributos llegan del servidor (GET devuelve `metricas` y
- * `atributos`), así que no hay una lista que mantener sincronizada aquí.
+ * Las métricas, los atributos —con sus etiquetas— y los niveles llegan del
+ * servidor, así que no hay ninguna lista que mantener sincronizada aquí. La
+ * nota tampoco se calcula: la manda el GET, para que el panel y el álbum no
+ * puedan discrepar.
  */
 (() => {
   const raiz = document.querySelector("[data-admin-estadisticas]");
@@ -21,19 +24,13 @@
   const cajaMetricas = dialogo?.querySelector("[data-stats-metricas]");
   const cajaAtributos = dialogo?.querySelector("[data-stats-atributos]");
   const checkOculto = dialogo?.querySelector("[data-stats-oculto]");
-
-  const ETIQUETAS_ATRIBUTO = {
-    saque: "Saque",
-    remate: "Remate",
-    bloqueo: "Bloqueo",
-    defensa: "Defensa",
-    recepcion: "Recepción",
-    colocacion: "Colocación"
-  };
+  const selectNivel = dialogo?.querySelector("[data-stats-nivel]");
+  const cajaMedia = dialogo?.querySelector("[data-stats-media]");
 
   let jugadores = [];
   let metricas = [];
   let atributos = [];
+  let niveles = [];
   let filtro = "";
   let enEdicion = null;
 
@@ -47,6 +44,7 @@
     jugadores = datos.jugadores || [];
     metricas = datos.metricas || [];
     atributos = datos.atributos || [];
+    niveles = datos.niveles || [];
 
     if (contador) {
       const conCifras = jugadores.filter((j) => COLUMNAS_TABLA.some((c) => (j.estadisticas?.[c] ?? 0) > 0)).length;
@@ -81,6 +79,11 @@
           { etiqueta: "Jugador", clase: "is-strong", render: (j) => nombreCompleto(j) },
           { etiqueta: "Equipo", clase: "is-clip", render: (j) => j.equipoNombre },
           ...columnasMetrica,
+          {
+            etiqueta: "Cromo",
+            clase: "is-shrink",
+            render: (j) => etiqueta(`${j.nivel}${j.media != null ? ` · ${j.media}` : ""}`)
+          },
           {
             etiqueta: "Álbum",
             clase: "is-shrink",
@@ -143,15 +146,31 @@
     });
 
     clear(cajaAtributos);
-    atributos.forEach((clave) => {
+    atributos.forEach((atributo) => {
       cajaAtributos.append(
-        campoNumero(clave, ETIQUETAS_ATRIBUTO[clave] || clave, jugador.atributos?.[clave] ?? null, {
+        campoNumero(atributo.clave, atributo.etiqueta, jugador.atributos?.[atributo.clave] ?? null, {
           min: 1,
-          max: 5,
+          max: 99,
           dataset: "atributo"
         })
       );
     });
+
+    // La nota es la que ha calculado el servidor. No se recalcula al teclear:
+    // hacerlo obligaría a copiar aquí la fórmula de `mediaAtributos`, que es
+    // justo la duplicación que el endpoint existe para evitar.
+    if (cajaMedia) cajaMedia.textContent = jugador.media != null ? String(jugador.media) : "sin puntuar";
+
+    if (selectNivel) {
+      clear(selectNivel);
+      niveles.forEach((nivel) => {
+        const opcion = document.createElement("option");
+        opcion.value = nivel;
+        opcion.textContent = nivel.charAt(0).toUpperCase() + nivel.slice(1);
+        selectNivel.append(opcion);
+      });
+      selectNivel.value = jugador.nivel || "bronce";
+    }
 
     if (checkOculto) checkOculto.checked = Boolean(jugador.ocultoPublico);
 
@@ -202,6 +221,7 @@
     try {
       await apiJson(`/api/admin/estadisticas?jugador=${encodeURIComponent(enEdicion.id)}`, "PATCH", {
         atributos: recoger("atributo"),
+        nivel: selectNivel?.value,
         ocultoPublico: Boolean(checkOculto?.checked)
       });
       dialogo.close();

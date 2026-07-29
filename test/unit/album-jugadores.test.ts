@@ -50,6 +50,8 @@ const jugador = (id: number, nombre: string, extra: Record<string, unknown> = {}
   posicion: null,
   mano: null,
   lema: null,
+  nivel: "bronce",
+  media: null,
   instagram: null,
   esSuplente: false,
   tieneFoto: false,
@@ -59,15 +61,32 @@ const jugador = (id: number, nombre: string, extra: Record<string, unknown> = {}
   ...extra
 });
 
+const EDICION = { anio: 2026, nombre: "Copa Arena 2026", estado: "en_juego" };
+
 const respuestaListado = (jugadores: ReturnType<typeof jugador>[]) =>
-  new Response(
-    JSON.stringify({ edicion: { anio: 2026, nombre: "Copa Arena 2026", estado: "en_juego" }, jugadores }),
-    { status: 200 }
-  );
+  new Response(JSON.stringify({ edicion: EDICION, jugadores }), { status: 200 });
 
 async function montar(jugadores: ReturnType<typeof jugador>[]) {
   document.body.innerHTML = MARCADO;
   vi.stubGlobal("fetch", vi.fn(async () => respuestaListado(jugadores)));
+
+  ejecutarScriptPublico("cromo.js");
+  ejecutarScriptPublico("players-list.js");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/** Monta el álbum y abre la ficha de alguien, como hace ?j=N. */
+async function montarFicha(ficha: Record<string, unknown>) {
+  document.body.innerHTML = MARCADO;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) =>
+      String(url).includes("id=")
+        ? new Response(JSON.stringify(ficha), { status: 200 })
+        : respuestaListado([jugador(1, "Marta")])
+    )
+  );
+  window.history.replaceState({}, "", "/jugadores/?j=1");
 
   ejecutarScriptPublico("cromo.js");
   ejecutarScriptPublico("players-list.js");
@@ -149,5 +168,122 @@ describe("álbum de jugadores", () => {
     expect(vacio.hidden).toBe(false);
     expect(vacio.textContent).toContain("Inscribe tu equipo");
     expect((document.querySelector("[data-ranking-seccion]") as HTMLElement).hidden).toBe(true);
+  });
+
+  it("el mini-cromo lleva el metal y su remate", async () => {
+    await montar([
+      jugador(1, "Marta", { nivel: "oro", media: 85, posicion: "Bloqueo" }),
+      jugador(2, "Xoán", { nivel: "plata", media: 60 })
+    ]);
+
+    const cromos = Array.from(document.querySelectorAll(".album-cromo")) as HTMLElement[];
+    expect(cromos[0]!.classList.contains("album-cromo--oro")).toBe(true);
+    expect(cromos[1]!.classList.contains("album-cromo--plata")).toBe(true);
+
+    // Cada metal tiene su silueta: el remate no puede ser el mismo path.
+    const paths = Array.from(document.querySelectorAll(".cromo-corona path")).map((p) => p.getAttribute("d"));
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).not.toBe(paths[1]);
+
+    expect(cromos[0]!.querySelector(".album-cromo-nota-valor")!.textContent).toBe("85");
+    expect(cromos[0]!.querySelector(".album-cromo-nota-pos")!.textContent).toBe("Bloqueo");
+  });
+
+  it("sin atributos puntuados el mini-cromo sale sin nota, no con un cero", async () => {
+    await montar([jugador(1, "Marta", { media: null })]);
+
+    expect(document.querySelector(".album-cromo-nota-valor")).toBeNull();
+    expect(document.querySelector(".album-cromo")!.textContent).not.toContain("0");
+  });
+});
+
+describe("ficha de un jugador", () => {
+  const FICHA = {
+    jugador: {
+      id: 1,
+      nombre: "Marta",
+      apellidos: "Souto",
+      apodo: "La Muralla",
+      dorsal: 7,
+      posicion: "Bloqueo",
+      mano: "Zurdo",
+      lema: "La red es mía",
+      nivel: "plata",
+      media: 70,
+      instagram: null,
+      esSuplente: false,
+      tieneFoto: true,
+      equipoId: 1,
+      equipoNombre: "Os Pulpos",
+      atributos: { saque: 80, remate: 60 }
+    },
+    edicion: EDICION,
+    historial: [],
+    palmares: { edicionesJugadas: 1, podios: { oro: 0, plata: 0, bronce: 0 }, mejorPuesto: null },
+    carrera: estadisticas()
+  };
+
+  it("monta el cromo con su metal, su nota y su identidad", async () => {
+    await montarFicha(FICHA);
+
+    const cromo = document.querySelector(".cromo") as HTMLElement;
+    expect(cromo.classList.contains("cromo--plata")).toBe(true);
+    expect(cromo.querySelector(".cromo-nota-valor")!.textContent).toBe("70");
+    expect(cromo.querySelector(".cromo-nota-pos")!.textContent).toBe("Bloqueo");
+    expect(cromo.querySelector(".cromo-nombre")!.textContent).toBe("Marta Souto");
+    expect(cromo.querySelector(".cromo-apodo")!.textContent).toBe("«La Muralla»");
+    expect(cromo.querySelector(".cromo-dorsal")!.textContent).toBe("7");
+
+    // Equipo actual y mano tienen hueco propio: son parte de la identidad.
+    const chips = Array.from(cromo.querySelectorAll(".cromo-chip")).map((n) => n.textContent);
+    expect(chips).toEqual(["Os Pulpos", "Zurdo"]);
+  });
+
+  it("pinta los seis atributos, con guión en los que no están puntuados", async () => {
+    await montarFicha(FICHA);
+
+    // Una carta tiene seis casillas: las que faltan se dejan vacías, no se
+    // quitan, porque una rejilla desigual se lee peor que una con huecos.
+    const celdas = Array.from(document.querySelectorAll(".cromo-stat"));
+    expect(celdas).toHaveLength(6);
+
+    expect(Array.from(document.querySelectorAll(".cromo-stat-clave")).map((n) => n.textContent)).toEqual([
+      "SAQ",
+      "REM",
+      "BLO",
+      "DEF",
+      "REC",
+      "COL"
+    ]);
+    expect(Array.from(document.querySelectorAll(".cromo-stat-valor")).map((n) => n.textContent)).toEqual([
+      "80",
+      "60",
+      "—",
+      "—",
+      "—",
+      "—"
+    ]);
+    expect(celdas[2]!.classList.contains("cromo-stat--vacio")).toBe(true);
+  });
+
+  it("sin ningún atributo puntuado, la carta sale sin nota", async () => {
+    await montarFicha({ ...FICHA, jugador: { ...FICHA.jugador, media: null, atributos: {} } });
+
+    const cromo = document.querySelector(".cromo") as HTMLElement;
+    expect(cromo.classList.contains("cromo--sin-nota")).toBe(true);
+    expect(cromo.querySelector(".cromo-nota-valor")).toBeNull();
+    // La posición sigue estando: lo que falta es la valoración, no el puesto.
+    expect(cromo.querySelector(".cromo-nota-pos")!.textContent).toBe("Bloqueo");
+    expect(Array.from(document.querySelectorAll(".cromo-stat-valor")).every((n) => n.textContent === "—")).toBe(true);
+  });
+
+  it("un nivel desconocido no rompe la carta: cae a bronce", async () => {
+    // El nivel llega de la API; si algún día trae basura, la ficha no puede
+    // quedarse sin remate ni sin fondo.
+    await montarFicha({ ...FICHA, jugador: { ...FICHA.jugador, nivel: "platino" } });
+
+    const cromo = document.querySelector(".cromo") as HTMLElement;
+    expect(cromo.classList.contains("cromo--bronce")).toBe(true);
+    expect(cromo.querySelector(".cromo-corona path")).not.toBeNull();
   });
 });

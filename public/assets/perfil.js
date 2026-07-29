@@ -11,16 +11,8 @@
   const avatarDelete = fichaForm?.querySelector("[data-ficha-avatar-delete]");
   const fichaSave = fichaForm?.querySelector("[data-ficha-save]");
 
-  // Debe coincidir con functions/_lib/perfil.ts (ATRIBUTOS) y con
-  // public/assets/players-list.js. Aquí solo se leen: los pone la organización.
-  const ATRIBUTOS = [
-    { key: "saque", label: "Saque" },
-    { key: "remate", label: "Remate" },
-    { key: "bloqueo", label: "Bloqueo" },
-    { key: "defensa", label: "Defensa" },
-    { key: "recepcion", label: "Recepción" },
-    { key: "colocacion", label: "Colocación" }
-  ];
+  // La lista de atributos no se repite aquí: se le pasa a CopaCromo el objeto
+  // crudo de la API y es el cromo quien sabe sus etiquetas y abreviaturas.
 
   let perfil = null;
   let cargado = false;
@@ -72,18 +64,20 @@
 
     const pal = perfil.palmares || {};
     const sinPodios = !pal.mejorPuesto && !(pal.podios?.oro || pal.podios?.plata || pal.podios?.bronce);
-    const valores = p.atributos || {};
-    const conAtributos = ATRIBUTOS.filter((a) => valores[a.key] != null);
 
     cromoWrap.appendChild(
       window.CopaCromo.crear({
         edicion: ed ? `${ed.nombre} · ${estadoTexto(ed.estado)}` : "La Copa Arena",
+        nivel: p.nivel,
+        media: p.media,
         dorsal: p.dorsal,
         nombre,
         apodo: p.apodo,
         posicion: p.posicion,
+        equipo: teamActual?.equipoNombre,
+        mano: p.mano,
         lema: p.lema,
-        chips: [p.posicion, p.mano, teamActual?.equipoNombre],
+        atributos: p.atributos,
         // El parámetro rompe la caché tras cambiar el avatar.
         fotoUrl: p.tieneAvatar ? `/api/avatar?t=${Date.now()}` : null,
         iniciales: iniciales(jugador?.nombre, jugador?.apellidos, perfil.user?.email),
@@ -98,11 +92,6 @@
               { valor: pal.mejorPuesto != null ? `${pal.mejorPuesto}º` : "—", etiqueta: "Mejor puesto" }
             ],
             texto: sinPodios ? "Aún sin podios: la Copa 2026 está en juego." : null
-          },
-          {
-            label: "Tu juego",
-            atributos: conAtributos.map((a) => ({ label: a.label, valor: valores[a.key] })),
-            texto: conAtributos.length ? null : "La organización aún no ha puntuado tu juego."
           }
         ]
       })
@@ -199,6 +188,21 @@
     set("mano", p.mano);
     set("lema", p.lema);
     if (avatarDelete) avatarDelete.hidden = !p.tieneAvatar;
+
+    /*
+     * El cromo cuelga del jugador de una edición, no de la cuenta: quien no
+     * está en ninguna plantilla no tiene fila donde guardarlo. El endpoint
+     * responde 409, pero eso debe ser el respaldo — aquí se apaga el formulario
+     * y se explica, en vez de dejar rellenarlo para que falle al enviarlo.
+     */
+    const sinPlantilla = !perfil?.jugador;
+    fichaForm.querySelectorAll("[data-ficha-field]").forEach((node) => {
+      node.disabled = sinPlantilla;
+    });
+    if (fichaSave) fichaSave.disabled = sinPlantilla;
+    if (sinPlantilla) {
+      setFichaBanner("Tu cromo se activa cuando tu correo aparezca en una inscripción.", "info");
+    }
   }
 
   function setFichaError(name, message) {

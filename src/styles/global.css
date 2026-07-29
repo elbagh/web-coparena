@@ -16,6 +16,15 @@
   --muted: #596b68;
   --line: rgba(16, 21, 22, 0.16);
   --shadow: 0 24px 70px rgba(17, 111, 118, 0.22);
+  /* Metales del cromo. Son los mismos tres que ya usaban las medallas del
+     palmarés y el podio del ranking, que los repetían en hex por su cuenta:
+     ahora el oro está definido en un solo sitio. */
+  --metal-oro-claro: #ffe9a8;
+  --metal-oro-oscuro: var(--sun);
+  --metal-plata-claro: #f3f5f7;
+  --metal-plata-oscuro: #d7dde2;
+  --metal-bronce-claro: #f2c79b;
+  --metal-bronce-oscuro: #d98f52;
   --font-display: "Titan One", "Arial Rounded MT Bold", ui-rounded, ui-sans-serif, sans-serif;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   font-family:
@@ -2832,69 +2841,139 @@ html.js .reveal.in-view {
   font-weight: 850;
 }
 
+/*
+ * Carta coleccionable: remate por nivel, nota global, retrato, nombre y los
+ * seis atributos en rejilla 2×3. El metal se expresa con dos variables que
+ * consumen la carta y el mini-cromo del álbum, así que un nivel nuevo es una
+ * regla de tres líneas y nada más.
+ */
 .cromo {
+  --nivel-claro: var(--metal-bronce-claro);
+  --nivel-oscuro: var(--metal-bronce-oscuro);
+  /* Texto secundario sobre metal: la tinta rebajada funciona en los tres,
+     cosa que no hacía ni el coral ni el --muted. */
+  --nivel-tinta: rgba(16, 21, 22, 0.66);
+
   position: relative;
-  overflow: hidden;
+  /* Una carta coleccionable es vertical y tiene un tamaño: estirada a todo el
+     ancho de la página deja de parecerse a lo que es, y el retrato cuadrado se
+     convierte en un bloque de 750px. En móvil `100%` la deja a sangre. */
+  width: min(400px, 100%);
+  margin-inline: auto;
   border: 3px solid var(--ink);
-  border-radius: 16px;
-  background: linear-gradient(165deg, var(--foam) 0%, var(--dune) 100%);
+  border-top: 0; /* lo cierra el remate */
+  border-radius: 0 0 18px 18px;
+  background: linear-gradient(178deg, var(--nivel-oscuro) 0 6%, var(--nivel-claro) 44%, var(--nivel-oscuro) 100%);
   box-shadow: 10px 10px 0 var(--ink);
 }
 
+.cromo--plata {
+  --nivel-claro: var(--metal-plata-claro);
+  --nivel-oscuro: var(--metal-plata-oscuro);
+}
+
+.cromo--oro {
+  --nivel-claro: var(--metal-oro-claro);
+  --nivel-oscuro: var(--metal-oro-oscuro);
+}
+
+/*
+ * El remate sale a sangre sobre los 3px de borde lateral: de ahí el ancho de
+ * más y los márgenes negativos. `non-scaling-stroke` mantiene el trazo en 3px
+ * reales, así que la carta grande y el mini de la rejilla llevan el mismo
+ * grosor de tinta en vez de engordar con el tamaño.
+ */
+.cromo-corona {
+  display: block;
+  width: calc(100% + 6px);
+  height: auto;
+  margin: 0 -3px -1px;
+}
+
+.cromo-corona path {
+  fill: var(--nivel-oscuro);
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* La cabecera continúa el remate: mismo metal plano y una regla de tinta
+   abajo. Lo que sería una costura pasa a ser parte de la carta. */
 .cromo-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 18px;
+  padding: 2px 18px 14px;
   border-bottom: 3px solid var(--ink);
-  background: linear-gradient(100deg, var(--coral), var(--sun));
+  background: var(--nivel-oscuro);
+}
+
+.cromo-nota {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+
+.cromo-nota-valor {
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 12vw, 3.5rem);
+  line-height: 0.86;
+  color: var(--ink);
+}
+
+.cromo-nota-pos {
+  font-weight: 950;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* Sin nota la columna se queda solo con la posición: se centra en vez de
+   dejar el hueco de una cifra que no existe. */
+.cromo--sin-nota .cromo-top {
+  align-items: center;
+}
+
+.cromo-marca {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+  padding-top: 6px;
 }
 
 .cromo-edicion {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   color: var(--ink);
 }
 
 .cromo-dorsal {
   display: grid;
   place-items: center;
-  min-width: 46px;
-  height: 46px;
+  min-width: 42px;
+  height: 42px;
   padding: 0 10px;
   border: 2px solid var(--ink);
   border-radius: 999px;
   background: var(--foam);
   box-shadow: 2px 2px 0 var(--ink);
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
-.cromo-body {
-  display: block;
-  padding: clamp(18px, 3vw, 28px);
-}
-
-.cromo-foto-col {
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-  margin-bottom: 22px;
-}
-
-.cromo-foto {
+.cromo-retrato {
   position: relative;
-  width: min(240px, 72%);
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
-  border: 3px solid var(--ink);
-  border-radius: 12px;
+  border-bottom: 3px solid var(--ink);
   background: linear-gradient(150deg, var(--aqua), var(--lime));
-  box-shadow: 5px 5px 0 var(--ink);
 }
 
-.cromo-foto img {
+.cromo-retrato img {
   display: block;
   width: 100%;
   height: 100%;
@@ -2907,7 +2986,7 @@ html.js .reveal.in-view {
   display: grid;
   place-items: center;
   font-family: var(--font-display);
-  font-size: 3.4rem;
+  font-size: 4rem;
   color: var(--foam);
   text-shadow: 2px 2px 0 rgba(16, 21, 22, 0.35);
 }
@@ -2920,34 +2999,24 @@ html.js .reveal.in-view {
   background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.32) 49%, transparent 57%);
 }
 
-.cromo-posicion {
-  padding: 6px 14px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--sun);
-  box-shadow: 2px 2px 0 var(--ink);
-  font-weight: 950;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.cromo-info {
+.cromo-identidad {
   display: grid;
-  gap: 14px;
-  align-content: start;
+  gap: 6px;
+  justify-items: center;
+  padding: 14px 18px 12px;
+  text-align: center;
 }
 
 .cromo-nombre {
   margin: 0;
-  color: var(--deep);
-  font-size: clamp(1.7rem, 6vw, 2.3rem);
+  color: var(--ink);
+  font-size: clamp(1.6rem, 6.5vw, 2.1rem);
   line-height: 1;
 }
 
 .cromo-apodo {
-  margin: -4px 0 0;
-  color: var(--coral);
+  margin: 0;
+  color: var(--nivel-tinta);
   font-weight: 950;
   font-style: italic;
 }
@@ -2955,17 +3024,82 @@ html.js .reveal.in-view {
 .cromo-meta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
+  margin-top: 4px;
 }
 
 .cromo-chip {
   padding: 5px 12px;
   border: 2px solid var(--ink);
   border-radius: 999px;
-  background: var(--foam);
-  box-shadow: 2px 2px 0 var(--ink);
+  /* Translúcido en vez de --foam: así el chip se apoya en el metal de su nivel
+     en lugar de plantar un rectángulo crema encima de los tres. */
+  background: rgba(255, 255, 255, 0.62);
   font-weight: 900;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+}
+
+/*
+ * Los seis atributos, dos columnas de tres, con la regla vertical del medio
+ * hecha con el borde de las celdas pares. La rejilla **nunca** colapsa a una
+ * columna: esa forma es la carta.
+ */
+.cromo-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 4px 10px 14px;
+}
+
+.cromo-stat {
+  display: grid;
+  grid-template-columns: 2.1em auto;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.cromo-stat:nth-child(even) {
+  border-left: 3px solid var(--ink);
+}
+
+.cromo-stat-valor {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1;
+  text-align: right;
+  color: var(--ink);
+}
+
+.cromo-stat-clave {
+  font-weight: 950;
+  font-size: 0.86rem;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  cursor: help;
+}
+
+/* Sin puntuar: el hueco se queda, atenuado. Una rejilla desigual se lee peor
+   que una con huecos. */
+.cromo-stat--vacio {
+  opacity: 0.42;
+}
+
+.cromo-stat--vacio .cromo-stat-clave {
+  cursor: default;
+}
+
+/* Lo que es de la Copa Arena y no de una carta cualquiera: palmarés, «en
+   pista» y el lema. Sobre crema, para que se lea como un añadido y no como
+   parte de la anatomía del cromo. */
+.cromo-extra {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-top: 3px solid var(--ink);
+  background: var(--foam);
+  border-radius: 0 0 15px 15px;
 }
 
 .cromo-lema {
@@ -2973,6 +3107,7 @@ html.js .reveal.in-view {
   color: var(--muted);
   font-style: italic;
   line-height: 1.5;
+  text-align: center;
 }
 
 .cromo-block {
@@ -3029,50 +3164,19 @@ html.js .reveal.in-view {
   color: var(--muted);
 }
 
+/* Medallas del palmarés. Comparten paleta con los niveles del cromo, pero no
+   componente: aquí oro/plata/bronce significa podio, y el nivel de carta solo
+   se expresa en el metal y el remate del propio cromo. */
 .stat-tile--oro {
-  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+  background: linear-gradient(160deg, var(--metal-oro-claro), var(--metal-oro-oscuro));
 }
 
 .stat-tile--plata {
-  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+  background: linear-gradient(160deg, var(--metal-plata-claro), var(--metal-plata-oscuro));
 }
 
 .stat-tile--bronce {
-  background: linear-gradient(160deg, #f2c79b, #d98f52);
-}
-
-.atributos-view {
-  display: grid;
-  gap: 8px;
-}
-
-.atributo-row {
-  display: grid;
-  grid-template-columns: minmax(74px, auto) 1fr;
-  align-items: center;
-  gap: 10px;
-}
-
-.atributo-label {
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-
-.atributo-pips {
-  display: flex;
-  gap: 5px;
-}
-
-.pip {
-  width: 22px;
-  height: 12px;
-  border: 2px solid var(--ink);
-  border-radius: 4px;
-  background: rgba(16, 21, 22, 0.08);
-}
-
-.pip--on {
-  background: linear-gradient(160deg, var(--lime), var(--sun));
+  background: linear-gradient(160deg, var(--metal-bronce-claro), var(--metal-bronce-oscuro));
 }
 
 /* ------- pestañas ------- */
@@ -3186,15 +3290,15 @@ html.js .reveal.in-view {
 }
 
 .historial-puesto--oro {
-  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+  background: linear-gradient(160deg, var(--metal-oro-claro), var(--metal-oro-oscuro));
 }
 
 .historial-puesto--plata {
-  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+  background: linear-gradient(160deg, var(--metal-plata-claro), var(--metal-plata-oscuro));
 }
 
 .historial-puesto--bronce {
-  background: linear-gradient(160deg, #f2c79b, #d98f52);
+  background: linear-gradient(160deg, var(--metal-bronce-claro), var(--metal-bronce-oscuro));
 }
 
 .historial-puesto--otro {
@@ -3234,73 +3338,15 @@ html.js .reveal.in-view {
   gap: 8px;
 }
 
-.ficha-atributos {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.ficha-atributos legend {
-  padding: 0;
-}
-
-.atributos-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 18px;
-}
-
-.atributo-slider {
-  display: grid;
-  gap: 6px;
-}
-
-.atributo-slider-label {
-  font-size: 0.84rem;
-  font-weight: 950;
-  letter-spacing: 0.03em;
-}
-
-.atributo-slider-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.atributo-slider-control input[type="range"] {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--coral);
-}
-
-.atributo-slider-value {
-  min-width: 1.4em;
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-}
-
+/*
+ * El ancho de la carta ya está limitado en la regla base, así que aquí solo
+ * queda el ajuste de tipografía. No se pasa `.album-ficha` ni `.perfil-shell` a
+ * dos columnas a propósito: cambiaría el layout de /mi-equipo/, que es la
+ * página con más cosas alrededor, a cambio de muy poco.
+ */
 @media (min-width: 901px) {
-  .cromo-body {
-    display: grid;
-    grid-template-columns: minmax(220px, 280px) 1fr;
-    gap: 28px;
-    align-items: start;
-  }
-
-  .cromo-foto-col {
-    margin-bottom: 0;
-    justify-items: stretch;
-  }
-
-  .cromo-foto {
-    width: 100%;
-  }
-
   .cromo-nombre {
-    font-size: 2.2rem;
+    font-size: 1.95rem;
   }
 }
 
@@ -3309,9 +3355,19 @@ html.js .reveal.in-view {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .ficha-grid,
-  .atributos-grid {
+  .ficha-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* `.cromo-stats` NO entra aquí: la rejilla 2×3 no colapsa nunca. A 330px
+     interiores salen dos columnas de ~155px, de sobra para «80 SAQ», y esa
+     forma es la carta. */
+  .cromo-stat {
+    padding: 5px 6px;
+  }
+
+  .cromo-stat-valor {
+    font-size: 1.3rem;
   }
 
   .historial-head {
@@ -3384,15 +3440,31 @@ html.js .reveal.in-view {
   gap: 16px;
 }
 
+/* Mismo metal y mismo remate que la carta grande, en pequeño. Lo que NO lleva
+   son los seis atributos: a los ~173px de una columna en móvil, dos columnas
+   de «80 SAQ» dejan unos 70px por celda y no se leen. La rejilla enseña metal,
+   nota y posición; el desglose está a un toque. */
 .album-cromo {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  overflow: hidden;
+  --nivel-claro: var(--metal-bronce-claro);
+  --nivel-oscuro: var(--metal-bronce-oscuro);
+
+  display: block;
   border: 3px solid var(--ink);
-  border-radius: 14px;
-  background: linear-gradient(165deg, var(--foam) 0%, var(--dune) 100%);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(178deg, var(--nivel-oscuro) 0 8%, var(--nivel-claro) 60%, var(--nivel-oscuro) 100%);
   box-shadow: 6px 6px 0 var(--ink);
   transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.album-cromo--plata {
+  --nivel-claro: var(--metal-plata-claro);
+  --nivel-oscuro: var(--metal-plata-oscuro);
+}
+
+.album-cromo--oro {
+  --nivel-claro: var(--metal-oro-claro);
+  --nivel-oscuro: var(--metal-oro-oscuro);
 }
 
 .album-cromo:hover {
@@ -3410,8 +3482,39 @@ html.js .reveal.in-view {
   display: block;
   aspect-ratio: 4 / 5;
   overflow: hidden;
+  border-top: 3px solid var(--ink);
   border-bottom: 3px solid var(--ink);
   background: linear-gradient(150deg, var(--aqua), var(--lime));
+}
+
+/* Nota y posición en la esquina, como en la carta grande. Sobre la foto, así
+   que llevan su propia caja para no perderse en una imagen clara. */
+.album-cromo-nota {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  gap: 0;
+  justify-items: center;
+  padding: 3px 8px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--nivel-claro);
+}
+
+.album-cromo-nota-valor {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.album-cromo-nota-pos {
+  font-size: 0.54rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 
 .album-cromo-foto img {
@@ -3478,11 +3581,13 @@ html.js .reveal.in-view {
   padding: 10px 12px 12px;
 }
 
+/* Sobre metal, no sobre crema: la tinta rebajada es lo único que se lee bien
+   en bronce, plata y oro a la vez. */
 .album-cromo-nombre {
   font-weight: 950;
   font-size: 0.92rem;
   line-height: 1.15;
-  color: var(--deep);
+  color: var(--ink);
 }
 
 .album-cromo-equipo {
@@ -3490,11 +3595,11 @@ html.js .reveal.in-view {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: rgba(16, 21, 22, 0.6);
 }
 
 .album-cromo-apodo {
-  color: var(--coral);
+  color: rgba(16, 21, 22, 0.72);
   font-size: 0.76rem;
   font-style: italic;
   font-weight: 900;
@@ -3554,15 +3659,15 @@ html.js .reveal.in-view {
 }
 
 .ranking-fila--oro {
-  background: linear-gradient(160deg, #ffe9a8, var(--sun));
+  background: linear-gradient(160deg, var(--metal-oro-claro), var(--metal-oro-oscuro));
 }
 
 .ranking-fila--plata {
-  background: linear-gradient(160deg, #f3f5f7, #d7dde2);
+  background: linear-gradient(160deg, var(--metal-plata-claro), var(--metal-plata-oscuro));
 }
 
 .ranking-fila--bronce {
-  background: linear-gradient(160deg, #f2c79b, #d98f52);
+  background: linear-gradient(160deg, var(--metal-bronce-claro), var(--metal-bronce-oscuro));
 }
 
 .ranking-nombre {

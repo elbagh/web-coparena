@@ -20,7 +20,7 @@ import { edicionActual } from "../_lib/ediciones";
 import { mapEstadisticas, sumarTotales, totalesPorJugador, type Estadisticas } from "../_lib/estadisticas";
 import { fotoNoEncontrada, servirFoto } from "../_lib/fotos";
 import { json } from "../_lib/http";
-import { atributosPorJugador } from "../_lib/perfil";
+import { atributosPorJugador, mediaAtributos, NIVEL_POR_DEFECTO } from "../_lib/perfil";
 
 interface Env {
   DB: D1Database;
@@ -31,12 +31,16 @@ interface Env {
 const CACHE_PUBLICO = "public, max-age=300";
 
 /*
- * La ficha de la cuenta (apodo, dorsal, lema...) cuelga de `usuarios`, no del
- * jugador, así que se enlaza por correo. Va como subconsulta y no como JOIN
- * porque `usuarios.email` no es único (lo único único es `google_sub`) y un JOIN
- * duplicaría filas del listado.
+ * La ficha (apodo, dorsal, posición, mano, lema, nivel) ya es del jugador desde
+ * la 0023, así que sale de `jugadores` sin cruzar nada. Lo único que sigue
+ * colgando de la cuenta es el avatar de Mi zona, y de él dependen `tieneFoto` y
+ * el respaldo de `?foto=N`: por eso este enlace por correo sigue aquí, reducido
+ * a lo que de verdad hace falta.
+ *
+ * Va como subconsulta y no como JOIN porque `usuarios.email` no es único (lo
+ * único único es `google_sub`) y un JOIN duplicaría filas del listado.
  */
-const PERFIL_DEL_JUGADOR = `
+const AVATAR_DEL_JUGADOR = `
   LEFT JOIN perfiles p ON p.usuario_id = (
     SELECT u.id FROM usuarios u WHERE LOWER(TRIM(u.email)) = j.email_normalizado ORDER BY u.id ASC LIMIT 1
   )`;
@@ -55,8 +59,12 @@ interface FilaJugador {
   posicion: string | null;
   mano: string | null;
   lema: string | null;
+  nivel: string | null;
   avatar_key: string | null;
 }
+
+/** Columnas de la ficha, idénticas en el listado y en la ficha individual. */
+const COLUMNAS_FICHA = `j.apodo, j.dorsal, j.posicion, j.mano, j.lema, j.nivel`;
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const params = new URL(request.url).searchParams;
@@ -81,23 +89,30 @@ async function listado(env: Env): Promise<Response> {
       .prepare(
         `SELECT j.id, j.nombre, j.apellidos, j.red_social, j.foto_key, j.es_suplente,
                 e.id AS equipo_id, e.nombre AS equipo_nombre,
-                p.apodo, p.dorsal, p.posicion, p.mano, p.lema, p.avatar_key
+                ${COLUMNAS_FICHA}, p.avatar_key
          FROM jugadores j
          JOIN equipos e ON e.id = j.equipo_id
-         ${PERFIL_DEL_JUGADOR}
+         ${AVATAR_DEL_JUGADOR}
          WHERE j.edicion_id = ?1 AND j.oculto_publico = 0
          ORDER BY e.nombre COLLATE NOCASE ASC, j.orden ASC, j.id ASC`
       )
       .bind(edicion.id)
       .all<FilaJugador>();
 
-    const totales = await totalesPorJugador(env.DB, results.map((j) => j.id));
+    const ids = results.map((j) => j.id);
+    const [totales, atributos] = await Promise.all([
+      totalesPorJugador(env.DB, ids),
+      atributosPorJugador(env.DB, ids)
+    ]);
 
     return json(
       {
         edicion: { anio: edicion.anio, nombre: edicion.nombre, estado: edicion.estado },
+        // El listado da `nivel` y `media`, pero **no** los seis atributos
+        // crudos: la rejilla pinta el metal y la nota sin una petición por
+        // jugador, y quien quiera el desglose abre la ficha.
         jugadores: results.map((fila) => ({
-          ...identidadPublica(fila),
+          ...identidadPublica(fila, atributos.get(fila.id)),
           equipoId: fila.equipo_id,
           equipoNombre: fila.equipo_nombre,
           estadisticas: totales.get(fila.id) ?? mapEstadisticas(null)
@@ -112,7 +127,7 @@ async function listado(env: Env): Promise<Response> {
   }
 }
 
-function identidadPublica(fila: FilaJugador) {
+function identidadPublica(fila: FilaJugador, atributos?: Record<string, number>) {
   return {
     id: fila.id,
     nombre: fila.nombre,
@@ -122,6 +137,8 @@ function identidadPublica(fila: FilaJugador) {
     posicion: fila.posicion,
     mano: fila.mano,
     lema: fila.lema,
+    nivel: fila.nivel ?? NIVEL_POR_DEFECTO,
+    media: mediaAtributos(atributos),
     instagram: fila.red_social,
     esSuplente: fila.es_suplente === 1,
     tieneFoto: Boolean(fila.foto_key || fila.avatar_key)
@@ -153,10 +170,10 @@ async function ficha(env: Env, idBruto: string): Promise<Response> {
         `SELECT j.id, j.nombre, j.apellidos, j.red_social, j.foto_key, j.es_suplente,
                 j.email_normalizado, j.nombre_completo_normalizado, j.edicion_id,
                 e.id AS equipo_id, e.nombre AS equipo_nombre,
-                p.apodo, p.dorsal, p.posicion, p.mano, p.lema, p.avatar_key
+                ${COLUMNAS_FICHA}, p.avatar_key
          FROM jugadores j
          JOIN equipos e ON e.id = j.equipo_id
-         ${PERFIL_DEL_JUGADOR}
+         ${AVATAR_DEL_JUGADOR}
          WHERE j.id = ?1 AND j.oculto_publico = 0`
       )
       .bind(jugadorId)
@@ -190,7 +207,7 @@ async function ficha(env: Env, idBruto: string): Promise<Response> {
     return json(
       {
         jugador: {
-          ...identidadPublica(jugador),
+          ...identidadPublica(jugador, atributos.get(jugadorId)),
           equipoId: jugador.equipo_id,
           equipoNombre: jugador.equipo_nombre,
           atributos: atributos.get(jugadorId) ?? {}
@@ -314,7 +331,7 @@ async function servirFotoJugador(env: Env, idBruto: string): Promise<Response> {
     .prepare(
       `SELECT j.foto_key, p.avatar_key
        FROM jugadores j
-       ${PERFIL_DEL_JUGADOR}
+       ${AVATAR_DEL_JUGADOR}
        WHERE j.id = ?1 AND j.oculto_publico = 0`
     )
     .bind(jugadorId)

@@ -1,21 +1,24 @@
 // /api/admin/usuarios
 //   GET            lista de cuentas con su equipo y sus cifras
-//   GET ?id=N      ficha completa: perfil, equipos por edición y camisetas
-//   PATCH ?id=N    nombre, rol y ficha de jugador
+//   GET ?id=N      ficha completa: equipos por edición y camisetas
+//   PATCH ?id=N    nombre y rol
 //
-// Los atributos 1–5 no se tocan aquí: cuelgan del jugador de una edición, no de
-// la cuenta, y se editan en /api/admin/estadisticas.
+// **Aquí no se toca el cromo de nadie.** Ni la identidad (apodo, dorsal,
+// posición, mano, lema) ni la valoración (atributos, nivel): desde la 0023 todo
+// eso cuelga del jugador de una edición, no de la cuenta de Google. Una misma
+// persona puede tener ficha distinta en 2025 y en 2026, y quien nunca ha
+// iniciado sesión también tiene la suya. Se editan en /admin/jugadores/ y en
+// /admin/estadisticas/.
 //
 // No hay alta ni baja: las cuentas las crea Google al iniciar sesión, y
-// borrarlas se descartó a propósito (arrastraría perfil, avatar y reservas, y
-// dejaría equipos huérfanos).
+// borrarlas se descartó a propósito (arrastraría avatar y reservas, y dejaría
+// equipos huérfanos).
 //
 // El rol sustituye al viejo booleano `esAdmin`. La respuesta sigue trayendo
 // `esAdmin` derivado (rol == 'admin') porque hay sitios en el panel donde lo
 // único que importa es si esa cuenta es intocable.
 
 import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
-import { guardarPerfil, validarPerfil } from "../../_lib/perfil";
 import { CLAVES_PERMISO, ROL_ADMIN, type ContextoPermisos } from "../../_lib/permisos";
 import { limpiar, normalizarEmail } from "../../_lib/validacion";
 
@@ -40,12 +43,8 @@ interface ObjetivoRol {
   rol_clave: string | null;
 }
 
+/** De `perfiles` solo queda el avatar: sigue colgando de la cuenta. */
 interface PerfilRow {
-  apodo: string | null;
-  dorsal: number | null;
-  posicion: string | null;
-  mano: string | null;
-  lema: string | null;
   avatar_key: string | null;
 }
 
@@ -158,25 +157,12 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     binds.push(rolNuevo.id);
   }
 
-  // La ficha de jugador se guarda aparte, con las mismas reglas que /api/perfil.
-  let perfilValidado = null;
-  if (body.perfil !== undefined) {
-    const resultado = validarPerfil(body.perfil);
-    if ("campos" in resultado) {
-      return jsonAdmin({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
-    }
-    perfilValidado = resultado.perfil;
-  }
-
-  if (sets.length === 0 && !perfilValidado) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);
+  if (sets.length === 0) return jsonAdmin({ error: "No hay cambios que guardar." }, 400);
 
   try {
-    if (sets.length > 0) {
-      sets.push("updated_at = datetime('now')");
-      binds.push(usuarioId);
-      await env.DB.prepare(`UPDATE usuarios SET ${sets.join(", ")} WHERE id = ?${binds.length}`).bind(...binds).run();
-    }
-    if (perfilValidado) await guardarPerfil(env.DB, usuarioId, perfilValidado);
+    sets.push("updated_at = datetime('now')");
+    binds.push(usuarioId);
+    await env.DB.prepare(`UPDATE usuarios SET ${sets.join(", ")} WHERE id = ?${binds.length}`).bind(...binds).run();
 
     return jsonAdmin({ ok: true, usuario: await cargarFicha(env.DB, usuarioId) });
   } catch (err) {
@@ -318,7 +304,7 @@ async function cargarFicha(db: D1Database, usuarioId: number) {
 
   const [perfil, equipos, camisetas] = await Promise.all([
     db
-      .prepare("SELECT apodo, dorsal, posicion, mano, lema, avatar_key FROM perfiles WHERE usuario_id = ?1")
+      .prepare("SELECT avatar_key FROM perfiles WHERE usuario_id = ?1")
       .bind(usuarioId)
       .first<PerfilRow>(),
     // Aparecer como jugador con ese correo es la única forma de estar en un
@@ -358,13 +344,6 @@ async function cargarFicha(db: D1Database, usuarioId: number) {
     esAdmin: usuario.rol_clave === ROL_ADMIN,
     createdAt: usuario.created_at,
     tieneAvatar: Boolean(perfil?.avatar_key),
-    perfil: {
-      apodo: perfil?.apodo ?? null,
-      dorsal: perfil?.dorsal ?? null,
-      posicion: perfil?.posicion ?? null,
-      mano: perfil?.mano ?? null,
-      lema: perfil?.lema ?? null
-    },
     equipos: equipos.results.map((e) => ({
       id: e.id,
       nombre: e.nombre,

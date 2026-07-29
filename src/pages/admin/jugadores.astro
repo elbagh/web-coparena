@@ -84,6 +84,55 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
           </div>
 
           <div class="admin-field">
+            <span class="admin-label">Cromo</span>
+            <p class="admin-field-hint">
+              Lo que sale en su carta del álbum. El nivel y los atributos se ponen en Estadísticas.
+            </p>
+          </div>
+
+          <div class="admin-form-grid">
+            <div class="admin-field">
+              <label for="jugador-apodo">Apodo <span class="admin-field-hint">(opcional)</span></label>
+              <input id="jugador-apodo" class="admin-input" type="text" maxlength="40" autocomplete="off"
+                data-jugador-field="apodo" />
+              <p class="admin-field-error" data-jugador-error="apodo" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="jugador-dorsal">Dorsal <span class="admin-field-hint">(opcional)</span></label>
+              <input id="jugador-dorsal" class="admin-input" type="number" min="0" max="99" inputmode="numeric"
+                data-jugador-field="dorsal" />
+              <p class="admin-field-error" data-jugador-error="dorsal" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="jugador-posicion">Posición</label>
+              <select id="jugador-posicion" class="admin-input" data-jugador-field="posicion">
+                <option value="">Sin definir</option>
+                <option value="Bloqueo">Bloqueo</option>
+                <option value="Defensa">Defensa</option>
+                <option value="Todoterreno">Todoterreno</option>
+              </select>
+              <p class="admin-field-error" data-jugador-error="posicion" hidden></p>
+            </div>
+            <div class="admin-field">
+              <label for="jugador-mano">Mano</label>
+              <select id="jugador-mano" class="admin-input" data-jugador-field="mano">
+                <option value="">Sin definir</option>
+                <option value="Diestro">Diestro</option>
+                <option value="Zurdo">Zurdo</option>
+                <option value="Ambidiestro">Ambidiestro</option>
+              </select>
+              <p class="admin-field-error" data-jugador-error="mano" hidden></p>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <label for="jugador-lema">Lema <span class="admin-field-hint">(opcional)</span></label>
+            <input id="jugador-lema" class="admin-input" type="text" maxlength="80" autocomplete="off"
+              data-jugador-field="lema" />
+            <p class="admin-field-error" data-jugador-error="lema" hidden></p>
+          </div>
+
+          <div class="admin-field">
             <span class="admin-label">Foto</span>
             <div class="admin-photo-row">
               <img class="admin-photo-thumb admin-edit-photo" data-jugador-foto alt="" hidden />

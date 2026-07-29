@@ -9,6 +9,7 @@ import {
   crearEstadistica,
   crearPartido,
   crearUsuario,
+  fijarNivel,
   ocultarJugador,
   peticion,
   sembrarFoto
@@ -55,6 +56,56 @@ describe("GET /api/jugadores (listado)", () => {
     expect(texto).not.toContain("ana@example.com");
     expect(texto).not.toContain("telefono");
     expect(texto).not.toContain("email");
+  });
+
+  it("trae el metal y la nota, pero no los seis atributos", async () => {
+    /*
+     * La rejilla del álbum pinta un mini-cromo por persona: necesita el metal y
+     * la nota, y con eso basta. Devolver además los seis atributos de cada uno
+     * engordaría el endpoint público más golpeado para algo que solo se ve al
+     * abrir la ficha.
+     */
+    const equipo = await crearEquipo({ jugadores: [{ nombre: "Dorada" }, { nombre: "Rasa" }] });
+    await fijarNivel(equipo.jugadores[0]!.id, "oro");
+    await crearAtributos(equipo.jugadores[0]!.id, { saque: 80, remate: 90 });
+
+    const respuesta = await jugadoresGet(ctx(await peticion("/api/jugadores"), env));
+    const datos = (await respuesta.json()) as {
+      jugadores: { nombre: string; nivel: string; media: number | null; atributos?: unknown }[];
+    };
+
+    const dorada = datos.jugadores.find((j) => j.nombre === "Dorada")!;
+    expect(dorada).toMatchObject({ nivel: "oro", media: 85 });
+    expect(dorada.atributos).toBeUndefined();
+
+    // Sin puntuar: bronce y sin nota. El cromo sale entonces sin cifra.
+    expect(datos.jugadores.find((j) => j.nombre === "Rasa")).toMatchObject({ nivel: "bronce", media: null });
+  });
+
+  it("la ficha del cromo sale del jugador, no de la cuenta de Google", async () => {
+    /*
+     * Este es el test que demuestra que el corte con `perfiles` se hizo. Se
+     * siembra a propósito un perfil con OTRO apodo para el mismo correo: si el
+     * álbum volviera a cruzar por correo, saldría «El de la cuenta».
+     */
+    const user = await crearUsuario({ email: "doble@example.com" });
+    await env.DB.prepare("INSERT INTO perfiles (usuario_id, apodo, dorsal) VALUES (?1, ?2, ?3)")
+      .bind(user.id, "El De La Cuenta", 99)
+      .run();
+
+    const equipo = await crearEquipo({
+      jugadores: [{ email: user.email, apodo: "El Del Jugador", dorsal: 7, posicion: "Bloqueo", mano: "Zurdo" }, {}]
+    });
+
+    const respuesta = await jugadoresGet(ctx(await peticion(`/api/jugadores?id=${equipo.jugadores[0]!.id}`), env));
+    const datos = (await respuesta.json()) as { jugador: Record<string, unknown> };
+
+    expect(datos.jugador).toMatchObject({
+      apodo: "El Del Jugador",
+      dorsal: 7,
+      posicion: "Bloqueo",
+      mano: "Zurdo"
+    });
   });
 
   it("deja fuera a quien está oculto del álbum", async () => {
@@ -119,14 +170,18 @@ describe("GET /api/jugadores?id=N (ficha)", () => {
     expect(datos.historial[0]!.companeros.map((c) => c.nombre)).toEqual(["Compi"]);
   });
 
-  it("devuelve los atributos que puso la organización", async () => {
+  it("devuelve los atributos que puso la organización, con su nota", async () => {
     const equipo = await crearEquipo();
-    await crearAtributos(equipo.jugadores[0]!.id, { saque: 5, bloqueo: 2 });
+    await crearAtributos(equipo.jugadores[0]!.id, { saque: 88, bloqueo: 40 });
 
     const respuesta = await jugadoresGet(ctx(await peticion(`/api/jugadores?id=${equipo.jugadores[0]!.id}`), env));
-    const datos = (await respuesta.json()) as { jugador: { atributos: Record<string, number> } };
+    const datos = (await respuesta.json()) as {
+      jugador: { atributos: Record<string, number>; media: number | null };
+    };
 
-    expect(datos.jugador.atributos).toEqual({ saque: 5, bloqueo: 2 });
+    expect(datos.jugador.atributos).toEqual({ saque: 88, bloqueo: 40 });
+    // Media de lo puntuado, no de los seis: 64, no 21.
+    expect(datos.jugador.media).toBe(64);
   });
 
   it("suma la carrera a partir de todas las ediciones", async () => {
@@ -174,6 +229,12 @@ describe("GET /api/jugadores?foto=N", () => {
   });
 
   it("cae al avatar de Mi zona cuando no hay foto de inscripción", async () => {
+    /*
+     * El avatar es lo ÚNICO de `perfiles` que sigue colgando de la cuenta, y por
+     * eso el álbum conserva su enlace por correo aunque la ficha ya no lo use.
+     * Si alguien quita ese join entero, este test y el de abajo son los que lo
+     * cazan: quien solo tenga avatar pasaría a salir como «Sin cromo».
+     */
     const user = await crearUsuario({ email: "conavatar@example.com" });
     await env.DB.prepare("INSERT INTO perfiles (usuario_id, avatar_key) VALUES (?1, ?2)")
       .bind(user.id, await sembrarFoto(`avatares/${user.id}.jpg`, "avatar"))
@@ -184,6 +245,20 @@ describe("GET /api/jugadores?foto=N", () => {
 
     expect(respuesta.status).toBe(200);
     expect(await cuerpoComoTexto(respuesta)).toBe("avatar");
+  });
+
+  it("con solo avatar, el álbum sigue diciendo que tiene cromo", async () => {
+    const user = await crearUsuario({ email: "soloavatar@example.com" });
+    await env.DB.prepare("INSERT INTO perfiles (usuario_id, avatar_key) VALUES (?1, ?2)")
+      .bind(user.id, await sembrarFoto(`avatares/${user.id}.jpg`, "avatar"))
+      .run();
+    await crearEquipo({ jugadores: [{ nombre: "Retratada", email: user.email }, { nombre: "Anonima" }] });
+
+    const respuesta = await jugadoresGet(ctx(await peticion("/api/jugadores"), env));
+    const datos = (await respuesta.json()) as { jugadores: { nombre: string; tieneFoto: boolean }[] };
+
+    expect(datos.jugadores.find((j) => j.nombre === "Retratada")!.tieneFoto).toBe(true);
+    expect(datos.jugadores.find((j) => j.nombre === "Anonima")!.tieneFoto).toBe(false);
   });
 
   it("responde 404 si no hay ninguna de las dos", async () => {

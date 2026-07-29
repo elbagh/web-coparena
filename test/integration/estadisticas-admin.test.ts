@@ -32,15 +32,29 @@ describe("/api/admin/estadisticas", () => {
 
     const datos = (await respuesta.json()) as {
       metricas: { clave: string }[];
-      atributos: string[];
-      jugadores: { nombre: string; equipoNombre: string; estadisticas: Record<string, number> }[];
+      atributos: { clave: string; etiqueta: string; abrev: string }[];
+      niveles: string[];
+      jugadores: {
+        nombre: string;
+        equipoNombre: string;
+        estadisticas: Record<string, number>;
+        nivel: string;
+        media: number | null;
+      }[];
     };
 
+    // El cliente no mantiene ninguna lista: métricas, atributos y metales le
+    // llegan del servidor, con sus etiquetas y abreviaturas.
     expect(datos.metricas.map((m) => m.clave)).toContain("puntos");
-    expect(datos.atributos).toContain("saque");
+    expect(datos.atributos.map((a) => a.clave)).toContain("saque");
+    expect(datos.atributos.find((a) => a.clave === "saque")).toMatchObject({ etiqueta: "Saque", abrev: "SAQ" });
+    expect(datos.niveles).toEqual(["bronce", "plata", "oro"]);
     expect(datos.jugadores).toHaveLength(2);
     expect(datos.jugadores[0]!.equipoNombre).toBe("Los Cañones");
     expect(datos.jugadores[0]!.estadisticas.puntos).toBe(0);
+    // Recién inscrito: bronce y sin nota, porque nadie le ha puntuado nada.
+    expect(datos.jugadores[0]!.nivel).toBe("bronce");
+    expect(datos.jugadores[0]!.media).toBeNull();
   });
 
   it("guarda atributos e ignora las cifras que lleguen en el cuerpo", async () => {
@@ -54,7 +68,7 @@ describe("/api/admin/estadisticas", () => {
         await peticion(`/api/admin/estadisticas?jugador=${jugadorId}`, {
           method: "PATCH",
           user: admin,
-          json: { estadisticas: { puntos: 999, aces: 50 }, atributos: { saque: 5, bloqueo: 2 } }
+          json: { estadisticas: { puntos: 999, aces: 50 }, atributos: { saque: 88, bloqueo: 40 } }
         }),
         env
       )
@@ -62,11 +76,12 @@ describe("/api/admin/estadisticas", () => {
     expect(respuesta.status).toBe(200);
 
     const datos = (await respuesta.json()) as {
-      jugador: { estadisticas: Record<string, number>; atributos: Record<string, number> };
+      jugador: { estadisticas: Record<string, number>; atributos: Record<string, number>; media: number | null };
     };
 
     // Los atributos sí se guardan; las cifras siguen siendo las del partido.
-    expect(datos.jugador.atributos).toEqual({ saque: 5, bloqueo: 2 });
+    expect(datos.jugador.atributos).toEqual({ saque: 88, bloqueo: 40 });
+    expect(datos.jugador.media).toBe(64);
     expect(datos.jugador.estadisticas.puntos).toBe(7);
     expect(datos.jugador.estadisticas.aces).toBe(0);
 
@@ -95,18 +110,59 @@ describe("/api/admin/estadisticas", () => {
     expect(jugador.estadisticas.partidosJugados).toBe(2);
   });
 
-  it("rechaza atributos fuera de rango", async () => {
+  it("rechaza atributos fuera del 1 al 99", async () => {
     const admin = await crearAdmin();
     const equipo = await crearEquipo();
     const url = `/api/admin/estadisticas?jugador=${equipo.jugadores[0]!.id}`;
 
-    const atributos = await estadisticasPatch(
-      ctx(await peticion(url, { method: "PATCH", user: admin, json: { atributos: { saque: 9 } } }), env)
+    // Ojo al cambiar esto: con la escala vieja el caso era un 9, que hoy es un
+    // valor perfectamente legal y no probaría nada.
+    for (const saque of [0, 100, -1]) {
+      const respuesta = await estadisticasPatch(
+        ctx(await peticion(url, { method: "PATCH", user: admin, json: { atributos: { saque } } }), env)
+      );
+      expect(respuesta.status, `saque=${saque} debería rechazarse`).toBe(400);
+      expect(((await respuesta.json()) as { campos: Record<string, string> }).campos).toHaveProperty([
+        "atributos.saque"
+      ]);
+    }
+  });
+
+  it("guarda el nivel del cromo, y no lo toca si no viene", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+    const url = `/api/admin/estadisticas?jugador=${equipo.jugadores[0]!.id}`;
+
+    const ascenso = await estadisticasPatch(
+      ctx(await peticion(url, { method: "PATCH", user: admin, json: { nivel: "oro" } }), env)
     );
-    expect(atributos.status).toBe(400);
-    expect(((await atributos.json()) as { campos: Record<string, string> }).campos).toHaveProperty([
-      "atributos.saque"
-    ]);
+    expect(ascenso.status).toBe(200);
+    expect(((await ascenso.json()) as { jugador: { nivel: string } }).jugador.nivel).toBe("oro");
+
+    // Un PATCH que no menciona el nivel no puede devolver a nadie a bronce: es
+    // el mismo trato que ya tenía `ocultoPublico`.
+    const otro = await estadisticasPatch(
+      ctx(await peticion(url, { method: "PATCH", user: admin, json: { atributos: { saque: 70 } } }), env)
+    );
+    expect(((await otro.json()) as { jugador: { nivel: string } }).jugador.nivel).toBe("oro");
+  });
+
+  it("rechaza un metal que no existe", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+
+    const respuesta = await estadisticasPatch(
+      ctx(
+        await peticion(`/api/admin/estadisticas?jugador=${equipo.jugadores[0]!.id}`, {
+          method: "PATCH",
+          user: admin,
+          json: { nivel: "platino" }
+        }),
+        env
+      )
+    );
+    expect(respuesta.status).toBe(400);
+    expect(((await respuesta.json()) as { campos: Record<string, string> }).campos).toHaveProperty("nivel");
   });
 
   it("ocultar del álbum saca a la persona del listado público", async () => {
