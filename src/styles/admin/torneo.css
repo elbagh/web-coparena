@@ -594,7 +594,11 @@
   font-weight: 700;
 }
 
-.torneo-clasificacion tbody tr.is-repesca {
+/* Los dos del bote de la repesca comparten fondo y solo el que ahora mismo
+   ocupa la plaza lleva barra, igual que en la tabla pública. Si aquí saliera
+   uno solo, parecería que el otro está eliminado, y no lo está. */
+.torneo-clasificacion tbody tr.is-repesca,
+.torneo-clasificacion tbody tr.is-aspirante {
   background: color-mix(in srgb, var(--adm-warn) 14%, transparent);
 }
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ejecutarScriptPublico } from "../helpers/dom";
+import { cargarScriptPublico, ejecutarScriptPublico } from "../helpers/dom";
 
 /*
  * Lo que pinta /torneo/ en la tabla de un grupo. Importa porque quién pasa de
@@ -54,6 +54,11 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   document.body.innerHTML = MARCADO;
+
+  // Las fechas las formatea match-utils.js, que en la página va antes. Se carga
+  // el de verdad: la cabecera de cada columna se apoya en él para decidir si
+  // una sola fecha vale para todos los partidos del grupo.
+  cargarScriptPublico("match-utils.js", "CopaArenaMatches");
 
   // El script llama a estos tres sin comprobar que existan: BaseLayout garantiza
   // que directo.js va antes, y si eso cambia hay que enterarse.
@@ -154,13 +159,62 @@ describe("la tabla de un grupo en /torneo/", () => {
     expect(tercera.classList.contains("is-repesca")).toBe(false);
   });
 
-  it("la nota explica las plazas directas y la repesca", async () => {
+  it("da su propia clase a los dos que se juegan la repesca", async () => {
+    responder(
+      fase(
+        {},
+        {
+          clasificacion: [
+            fila(1, "Calvos de Orion", "directo"),
+            fila(2, "Bye Bye Bye", "directo"),
+            fila(3, "Free Copa Arena", "aspirante")
+          ]
+        }
+      )
+    );
+    await pintado();
+
+    const tercera = [...document.querySelectorAll(".torneo-tabla tbody tr")][2]!;
+    expect(tercera.classList.contains("is-aspirante")).toBe(true);
+    expect(tercera.classList.contains("is-repesca")).toBe(false);
+  });
+
+  /*
+   * El color es lo que se ve, pero no puede ser lo único que lo diga: sin este
+   * texto, quien no distingue el verde del ámbar tiene una tabla en la que no
+   * pasa nada.
+   */
+  it("cada fila con color lleva escrito lo que ese color significa", async () => {
+    responder(
+      fase(
+        {},
+        {
+          clasificacion: [
+            fila(1, "Calvos de Orion", "directo"),
+            fila(2, "Bye Bye Bye", "repesca"),
+            fila(3, "Free Copa Arena", "aspirante")
+          ]
+        }
+      )
+    );
+    await pintado();
+
+    const textos = [...document.querySelectorAll(".torneo-tabla tbody tr")].map(
+      (tr) => tr.querySelector(".sr-only")?.textContent?.trim() ?? ""
+    );
+    expect(textos[0]).toBe("Pasa al cuadro.");
+    expect(textos[1]).toBe("Ahora mismo ocupa la plaza de repesca.");
+    expect(textos[2]).toBe("Se juega la plaza de repesca.");
+  });
+
+  it("la nota del grupo se queda en su cupo, que es lo que cambia de un grupo a otro", async () => {
     responder(fase());
     await pintado();
 
     const nota = [...document.querySelectorAll(".torneo-nota")].map((n) => n.textContent).join(" ");
-    expect(nota).toContain("Pasan los 2 primeros de este grupo.");
-    expect(nota).toContain("Una plaza más se decide");
+    expect(nota).toContain("Pasan los 2 primeros.");
+    // Lo de la repesca lo cuenta la leyenda, una vez, y no cada columna.
+    expect(nota).not.toContain("se decide");
   });
 
   it("un grupo con su propio cupo lo dice, y no el de la fase", async () => {
@@ -168,18 +222,150 @@ describe("la tabla de un grupo en /torneo/", () => {
     await pintado();
 
     const nota = [...document.querySelectorAll(".torneo-nota")].map((n) => n.textContent).join(" ");
-    expect(nota).toContain("Pasan los 3 primeros de este grupo.");
-    // Fuera del bote, la frase de la repesca no aplica a este grupo.
-    expect(nota).not.toContain("Una plaza más se decide");
+    expect(nota).toContain("Pasan los 3 primeros.");
   });
 
-  it("sin repesca en la fase, la nota se queda en las plazas directas", async () => {
+  it("la leyenda explica los dos colores una sola vez para toda la fase", async () => {
+    responder(fase());
+    await pintado();
+
+    const leyendas = document.querySelectorAll(".torneo-leyenda");
+    expect(leyendas).toHaveLength(1);
+    expect(leyendas[0]!.textContent).toContain("Pasa al cuadro");
+    expect(leyendas[0]!.textContent).toContain("Se juega la última plaza");
+    expect(document.querySelectorAll(".torneo-leyenda-muestra.is-repesca")).toHaveLength(1);
+  });
+
+  it("sin repesca en la fase, la leyenda se queda solo con el verde", async () => {
     responder(fase({ repesca: 0 }));
     await pintado();
 
-    const nota = [...document.querySelectorAll(".torneo-nota")].map((n) => n.textContent).join(" ");
-    expect(nota).toContain("Pasan los 2 primeros de este grupo.");
-    expect(nota).not.toContain("se decide");
+    const leyenda = document.querySelector(".torneo-leyenda")!;
+    expect(leyenda.textContent).toContain("Pasa al cuadro");
+    expect(leyenda.textContent).not.toContain("plaza");
+    expect(document.querySelectorAll(".torneo-leyenda-muestra.is-repesca")).toHaveLength(0);
+  });
+
+  it("si ningún grupo entra al bote, tampoco se anuncia la repesca", async () => {
+    responder(fase({}, { enRepesca: false }));
+    await pintado();
+
+    expect(document.querySelectorAll(".torneo-leyenda-muestra.is-repesca")).toHaveLength(0);
+  });
+});
+
+/*
+ * Cada grupo es una columna: su clasificación y debajo sus partidos, que son
+ * los de una sola tarde. De ahí que la fecha y la pista suban a la cabecera
+ * cuando toda la columna las comparte — repetidas en cada tarjeta eran una
+ * línea por partido para decir seis veces lo mismo.
+ */
+describe("los grupos en columnas", () => {
+  const utils = () => (window as unknown as { CopaArenaMatches: Record<string, (v: string) => string> }).CopaArenaMatches;
+
+  const partido = (id: string, ronda: string, scheduledAt: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    ronda,
+    grupoId: 1,
+    rondaOrden: null,
+    posicion: null,
+    scheduledAt,
+    pista: "Pista central",
+    status: "scheduled",
+    sets: { A: 0, B: 0 },
+    points: { A: 0, B: 0 },
+    history: [],
+    winner: null,
+    teams: { A: { id: 10, name: "Calvos de Orion" }, B: { id: 20, name: "Bye Bye Bye" } },
+    ...extra
+  });
+
+  const grupoConPartidos = (nombre: string, id: number) => ({
+    id,
+    nombre,
+    orden: 0,
+    clasifican: 2,
+    enRepesca: true,
+    equipos: [{ id: 10 }, { id: 20 }],
+    clasificacion: [fila(1, "Calvos de Orion", "directo"), fila(2, "Bye Bye Bye", null)]
+  });
+
+  const faseCon = (grupos: Record<string, unknown>[], partidos: Record<string, unknown>[]) => ({
+    id: 1,
+    clave: "grupos",
+    nombre: "Fase de grupos",
+    tipo: "grupos",
+    orden: 0,
+    clasifican: 2,
+    repesca: 1,
+    grupos,
+    partidos
+  });
+
+  it("mete un bloque por grupo en la rejilla", async () => {
+    responder(
+      faseCon([grupoConPartidos("A", 1), grupoConPartidos("B", 2), grupoConPartidos("C", 3)], [])
+    );
+    await pintado();
+
+    const rejilla = document.querySelectorAll(".torneo-grupos");
+    expect(rejilla).toHaveLength(1);
+    expect(rejilla[0]!.querySelectorAll(".torneo-grupo-publico")).toHaveLength(3);
+    expect(document.querySelector(".torneo-grupo-letra")!.textContent).toBe("A");
+  });
+
+  it("sube la fecha y la pista a la cabecera y deja en la tarjeta solo la hora", async () => {
+    const primero = "2026-08-01T16:30";
+    responder(
+      faseCon(
+        [grupoConPartidos("A", 1)],
+        [partido("p1", "A · jornada 1", primero), partido("p2", "A · jornada 2", "2026-08-01T17:20")]
+      )
+    );
+    await pintado();
+
+    const cabecera = document.querySelector(".torneo-grupo-cuando")!;
+    expect(cabecera.textContent).toContain(utils().formatDate(primero));
+    expect(cabecera.textContent).toContain("Pista central");
+
+    const horas = [...document.querySelectorAll(".torneo-partido-hora")].map((n) => n.textContent);
+    expect(horas).toEqual([utils().formatTime(primero), utils().formatTime("2026-08-01T17:20")]);
+    // Y no la fecha larga, que es de lo que se trataba.
+    expect(horas[0]).not.toBe(utils().formatDateTime(primero));
+    // La pista se dice una vez, arriba, y no una por partido.
+    expect(document.body.textContent!.match(/Pista central/g)).toHaveLength(1);
+  });
+
+  it("si el grupo se parte en dos tardes, cada partido recupera su fecha", async () => {
+    const primero = "2026-08-01T16:30";
+    responder(
+      faseCon(
+        [grupoConPartidos("A", 1)],
+        [partido("p1", "A · jornada 1", primero), partido("p2", "A · jornada 2", "2026-08-02T17:20")]
+      )
+    );
+    await pintado();
+
+    expect(document.querySelector(".torneo-grupo-cuando")).toBeNull();
+    const horas = [...document.querySelectorAll(".torneo-partido-hora")].map((n) => n.textContent);
+    expect(horas[0]).toBe(utils().formatDateTime(primero));
+  });
+
+  it("la tarjeta no repite el nombre del grupo, que ya está en la cabecera", async () => {
+    responder(faseCon([grupoConPartidos("A", 1)], [partido("p1", "A · jornada 1", "2026-08-01T16:30")]));
+    await pintado();
+
+    const meta = document.querySelector(".torneo-partido.is-compacto .torneo-partido-meta")!;
+    expect(meta.textContent).toContain("jornada 1");
+    expect(meta.textContent).not.toContain("A · jornada 1");
+  });
+
+  it("una ronda que no empieza por el nombre del grupo se deja tal cual", async () => {
+    responder(faseCon([grupoConPartidos("A", 1)], [partido("p1", "Repesca", "2026-08-01T16:30")]));
+    await pintado();
+
+    const meta = document.querySelector(".torneo-partido.is-compacto .torneo-partido-meta")!;
+    expect(meta.textContent).toContain("Repesca");
   });
 });
 
