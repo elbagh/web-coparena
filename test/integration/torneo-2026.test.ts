@@ -206,78 +206,61 @@ beforeEach(() => {
   idDeGrupo.clear();
 });
 
+/*
+ * Tres tests y no ocho, a propósito. Cada uno rehace la edición entera porque el
+ * setup vacía las tablas entre tests, así que partir esto en un test por
+ * aserción multiplicaba el montaje más caro de la suite y desbordaba por timeout
+ * a los tests vecinos cuando los tres proyectos corren a la vez.
+ */
 describe("programar el torneo 2026", () => {
-  it("el calendario de los tres grupos da 22 partidos: 6 + 6 + 10", async () => {
+  it("el calendario da 22 partidos y cada grupo se los queda con SUS reglas", async () => {
     const fase = await programarGrupos();
 
-    const porGrupo = (nombre: string) =>
-      fase.partidos.filter((p) => p.grupoId === idDeGrupo.get(nombre)).length;
+    const deGrupo = (nombre: string) => fase.partidos.filter((p) => p.grupoId === idDeGrupo.get(nombre));
 
-    expect(porGrupo("A")).toBe(6);
-    expect(porGrupo("B")).toBe(6);
-    expect(porGrupo("C")).toBe(10);
+    // 6 + 6 + 10: dos grupos de cuatro y uno de cinco, todos contra todos.
+    expect(deGrupo("A")).toHaveLength(6);
+    expect(deGrupo("B")).toHaveLength(6);
+    expect(deGrupo("C")).toHaveLength(10);
     expect(fase.partidos).toHaveLength(22);
+
+    // Las reglas del partido son una foto congelada, no un puntero a la fase.
+    // Los de cuatro heredan (al mejor de tres a 15); el de cinco sobrescribe.
+    expect(deGrupo("A")[0]!.reglas).toMatchObject({ sets: 2, puntosPorSet: 15 });
+    expect(deGrupo("B")[0]!.reglas).toMatchObject({ sets: 2, puntosPorSet: 15 });
+    expect(deGrupo("C")[0]!.reglas).toMatchObject({ sets: 1, puntosPorSet: 21 });
   });
 
-  it("cada grupo se lleva sus reglas, y el partido se las queda congeladas", async () => {
-    const fase = await programarGrupos();
-
-    const reglasDe = (nombre: string) =>
-      fase.partidos.find((p) => p.grupoId === idDeGrupo.get(nombre))!.reglas;
-
-    // Los de cuatro heredan de la fase: al mejor de tres a 15.
-    expect(reglasDe("A")).toMatchObject({ sets: 2, puntosPorSet: 15 });
-    expect(reglasDe("B")).toMatchObject({ sets: 2, puntosPorSet: 15 });
-    // El de cinco sobrescribe: un set a 21.
-    expect(reglasDe("C")).toMatchObject({ sets: 1, puntosPorSet: 21 });
-  });
-
-  it("el grupo de cinco puntúa 3-0 pese a jugarse a un solo set", async () => {
+  it("de los grupos salen 8: 2 + 2 + 3 directos y 1 de repesca entre los terceros de A y B", async () => {
     await programarGrupos();
     await jugarLosGrupos();
 
     const fase = (await leerTorneo()).find((f) => f.clave === "grupos")!;
     const c = fase.grupos.find((g) => g.nombre === "C")!;
 
-    // Cuatro partidos, cuatro victorias: 12 y no 8, que es lo que saldría con
-    // los valores «ajustados» sin el override.
+    /*
+     * Cuatro partidos, cuatro victorias: 12 puntos y no 8. Con `sets: 1` todo
+     * partido cuenta como resuelto en el set decisivo, así que sin el bloque
+     * `clasificacion` propio del grupo puntuaría con los valores «ajustados».
+     */
     expect(c.clasificacion[0]).toMatchObject({ nombre: "Showtime", puntos: 12 });
     expect(c.clasificacion.at(-1)).toMatchObject({ nombre: "Alejo Mouris", puntos: 0 });
-  });
 
-  it("clasifican 8: 2 + 2 + 3 directos y 1 de repesca entre los terceros de A y B", async () => {
-    await programarGrupos();
-    await jugarLosGrupos();
-
-    const fase = (await leerTorneo()).find((f) => f.clave === "grupos")!;
     const filas = fase.grupos.flatMap((g) => g.clasificacion);
-
     const directos = filas.filter((f) => f.clasifica === "directo").map((f) => f.nombre);
     const repescados = filas.filter((f) => f.clasifica === "repesca").map((f) => f.nombre);
 
-    expect(directos).toHaveLength(7);
-    expect(repescados).toHaveLength(1);
     expect(directos.length + repescados.length).toBe(8);
-
-    // Los dos primeros de A y B, y los tres primeros de C.
     expect(directos.sort()).toEqual(
       ["Bye Bye Bye", "Calvos de Orion", "Dosilva", "Kylian dictador", "Limens", "Los Julais", "Showtime"].sort()
     );
     // El tercero de A gana la repesca al de B: mismos puntos, mejor ratio.
     expect(repescados).toEqual(["Free Copa Arena"]);
-  });
 
-  it("el grupo de cinco no aporta candidatos a la repesca", async () => {
-    await programarGrupos();
-    await jugarLosGrupos();
-
-    const fase = (await leerTorneo()).find((f) => f.clave === "grupos")!;
-    const c = fase.grupos.find((g) => g.nombre === "C")!;
-
+    // Y el de cinco no aporta candidatos: juega otro formato, sus puntos no son
+    // comparables. Su cuarto se queda fuera aunque puntúe más que el tercero de A.
     expect(c.enRepesca).toBe(false);
     expect(c.clasificanPropio).toBe(3);
-    // El cuarto de C no pasa aunque tenga más puntos que el tercero de A: juega
-    // otro formato y sus puntos no son comparables.
     expect(c.clasificacion[3]!.clasifica).toBeNull();
   });
 

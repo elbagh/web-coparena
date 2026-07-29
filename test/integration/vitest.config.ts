@@ -33,6 +33,16 @@ export default defineConfig({
     name: "integration",
     root: import.meta.dirname,
     include: ["**/*.test.ts"],
-    setupFiles: ["./setup.ts"]
+    setupFiles: ["./setup.ts"],
+    /*
+     * Los 5 s por defecto de vitest son para tests puros. Aquí cada test levanta
+     * workerd, aplica migraciones, escribe en D1 de verdad y encima el setup
+     * vacía y resiembra las tablas entre tests. Varios rondaban los 5 s y solo
+     * caían cuando `unit`, `integration` y `e2e` competían por la máquina: un
+     * rojo que no dice nada del código y que esconde los que sí.
+     *
+     * 20 s da margen sin dejar de cazar un test colgado de verdad.
+     */
+    testTimeout: 20000
   }
 });
