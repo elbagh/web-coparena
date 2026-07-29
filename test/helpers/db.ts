@@ -52,6 +52,7 @@ export const crearAdmin = (opciones: OpcionesUsuario = {}) => crearUsuario({ ...
 export interface JugadorSemilla {
   nombre?: string;
   apellidos?: string;
+  /** `""` siembra un jugador sin móvil. */
   telefono?: string;
   email?: string | null;
   redSocial?: string | null;
@@ -62,13 +63,15 @@ export interface EquipoSembrado {
   id: number;
   nombre: string;
   edicionId: number | null;
+  capitanId: number | null;
   jugadores: { id: number; nombre: string; apellidos: string; telefono: string; email: string | null }[];
 }
 
 export interface OpcionesEquipo {
   nombre?: string;
   jugadores?: JugadorSemilla[];
-  ownerUserId?: number;
+  /** Índice del jugador que es capitán. Por defecto, el primero. */
+  capitan?: number;
   fotoKey?: string | null;
   /** Por defecto, la edición actual. Se pasa para sembrar historial. */
   edicionId?: number;
@@ -108,14 +111,13 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
     null;
 
   const equipo = await env.DB.prepare(
-    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id, foto_key, posicion_final)
-     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5, ?6)
+    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, edicion_id, foto_key, posicion_final)
+     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5)
      RETURNING id, edicion_id`
   )
     .bind(
       nombre,
       normalizarTexto(nombre),
-      opciones.ownerUserId ?? null,
       edicionId,
       opciones.fotoKey ?? null,
       opciones.posicionFinal ?? null
@@ -160,7 +162,15 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
     jugadores.push({ id: fila!.id, nombre: nombreJ, apellidos: apellidosJ, telefono, email });
   }
 
-  return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, jugadores };
+  // El capitán se fija al final: hasta aquí no existen los ids de jugador.
+  const capitan = jugadores[opciones.capitan ?? 0];
+  if (capitan) {
+    await env.DB.prepare("UPDATE equipos SET capitan_jugador_id = ?1 WHERE id = ?2")
+      .bind(capitan.id, equipo!.id)
+      .run();
+  }
+
+  return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, capitanId: capitan?.id ?? null, jugadores };
 }
 
 /**

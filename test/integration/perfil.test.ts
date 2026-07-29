@@ -13,7 +13,7 @@ import { crearAtributos, crearEquipo, crearEstadistica, crearUsuario, peticion }
 describe("GET /api/perfil", () => {
   it("devuelve los atributos que puso la organización y las estadísticas de la edición", async () => {
     const user = await crearUsuario({ email: "capi@example.com" });
-    const equipo = await crearEquipo({ ownerUserId: user.id, jugadores: [{ email: "capi@example.com" }, {}] });
+    const equipo = await crearEquipo({ jugadores: [{ email: user.email }, {}] });
     await crearAtributos(equipo.jugadores[0]!.id, { saque: 5, defensa: 3 });
     await crearEstadistica(equipo.jugadores[0]!.id, { puntos: 9, aces: 2 });
 

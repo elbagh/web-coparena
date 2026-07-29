@@ -121,6 +121,10 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         <header class="player-head">
           <span class="player-dorsal" data-dorsal aria-hidden="true">1</span>
           <span class="player-role" data-role>Titular</span>
+          <label class="player-capitan-pick">
+            <input type="radio" name="capitan" data-capitan-radio />
+            <span>Capitán</span>
+          </label>
           <div class="admin-player-order">
             <button type="button" data-move-up aria-label="Subir en el orden">↑</button>
             <button type="button" data-move-down aria-label="Bajar en el orden">↓</button>

@@ -32,7 +32,6 @@ async function usuarioConFotoDeInscripcion(email = "capitana@example.com") {
   const user = await crearUsuario({ email });
   const foto = await sembrarFoto("equipos/lote-1/jugador-1.jpg", "bytes");
   await crearEquipo({
-    ownerUserId: user.id,
     jugadores: [{ nombre: "Ana", apellidos: "Ferro", email, fotoKey: foto }, {}]
   });
   return { user, foto };

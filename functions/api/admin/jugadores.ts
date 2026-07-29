@@ -23,6 +23,7 @@ import { limpiarFotos, subirFoto, type ExtensionFoto } from "../../_lib/fotos";
 import { capitalizarPropio } from "../../_lib/nombres";
 import {
   MAX_BODY_BYTES,
+  MENSAJE_CAPITAN_CONTACTO,
   limpiar,
   normalizarEmail,
   normalizarTelefono,
@@ -122,6 +123,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
     return jsonAdmin({ error: "Ese equipo ya no existe.", campos: { equipoId: "Elige un equipo válido." } }, 400);
   }
 
+  // La fila es nueva: nunca puede ser la que ya manda en un equipo.
   const validado = validarJugador(valores);
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
@@ -201,7 +203,10 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   if (datos instanceof Response) return datos;
   const { campos: valores, foto, eliminarFoto } = datos;
 
-  const validado = validarJugador(valores);
+  const esCapitan = Boolean(
+    await env.DB.prepare("SELECT 1 FROM equipos WHERE capitan_jugador_id = ?1").bind(jugadorId).first()
+  );
+  const validado = validarJugador(valores, { esCapitan });
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
   // Cambio de equipo: el jugador hereda la edición del equipo de destino y se
@@ -225,6 +230,22 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
       equipoDestino = nuevo;
       edicionDestino = equipo.edicion_id;
     }
+  }
+
+  const cambioDeEquipo = equipoDestino !== actual.equipo_id;
+
+  // Mover al capitán a otro equipo dejaría a su equipo apuntando a alguien que
+  // ya no está en la plantilla. Primero se cede el mando. Se comprueba antes
+  // de duplicados y de subir la foto para no tener que deshacer nada si se
+  // corta aquí.
+  if (cambioDeEquipo && esCapitan) {
+    return jsonAdmin(
+      {
+        error: "Es el capitán de su equipo. Nombra antes a otro capitán desde el editor del equipo.",
+        campos: { equipoId: "No se puede mover al capitán." }
+      },
+      409
+    );
   }
 
   const duplicados = await buscarDuplicados(
@@ -251,7 +272,6 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     claveNueva = null;
   }
 
-  const cambioDeEquipo = equipoDestino !== actual.equipo_id;
   const sets = [
     "nombre = ?1",
     "apellidos = ?2",
@@ -317,6 +337,20 @@ export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env })
     .bind(jugadorId)
     .first<{ id: number; foto_key: string | null }>();
   if (!jugador) return jsonAdmin({ error: "Ese jugador ya no existe." }, 404);
+
+  const capitanea = await env.DB
+    .prepare("SELECT id FROM equipos WHERE capitan_jugador_id = ?1")
+    .bind(jugadorId)
+    .first<{ id: number }>();
+  if (capitanea) {
+    return jsonAdmin(
+      {
+        error:
+          "Es el capitán de su equipo. Nombra antes a otro capitán desde el editor del equipo y vuelve a intentarlo."
+      },
+      409
+    );
+  }
 
   try {
     await env.DB.prepare("DELETE FROM jugadores WHERE id = ?1").bind(jugadorId).run();
@@ -409,7 +443,8 @@ interface JugadorSaneado {
  * aquélla porque exige un equipo entero con mínimo dos jugadores.
  */
 function validarJugador(
-  valores: Record<string, string | undefined>
+  valores: Record<string, string | undefined>,
+  opciones: { esCapitan?: boolean } = {}
 ): { jugador: JugadorSaneado } | { campos: Record<string, string> } {
   const campos: Record<string, string> = {};
 
@@ -423,15 +458,23 @@ function validarJugador(
     campos.apellidos = "Introduce los apellidos (solo letras, entre 2 y 80 caracteres).";
   }
 
+  // Móvil y correo solo son obligatorios para el capitán: es el contacto del
+  // equipo y quien puede editarlo. Del resto, quien no los dé se queda fuera
+  // del grupo y de los avisos, y eso ya se advierte en los formularios.
   const telefono = limpiar(valores.telefono);
-  const telefonoNormalizado = normalizarTelefono(telefono);
-  if (!MOVIL_PATTERN.test(telefonoNormalizado)) {
+  const telefonoNormalizado = telefono ? normalizarTelefono(telefono) : "";
+  if (!telefono) {
+    if (opciones.esCapitan) campos.telefono = MENSAJE_CAPITAN_CONTACTO;
+  } else if (!MOVIL_PATTERN.test(telefonoNormalizado)) {
     campos.telefono = "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos).";
   }
 
   const emailRaw = limpiar(valores.email);
-  if (!emailRaw) campos.email = "El correo de cada jugador es obligatorio.";
-  else if (!EMAIL_PATTERN.test(emailRaw) || emailRaw.length > 120) campos.email = "Ese correo no parece válido.";
+  if (!emailRaw) {
+    if (opciones.esCapitan) campos.email = MENSAJE_CAPITAN_CONTACTO;
+  } else if (!EMAIL_PATTERN.test(emailRaw) || emailRaw.length > 120) {
+    campos.email = "Ese correo no parece válido.";
+  }
 
   const redSocialRaw = limpiar(valores.redSocial);
   if (redSocialRaw && (redSocialRaw.length > 120 || !(HANDLE_PATTERN.test(redSocialRaw) || URL_SOCIAL_PATTERN.test(redSocialRaw)))) {
@@ -447,8 +490,8 @@ function validarJugador(
       nombreCompletoNormalizado: normalizarTexto(`${nombre} ${apellidos}`),
       telefono,
       telefonoNormalizado,
-      email: emailRaw,
-      emailNormalizado: normalizarEmail(emailRaw),
+      email: emailRaw || null,
+      emailNormalizado: emailRaw ? normalizarEmail(emailRaw) : null,
       redSocial: redSocialRaw || null
     }
   };
@@ -470,7 +513,9 @@ async function buscarDuplicados(
     .prepare(
       `SELECT nombre_completo_normalizado, telefono_normalizado, email_normalizado
        FROM jugadores
-       WHERE (nombre_completo_normalizado = ?1 OR telefono_normalizado = ?2 OR email_normalizado = ?3)
+       WHERE (nombre_completo_normalizado = ?1
+              OR (?2 <> '' AND telefono_normalizado = ?2)
+              OR (?3 IS NOT NULL AND email_normalizado = ?3))
          AND id <> ?4 AND edicion_id IS ?5`
     )
     .bind(
@@ -486,7 +531,7 @@ async function buscarDuplicados(
     if (fila.nombre_completo_normalizado === jugador.nombreCompletoNormalizado) {
       campos.nombre = "Esta persona ya está inscrita en otro equipo.";
     }
-    if (fila.telefono_normalizado === jugador.telefonoNormalizado) {
+    if (jugador.telefonoNormalizado && fila.telefono_normalizado === jugador.telefonoNormalizado) {
       campos.telefono = "Este móvil ya está registrado en otra inscripción.";
     }
     if (jugador.emailNormalizado && fila.email_normalizado === jugador.emailNormalizado) {

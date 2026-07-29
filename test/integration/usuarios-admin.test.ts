@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { onRequestPatch } from "../../functions/api/admin/usuarios";
+import { onRequestGet, onRequestPatch } from "../../functions/api/admin/usuarios";
 import type { UsuarioSesion } from "../../functions/_lib/auth";
 import { ctx } from "../helpers/ctx";
-import { crearAdmin, crearUsuario, peticion } from "../helpers/db";
+import { crearAdmin, crearEdicion, crearEquipo, crearUsuario, peticion } from "../helpers/db";
 
 /*
  * Los candados sobre is_admin. Si fallan, el panel puede quedarse sin ningún
@@ -156,5 +156,38 @@ describe("acceso y validación del endpoint", () => {
     const admin = await crearAdmin();
     const user = await crearUsuario();
     expect((await cambiar(admin, user.id, {})).status).toBe(400);
+  });
+});
+
+describe("GET /api/admin/usuarios: equipo del listado", () => {
+  // owner_user_id tenía un índice UNIQUE global: una cuenta era dueña de un
+  // equipo para siempre. capitan_jugador_id no lo tiene —la migración 0010
+  // habilitó a propósito volver a inscribirse cada edición— así que el
+  // listado tiene que elegir el equipo más reciente, no el primero que
+  // encuentre.
+  it("muestra el equipo más reciente cuando la cuenta ha capitaneado más de uno", async () => {
+    const admin = await crearAdmin();
+    const capitana = await crearUsuario({ email: "capitana@example.com" });
+
+    const edicionAnterior = await crearEdicion();
+    await crearEquipo({
+      nombre: "Equipo Viejo",
+      jugadores: [{ email: capitana.email }, {}],
+      edicionId: edicionAnterior.id
+    });
+    const reciente = await crearEquipo({
+      nombre: "Equipo Nuevo",
+      jugadores: [{ email: capitana.email }, {}]
+    });
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/admin/usuarios", { user: admin }), env));
+    expect(respuesta.status).toBe(200);
+
+    const cuerpo = (await respuesta.json()) as {
+      usuarios: { id: number; equipoId: number | null; equipoNombre: string | null }[];
+    };
+    const fila = cuerpo.usuarios.find((u) => u.id === capitana.id);
+    expect(fila?.equipoId).toBe(reciente.id);
+    expect(fila?.equipoNombre).toBe("Equipo Nuevo");
   });
 });

@@ -22,8 +22,9 @@ import { crearEquipo, crearUsuario, peticion, type EquipoSembrado } from "../hel
 const RUTA = "/api/mi-equipo";
 
 /** El cuerpo que manda el editor: la plantilla tal cual, con los ids. */
-const payloadDe = (equipo: EquipoSembrado, nombre = equipo.nombre) => ({
+const payloadDe = (equipo: EquipoSembrado, nombre = equipo.nombre, capitan = 0) => ({
   equipo: nombre,
+  capitan,
   jugadores: equipo.jugadores.map((j) => ({
     id: j.id,
     nombre: j.nombre,
@@ -51,8 +52,7 @@ async function equipoConMiembro() {
     jugadores: [
       { nombre: "Ana", apellidos: "Ferro", email: "duena@example.com" },
       { nombre: "Bea", apellidos: "Louro", email: "miembro@example.com" }
-    ],
-    ownerUserId: dueño.id
+    ]
   });
   return { dueño, miembro, equipo };
 }
@@ -77,7 +77,7 @@ describe("PATCH /api/mi-equipo", () => {
     );
 
     expect(respuesta.status).toBe(403);
-    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("inscribió") });
+    expect(await respuesta.json()).toMatchObject({ error: expect.stringContaining("capitán") });
     expect(await nombreDe(equipo.id), "el equipo no debería haber cambiado").toBe(equipo.nombre);
   });
 
@@ -102,6 +102,171 @@ describe("PATCH /api/mi-equipo", () => {
     );
 
     expect(respuesta.status).toBe(404);
+  });
+});
+
+const basico = (j: { id: number; nombre: string; apellidos: string; telefono: string; email: string | null }) => ({
+  id: j.id,
+  nombre: j.nombre,
+  apellidos: j.apellidos,
+  telefono: j.telefono,
+  email: j.email ?? ""
+});
+
+describe("cesión del mando", () => {
+  it("el capitán cede a otro jugador y deja de poder guardar", async () => {
+    const capi = await crearUsuario({ email: "capi@example.com" });
+    const relevo = await crearUsuario({ email: "relevo@example.com" });
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Ana", apellidos: "Fernandez", email: capi.email, telefono: "600111222" },
+        { nombre: "Bruno", apellidos: "Lopez", email: relevo.email, telefono: "600333444" }
+      ]
+    });
+
+    const cesion = await onRequestPatch(
+      ctx(await peticion("/api/mi-equipo", { method: "PATCH", user: capi, json: payloadDe(equipo, equipo.nombre, 1) }), env)
+    );
+    expect(cesion.status).toBe(200);
+
+    const fila = await env.DB
+      .prepare("SELECT capitan_jugador_id FROM equipos WHERE id = ?1")
+      .bind(equipo.id)
+      .first<{ capitan_jugador_id: number }>();
+    expect(fila?.capitan_jugador_id).toBe(equipo.jugadores[1]!.id);
+
+    // El anterior capitán ya no manda.
+    const segundoIntento = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: { equipo: "Otro nombre", capitan: 0, jugadores: [] }
+        }),
+        env
+      )
+    );
+    expect(segundoIntento.status).toBe(403);
+  });
+
+  // sigueMandando solo aplica la guarda anti-cesión-encubierta cuando el
+  // capitán del registro tiene el mismo id que el actual. Una fila NUEVA (sin
+  // id) nunca lo tiene, así que se trata como cesión desde el primer momento
+  // — que es justo lo que el diseño permite: designar capitán a alguien que
+  // entra en la misma plantilla que se guarda.
+  it("cede a un jugador nuevo, sin id, en el mismo guardado que lo da de alta", async () => {
+    const capi = await crearUsuario({ email: "capi5@example.com" });
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Hugo", apellidos: "Rial", email: capi.email, telefono: "600111222" },
+        { nombre: "Iria", apellidos: "Pena", telefono: "600333444" }
+      ]
+    });
+
+    const respuesta = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: {
+            equipo: equipo.nombre,
+            capitan: 2,
+            jugadores: [
+              basico(equipo.jugadores[0]!),
+              basico(equipo.jugadores[1]!),
+              { nombre: "Jon", apellidos: "Etxe", telefono: "600555777", email: "jon@example.com" }
+            ]
+          }
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(200);
+    const cuerpo = (await respuesta.json()) as { team: { jugadores: { id: number; nombre: string }[] } };
+    const jon = cuerpo.team.jugadores.find((j) => j.nombre === "Jon");
+    expect(jon).toBeDefined();
+
+    const fila = await env.DB
+      .prepare("SELECT capitan_jugador_id FROM equipos WHERE id = ?1")
+      .bind(equipo.id)
+      .first<{ capitan_jugador_id: number }>();
+    expect(fila?.capitan_jugador_id).toBe(jon!.id);
+
+    // El capitán original ya no manda.
+    const segundoIntento = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: { equipo: "Otro nombre", capitan: 0, jugadores: [] }
+        }),
+        env
+      )
+    );
+    expect(segundoIntento.status).toBe(403);
+  });
+
+  it("no deja cambiar el correo del capitán sin ceder", async () => {
+    const capi = await crearUsuario({ email: "capi2@example.com" });
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Clara", apellidos: "Diaz", email: capi.email, telefono: "600111222" },
+        { nombre: "Diego", apellidos: "Vidal", telefono: "600333444" }
+      ]
+    });
+
+    const respuesta = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: {
+            equipo: equipo.nombre,
+            capitan: 0,
+            jugadores: [
+              { ...basico(equipo.jugadores[0]!), email: "suplantado@example.com" },
+              basico(equipo.jugadores[1]!)
+            ]
+          }
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(400);
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("designa a otro capitán");
+  });
+
+  it("cede y sale del equipo en el mismo guardado", async () => {
+    const capi = await crearUsuario({ email: "capi3@example.com" });
+    const relevo = await crearUsuario({ email: "relevo3@example.com" });
+    const equipo = await crearEquipo({
+      jugadores: [
+        { nombre: "Elena", apellidos: "Souto", email: capi.email, telefono: "600111222" },
+        { nombre: "Fran", apellidos: "Rey", email: relevo.email, telefono: "600333444" },
+        { nombre: "Gara", apellidos: "Nieto", telefono: "600555666" }
+      ]
+    });
+
+    const respuesta = await onRequestPatch(
+      ctx(
+        await peticion("/api/mi-equipo", {
+          method: "PATCH",
+          user: capi,
+          json: {
+            equipo: equipo.nombre,
+            capitan: 0,
+            jugadores: [basico(equipo.jugadores[1]!), basico(equipo.jugadores[2]!)]
+          }
+        }),
+        env
+      )
+    );
+
+    expect(respuesta.status).toBe(200);
+    expect(await respuesta.json()).toMatchObject({ ok: true, team: null });
   });
 });
 

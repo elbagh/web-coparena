@@ -98,6 +98,7 @@ describe("unicidad de jugador por edición", () => {
       "payload",
       JSON.stringify({
         equipo: "Los De Ahora",
+        capitan: 0,
         jugadores: [
           {
             id: actual.jugadores[0]!.id,
@@ -119,6 +120,53 @@ describe("unicidad de jugador por edición", () => {
 
     const respuesta = await equipoAdminPatch(
       ctx(await peticion(`/api/admin/equipos?id=${actual.id}`, { method: "PATCH", user: admin, body: form }), env)
+    );
+
+    expect(respuesta.status).toBe(200);
+  });
+
+  // Espejo de la prueba de alta para buscarDuplicadosEdicion: un jugador sin
+  // móvil en un equipo ajeno no puede bloquear el guardado de otro jugador
+  // que tampoco lo tenga.
+  it("editar un equipo con un jugador sin móvil no choca con el hueco vacío de otro equipo", async () => {
+    const admin = await crearAdmin();
+    await crearEquipo({ nombre: "Otro Sin Movil", jugadores: [{ telefono: "" }, {}] });
+
+    const equipo = await crearEquipo({
+      nombre: "Equipo A Editar",
+      jugadores: [
+        { nombre: "Marta", apellidos: "Novo", telefono: "600222333", email: "marta@example.com" },
+        { nombre: "Sara", apellidos: "Bao", telefono: "600333444", email: "sara@example.com" }
+      ]
+    });
+
+    const form = new FormData();
+    form.set(
+      "payload",
+      JSON.stringify({
+        equipo: "Equipo A Editar",
+        capitan: 0,
+        jugadores: [
+          {
+            id: equipo.jugadores[0]!.id,
+            nombre: "Marta",
+            apellidos: "Novo",
+            telefono: "600222333",
+            email: "marta@example.com"
+          },
+          {
+            id: equipo.jugadores[1]!.id,
+            nombre: "Sara",
+            apellidos: "Bao",
+            telefono: "",
+            email: ""
+          }
+        ]
+      })
+    );
+
+    const respuesta = await equipoAdminPatch(
+      ctx(await peticion(`/api/admin/equipos?id=${equipo.id}`, { method: "PATCH", user: admin, body: form }), env)
     );
 
     expect(respuesta.status).toBe(200);

@@ -36,6 +36,7 @@
   const EMAIL_RE = /^\S+@\S+\.\S+$/;
   const HANDLE_RE = /^@?[a-zA-Z0-9._]{2,30}$/;
   const URL_SOCIAL_RE = /^https:\/\/\S{5,110}$/;
+  const MENSAJE_CAPITAN_CONTACTO = "El capitán necesita móvil y correo para que podamos avisaros.";
   const CAMPOS = ["nombre", "apellidos", "telefono", "email", "redSocial"];
 
   let jugadores = [];
@@ -53,7 +54,7 @@
   onReady(async () => {
     const [datos, resumenDatos] = await Promise.all([api("/api/admin/jugadores"), resumen()]);
     jugadores = Array.isArray(datos.jugadores) ? datos.jugadores : [];
-    equipos = (resumenDatos.equipos || []).map((e) => ({ id: e.id, nombre: e.nombre }));
+    equipos = (resumenDatos.equipos || []).map((e) => ({ id: e.id, nombre: e.nombre, capitanJugadorId: e.capitanJugadorId ?? null }));
 
     pintarSelectores();
     pintar();
@@ -221,7 +222,17 @@
       vistaFotoVacia.hidden = false;
     }
 
+    actualizarRotulosContacto();
     dialogo.showModal();
+  }
+
+  /** Móvil y correo llevan «(opcional)» salvo en la ficha del capitán. */
+  function actualizarRotulosContacto() {
+    const esCapitan = esCapitanEnEdicion();
+    const optTelefono = form.querySelector('[data-jugador-opt="telefono"]');
+    const optEmail = form.querySelector('[data-jugador-opt="email"]');
+    if (optTelefono) optTelefono.hidden = esCapitan;
+    if (optEmail) optEmail.hidden = esCapitan;
   }
 
   function liberarPrevisualizacion() {
@@ -261,12 +272,19 @@
     }
   });
 
+  /** El jugador en edición manda hoy en su equipo. Nunca lo es un alta nueva:
+   *  una fila que aún no existe no puede ser ya la que figura en `equipos`. */
+  function esCapitanEnEdicion() {
+    return Boolean(enEdicion) && equipos.some((e) => e.capitanJugadorId === enEdicion.id);
+  }
+
   function validar() {
     const valores = {};
     CAMPOS.forEach((n) => {
       valores[n] = limpiar(campo(n)?.value);
     });
     const errores = {};
+    const esCapitan = esCapitanEnEdicion();
 
     if (valores.nombre.length < 2 || valores.nombre.length > 60 || !NOMBRE_RE.test(valores.nombre)) {
       errores.nombre = "Introduce el nombre (solo letras, entre 2 y 60 caracteres).";
@@ -274,11 +292,18 @@
     if (valores.apellidos.length < 2 || valores.apellidos.length > 80 || !NOMBRE_RE.test(valores.apellidos)) {
       errores.apellidos = "Introduce los apellidos (solo letras, entre 2 y 80 caracteres).";
     }
-    if (!/^[67]\d{8}$/.test(valores.telefono.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, ""))) {
+    // Móvil y correo: obligatorios solo para el capitán, igual que en
+    // functions/api/admin/jugadores.ts (validarJugador).
+    if (!valores.telefono) {
+      if (esCapitan) errores.telefono = MENSAJE_CAPITAN_CONTACTO;
+    } else if (!/^[67]\d{8}$/.test(valores.telefono.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, ""))) {
       errores.telefono = "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos).";
     }
-    if (!valores.email) errores.email = "El correo de cada jugador es obligatorio.";
-    else if (!EMAIL_RE.test(valores.email) || valores.email.length > 120) errores.email = "Ese correo no parece válido.";
+    if (!valores.email) {
+      if (esCapitan) errores.email = MENSAJE_CAPITAN_CONTACTO;
+    } else if (!EMAIL_RE.test(valores.email) || valores.email.length > 120) {
+      errores.email = "Ese correo no parece válido.";
+    }
     if (
       valores.redSocial &&
       (valores.redSocial.length > 120 || !(HANDLE_RE.test(valores.redSocial) || URL_SOCIAL_RE.test(valores.redSocial)))

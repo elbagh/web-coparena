@@ -23,10 +23,11 @@ interface EntradaJugador {
 }
 
 /** Construye el registro ya validado que recibe guardarEquipo. */
-function registro(nombreEquipo: string, jugadores: EntradaJugador[]): RegistroValidado {
+function registro(nombreEquipo: string, jugadores: EntradaJugador[], capitan = 0): RegistroValidado {
   return {
     equipo: nombreEquipo,
     equipoNormalizado: normalizarTexto(nombreEquipo),
+    capitan,
     jugadores: jugadores.map<JugadorValidado>((j) => ({
       id: j.id,
       nombre: j.nombre,
@@ -370,5 +371,28 @@ describe("guardarEquipo: conflictos de unicidad", () => {
     expect(await filas(equipo.id)).toHaveLength(2);
     const fila = await env.DB.prepare("SELECT nombre FROM equipos WHERE id = ?1").bind(equipo.id).first<{ nombre: string }>();
     expect(fila?.nombre).toBe(equipo.nombre);
+  });
+});
+
+describe("guardarEquipo: capitán", () => {
+  // `capitan` es obligatorio en RegistroValidado desde la Tarea 2, y guardarEquipo
+  // lo aplica siempre por índice: quien llama tiene que mandar el índice de
+  // quien sigue mandando, o el mando saltaría al jugador de `orden 1`.
+  it("fija el capitán según el índice enviado, aunque no sea el de orden 1", async () => {
+    const equipo = await crearEquipo({ jugadores: [{}, {}], capitan: 1 });
+    expect(equipo.capitanId).toBe(equipo.jugadores[1]!.id);
+
+    const error = await guardarEquipo(
+      env,
+      equipo.id,
+      registro(equipo.nombre, [comoEntrada(equipo.jugadores[0]!), comoEntrada(equipo.jugadores[1]!)], 1)
+    );
+
+    expect(error).toBeNull();
+    const fila = await env.DB
+      .prepare("SELECT capitan_jugador_id FROM equipos WHERE id = ?1")
+      .bind(equipo.id)
+      .first<{ capitan_jugador_id: number | null }>();
+    expect(fila?.capitan_jugador_id).toBe(equipo.capitanId);
   });
 });

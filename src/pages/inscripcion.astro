@@ -21,8 +21,9 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
       <h1 class="reveal" style="--reveal-delay: 90ms">Inscribe a tu equipo</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
         Dos titulares como mínimo y los suplentes que necesitéis. La inscripción son
-        {inscripcion.precio} por equipo y {inscripcion.pago}. El correo de cada jugador
-        es obligatorio y uno debe coincidir con la cuenta de Google con la que inscribes.
+        {inscripcion.precio} por equipo y {inscripcion.pago}. Solo el capitán necesita móvil y
+        correo —el tuyo, el de la cuenta con la que entras—; del resto, quien no los deje no
+        entrará en el grupo del torneo ni recibirá avisos.
       </p>
     </section>
 
@@ -42,8 +43,8 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
     <section class="auth-card reveal" style="--reveal-delay: 40ms" data-auth-no-team hidden>
       <h2>Perfecto, ya puedes inscribir</h2>
       <p>
-        Has entrado como <strong data-auth-user-email></strong>. Lo pondremos en el primer
-        jugador automáticamente; ese correo debe aparecer en el equipo para poder inscribirlo.
+        Has entrado como <strong data-auth-user-email></strong>. Lo pondremos en el capitán
+        automáticamente: es el correo que manda en el equipo.
       </p>
     </section>
 
@@ -133,6 +134,8 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
       <header class="player-head">
         <span class="player-dorsal" data-dorsal aria-hidden="true">1</span>
         <span class="player-role" data-role>Titular</span>
+        <span class="player-capitan" data-capitan-badge hidden>Capitán</span>
+        <button type="button" class="player-capitan-set" data-make-capitan hidden>Hacer capitán</button>
         <button type="button" class="player-remove" data-remove hidden>Quitar</button>
       </header>
       <div class="player-grid">
@@ -147,14 +150,14 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
           <p class="field-error" hidden></p>
         </div>
         <div class="field">
-          <label data-label="telefono">Móvil</label>
+          <label data-label="telefono">Móvil <span class="field-opt" data-opt="telefono" hidden>(opcional)</span></label>
           <input type="tel" data-field="telefono" maxlength="18" autocomplete="off" placeholder="612 345 678" />
           <p class="field-error" hidden></p>
         </div>
         <div class="field">
-          <label data-label="email">Correo</label>
-          <input type="email" data-field="email" maxlength="120" autocomplete="off" required />
-          <p class="field-hint">Obligatorio. Uno de los correos debe ser el de la cuenta con sesión iniciada.</p>
+          <label data-label="email">Correo <span class="field-opt" data-opt="email" hidden>(opcional)</span></label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
+          <p class="field-hint" data-hint-email>El capitán necesita correo: es con el que entra a editar el equipo.</p>
           <p class="field-error" hidden></p>
         </div>
         <div class="field">
@@ -169,6 +172,7 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
           <p class="field-error" hidden></p>
         </div>
       </div>
+      <p class="player-warning" data-contacto-aviso hidden></p>
     </article>
   </template>
 
