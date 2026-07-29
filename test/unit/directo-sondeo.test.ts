@@ -21,7 +21,10 @@ interface Directo {
 }
 
 const MARCADO = `
-  <span data-directo-apagado><span class="directo-punto"></span><span>Sin partido</span></span>
+  <details data-directo-apagado data-nav-drop>
+    <summary><span class="directo-punto"></span><span data-directo-etiqueta>Offline</span></summary>
+    <p class="directo-aviso">Cuando empiece un partido, este botón te lleva al marcador en directo.</p>
+  </details>
   <a data-directo-vivo hidden><span data-directo-texto></span></a>
 `;
 
@@ -38,6 +41,16 @@ const respuesta = (cuerpo: Record<string, unknown>, status = 200) => ({
 
 const sinDirecto = (siguienteSondeoMs = 60000) =>
   respuesta({ hayDirecto: false, partidos: [], siguiente: null, siguienteSondeoMs, modoAhorro: false });
+
+/** Nada en juego, pero con un partido ya programado: el caso normal del torneo. */
+const conSiguiente = () =>
+  respuesta({
+    hayDirecto: false,
+    partidos: [],
+    siguiente: { id: "p9", ronda: "Grupo A", hora: "11:30" },
+    siguienteSondeoMs: 60000,
+    modoAhorro: false
+  });
 
 const conDirecto = (puntos: [number, number], siguienteSondeoMs = 3000) =>
   respuesta({
@@ -242,14 +255,51 @@ describe("cuando algo va mal", () => {
  * —que en HTML no existe y seguiría siendo enfocable con teclado—.
  */
 describe("el botón de la cabecera", () => {
-  const apagado = () => document.querySelector("[data-directo-apagado]") as HTMLElement;
+  const apagado = () => document.querySelector("[data-directo-apagado]") as HTMLDetailsElement;
   const vivo = () => document.querySelector("[data-directo-vivo]") as HTMLElement;
+  const etiqueta = () => document.querySelector("[data-directo-etiqueta]")!.textContent;
 
   it("sin partido enseña el apagado y esconde el enlace", async () => {
     montar();
     await asentar();
     expect(apagado().hidden).toBe(false);
     expect(vivo().hidden).toBe(true);
+  });
+
+  it("con un partido ya programado dice «Offline»", async () => {
+    fetchMock.mockResolvedValue(conSiguiente());
+    montar();
+    await asentar();
+    expect(etiqueta()).toBe("Offline");
+  });
+
+  // Sin nada programado no hay «Offline» que valga: no es que aún no haya
+  // empezado, es que no hay partido al que este botón pueda llevar.
+  it("sin nada programado dice «Sin partido»", async () => {
+    fetchMock.mockResolvedValue(sinDirecto());
+    montar();
+    await asentar();
+    expect(etiqueta()).toBe("Sin partido");
+  });
+
+  /*
+   * El aviso explica un hueco. Si se queda abierto cuando el hueco se llena,
+   * queda un recado flotando bajo un botón que ya no está —y reaparecería abierto
+   * al terminar el partido—.
+   */
+  it("al empezar el partido cierra el aviso del apagado", async () => {
+    fetchMock.mockResolvedValue(conSiguiente());
+    const directo = montar();
+    directo.mirandoDeCerca(true);
+    await asentar();
+
+    apagado().open = true;
+
+    fetchMock.mockResolvedValue(conDirecto([1, 0]));
+    await vi.advanceTimersByTimeAsync(61000);
+    await asentar();
+
+    expect(apagado().open).toBe(false);
   });
 
   it("con partido enseña el marcador en el enlace", async () => {
