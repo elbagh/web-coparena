@@ -128,8 +128,14 @@ const ratio = (aFavor: number, enContra: number): number => {
   return aFavor === 0 ? 0 : Number.POSITIVE_INFINITY;
 };
 
-/** Cuánto vale una fila según un criterio. Siempre "más es mejor". */
-function valor(criterio: CriterioDesempate, fila: FilaEnCurso): number {
+/**
+ * Cuánto vale una fila según un criterio. Siempre "más es mejor".
+ *
+ * Exportada porque `clasificados.ts` la necesita para ordenar el bote de la
+ * repesca, que compara filas de grupos distintos. Reimplementarla allí sería
+ * garantizar que un día las dos ordenaciones dejen de coincidir.
+ */
+export function valorDeCriterio(criterio: CriterioDesempate, fila: FilaEnCurso): number {
   switch (criterio) {
     case "puntos":
       return fila.puntos;
@@ -224,7 +230,7 @@ function bloquesPorEnfrentamiento(
 function agruparPorValor(filas: FilaEnCurso[], criterio: CriterioDesempate): FilaEnCurso[][] {
   const porValor = new Map<number, FilaEnCurso[]>();
   for (const fila of filas) {
-    const v = valor(criterio, fila);
+    const v = valorDeCriterio(criterio, fila);
     const lista = porValor.get(v) ?? [];
     lista.push(fila);
     porValor.set(v, lista);
@@ -238,7 +244,7 @@ function agruparPorEmpate(filas: FilaEnCurso[], criterios: readonly CriterioDese
   for (const fila of filas) {
     const ultimo = bloques[bloques.length - 1];
     const iguales =
-      ultimo !== undefined && criterios.every((c) => valor(c, ultimo[0]!) === valor(c, fila));
+      ultimo !== undefined && criterios.every((c) => valorDeCriterio(c, ultimo[0]!) === valorDeCriterio(c, fila));
     if (iguales) ultimo!.push(fila);
     else bloques.push([fila]);
   }
