@@ -344,6 +344,13 @@ describe("corregir un evento antiguo", () => {
  * log manda. Si añadir y recalcular pudieran discrepar, un día lo harían.
  */
 describe("el log es la fuente de verdad", () => {
+  /*
+   * Timeout propio, y no por lento de más: son 24 puntos secuenciales y cada uno
+   * repliega el log entero y reescribe las estadísticas de los ocho jugadores.
+   * Ese coste ES lo que se está probando. Con los 5 s por defecto de vitest el
+   * test pasaba solo y caía cuando `unit` e `integration` competían por la
+   * máquina — un fallo que no dice nada del código y esconde los que sí.
+   */
   it("recalcular desde el log da lo mismo que ir anotando", async () => {
     const admin = await crearAdmin();
     const { partidoId, local, visitante } = await montarPartido(admin);
@@ -363,7 +370,7 @@ describe("el log es la fuente de verdad", () => {
     const recalculado = await leer(admin, partidoId);
     expect(recalculado.estado).toEqual(anotando.estado);
     expect(await Promise.all(jugadores.map((id) => estadisticasDe(id)))).toEqual(fichas);
-  });
+  }, 20000);
 
   it("el marcador guardado coincide con plegar el log a mano", async () => {
     const admin = await crearAdmin();
