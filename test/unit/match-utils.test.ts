@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from "vitest";
+import { REGLAS_POR_DEFECTO } from "../../functions/_lib/reglas";
 import { cargarScriptPublico } from "../helpers/dom";
 
 interface Marcador {
@@ -18,6 +19,19 @@ interface Partido {
   elapsedMs: number;
   winner: "A" | "B" | null;
   teams: { A: { id: number | null; name: string }; B: { id: number | null; name: string } };
+  /* Los trae el servidor desde la fase del partido; sin ellas se usan las de serie. */
+  reglas?: ReglasPartido;
+  /* Sitio en el cuadro. Un partido de liga no los tiene. */
+  rondaOrden?: number | null;
+  posicion?: number | null;
+  ronda?: string;
+}
+
+interface ReglasPartido {
+  sets: number;
+  puntosPorSet: number;
+  puntosSetDecisivo: number;
+  diferencia: number;
 }
 
 interface Utilidades {
@@ -26,6 +40,9 @@ interface Utilidades {
   elapsed(partido: Partido): number;
   formatClock(ms: number): string;
   statusLabel(status: string): string;
+  reglasDe(partido: Partial<Partido>): ReglasPartido;
+  setTarget(partido: Partial<Partido>, setNumber?: number): number;
+  renderBracket(destino: HTMLElement, partidos: Partial<Partido>[], onOpen?: (p: Partido) => void): boolean;
   clone<T>(valor: T): T;
 }
 
@@ -194,5 +211,90 @@ describe("statusLabel", () => {
     expect(utils.statusLabel("live")).toBe("Jugando");
     expect(utils.statusLabel("finished")).toBe("Terminado");
     expect(utils.statusLabel("scheduled")).toBe("Programado");
+  });
+});
+
+/*
+ * Las reglas dejan de estar escritas a mano en el cliente y viajan con cada
+ * partido. Los 21/21/15 que quedan aquí son solo la red por si un partido viejo
+ * llega sin ellas, y este bloque comprueba que esa red vale lo mismo que la del
+ * servidor: si una cambia y la otra no, el marcador del panel y el de la base
+ * dejarían de cerrar los sets a la vez.
+ */
+describe("las reglas vienen con el partido", () => {
+  it("la red del cliente vale lo mismo que la del servidor", () => {
+    expect(utils.reglasDe({})).toEqual(REGLAS_POR_DEFECTO.partido);
+  });
+
+  it("un partido con reglas propias se arbitra con las suyas", () => {
+    const corto = partido({ reglas: { sets: 1, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 1 } });
+    expect(utils.setTarget(corto, 1)).toBe(15);
+
+    const enPunto = utils.applyPoint({ ...corto, status: "live", points: { A: 14, B: 14 } }, "A", 1);
+    // Con diferencia 1, 15-14 ya cierra el set... y con sets 1, el partido.
+    expect(enPunto.sets.A).toBe(1);
+    expect(enPunto.status).toBe("finished");
+  });
+
+  it("sin reglas propias sigue siendo 21, 21 y el tercero a 15", () => {
+    expect(utils.setTarget(partido(), 1)).toBe(21);
+    expect(utils.setTarget(partido(), 3)).toBe(15);
+  });
+});
+
+/*
+ * El cuadro se dibuja con lo que hay. La versión anterior cogía los ocho
+ * primeros partidos de la lista y fabricaba semifinales y final que no existían
+ * en la base: con doce equipos, o con fase de grupos, enseñaba un cuadro que no
+ * era el del torneo.
+ */
+describe("renderBracket dibuja desde los datos", () => {
+  const delCuadro = (rondaOrden: number, posicion: number, ronda: string, nombreA: string, nombreB: string) =>
+    partido({
+      id: `${rondaOrden}-${posicion}`,
+      rondaOrden,
+      posicion,
+      ronda,
+      teams: { A: { id: null, name: nombreA }, B: { id: null, name: nombreB } }
+    } as Partial<Partido>);
+
+  it("pinta una columna por ronda, en orden", () => {
+    const destino = document.createElement("div");
+    const pintado = utils.renderBracket(destino, [
+      delCuadro(1, 0, "Final", "", ""),
+      delCuadro(0, 0, "Semifinales", "Delfines", "Gaviotas"),
+      delCuadro(0, 1, "Semifinales", "Cangrejos", "Percebes")
+    ]);
+
+    expect(pintado).toBe(true);
+    const titulos = [...destino.querySelectorAll("h3")].map((h) => h.textContent);
+    expect(titulos).toEqual(["Semifinales", "Final"]);
+    expect(destino.querySelectorAll(".bracket-round")).toHaveLength(2);
+  });
+
+  it("un cuadro de 4 no inventa rondas ni rivales", () => {
+    const destino = document.createElement("div");
+    utils.renderBracket(destino, [
+      delCuadro(0, 0, "Semifinales", "Delfines", "Gaviotas"),
+      delCuadro(0, 1, "Semifinales", "Cangrejos", "Percebes"),
+      delCuadro(1, 0, "Final", "", "")
+    ]);
+
+    // Tres partidos y dos rondas: exactamente los que hay en la base.
+    expect(destino.querySelectorAll(".bracket-match")).toHaveLength(3);
+    expect(destino.querySelectorAll(".bracket-round")).toHaveLength(2);
+    /*
+     * La versión anterior rellenaba los huecos vacíos con etiquetas fabricadas
+     * («Semifinal 1», «Semifinal 2»), que parecían equipos. Un hueco sin
+     * resolver dice «Por decidir», que es la verdad.
+     */
+    expect(destino.textContent).not.toMatch(/Semifinal \d/);
+  });
+
+  it("sin partidos de cuadro no pinta nada y lo dice", () => {
+    const destino = document.createElement("div");
+    // Los de una liga no tienen ronda ni posición: no forman árbol.
+    expect(utils.renderBracket(destino, [partido(), partido()])).toBe(false);
+    expect(destino.children).toHaveLength(0);
   });
 });

@@ -20,7 +20,11 @@ const TABLAS = [
   "estadisticas",
   "jugador_atributos",
   "jugadores",
+  // partidos antes que las fases: apunta a ellas con fase_id y grupo_id.
   "partidos",
+  "torneo_grupo_equipos",
+  "torneo_grupos",
+  "torneo_fases",
   "camisetas_reservas",
   "perfiles",
   "equipos",

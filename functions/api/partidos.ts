@@ -10,6 +10,14 @@
 
 import { requirePermiso, jsonAdmin, type AdminEnv } from "../_lib/admin";
 import { json } from "../_lib/http";
+import {
+  ganadorDelPartido,
+  ganadorDelSet,
+  normalizarReglas,
+  REGLAS_POR_DEFECTO,
+  type ReglasPartido
+} from "../_lib/reglas";
+import { propagarResultado } from "../_lib/torneo";
 import { limpiar } from "../_lib/validacion";
 
 type Env = AdminEnv;
@@ -47,12 +55,27 @@ interface PartidoRow {
   started_at: string | null;
   elapsed_ms: number;
   winner: Lado | null;
+  /*
+   * Foto congelada de las reglas que regían al crearse. No se lee de la fase al
+   * vuelo a propósito: cambiar el formato a mitad de torneo no puede reescribir
+   * cómo se arbitró lo ya jugado.
+   */
+  reglas: string;
+  fase_id: number | null;
+  grupo_id: number | null;
+  ronda_orden: number | null;
+  posicion: number | null;
+  pista: string | null;
 }
 
 interface EquipoRow {
   id: number;
   nombre: string;
 }
+
+/** Las reglas de ese partido, con las de siempre como red si el JSON no dice nada. */
+const reglasDe = (partido: Pick<PartidoRow, "reglas">): ReglasPartido =>
+  normalizarReglas(partido.reglas).partido;
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   try {
@@ -110,14 +133,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     } else if (action === "point") {
       const lado = body.team === "B" ? "B" : "A";
       const delta = Number(body.delta) < 0 ? -1 : 1;
-      await guardarMarcador(env.DB, aplicarPunto(partido, lado, delta));
+      const siguiente = aplicarPunto(partido, lado, delta);
+      await guardarMarcador(env.DB, siguiente);
+      // Un punto puede cerrar el partido, y entonces el ganador tiene que subir
+      // al cruce siguiente igual que si se hubiera cerrado a mano.
+      if (siguiente.status === "finished") await propagarResultado(env.DB, partido.id);
     } else if (action === "finish") {
-      const winner = ganadorActual(partido) ?? (partido.points_a >= partido.points_b ? "A" : "B");
+      const winner =
+        ganadorDelPartido(reglasDe(partido), partido.sets_a, partido.sets_b) ??
+        (partido.points_a >= partido.points_b ? "A" : "B");
       const elapsedMs = elapsedOnFinish(partido);
       await env.DB
         .prepare("UPDATE partidos SET status = 'finished', winner = ?1, elapsed_ms = ?2, updated_at = ?3 WHERE id = ?4")
         .bind(winner, elapsedMs, new Date().toISOString(), partido.id)
         .run();
+      await propagarResultado(env.DB, partido.id);
     } else {
       return json({ error: "Accion no soportada." }, 400);
     }
@@ -215,6 +245,17 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     await env.DB.prepare(`UPDATE partidos SET ${sets.join(", ")} WHERE id = ?${binds.length}`).bind(...binds).run();
+
+    /*
+     * Corregir un resultado a mano es el tercer camino por el que un partido
+     * puede quedar cerrado, y tiene que propagar igual que los otros dos. Como
+     * `propagarResultado` no pisa un hueco marcado como `manual` y es
+     * idempotente, repetirlo no rompe nada.
+     */
+    if (body.status !== undefined || body.winner !== undefined) {
+      await propagarResultado(env.DB, partido.id);
+    }
+
     return jsonAdmin({ ok: true, partidos: await listarPartidos(env.DB) });
   } catch (err) {
     console.error("Error editando un partido:", err);
@@ -266,12 +307,14 @@ async function crearPartido(db: D1Database, body: Record<string, unknown>): Prom
     .prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS siguiente FROM partidos")
     .first<{ siguiente: number }>();
 
+  // Un partido suelto (repesca, amistoso) no cuelga de ninguna fase, así que se
+  // arbitra con las reglas de siempre y así queda escrito en su propia foto.
   await db
     .prepare(
       `INSERT INTO partidos (id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre,
-         scheduled_at, status, sort_order, edicion_id)
+         scheduled_at, status, sort_order, edicion_id, reglas)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'scheduled', ?8,
-         (SELECT id FROM ediciones WHERE es_actual = 1))`
+         (SELECT id FROM ediciones WHERE es_actual = 1), ?9)`
     )
     .bind(
       crypto.randomUUID(),
@@ -281,7 +324,8 @@ async function crearPartido(db: D1Database, body: Record<string, unknown>): Prom
       equipoA,
       equipoB,
       scheduledAt,
-      orden?.siguiente ?? 0
+      orden?.siguiente ?? 0,
+      JSON.stringify(REGLAS_POR_DEFECTO)
     )
     .run();
 
@@ -362,11 +406,12 @@ function crearEmparejamientos(equipos: Array<{ id: number | null; name: string }
 function aplicarPunto(partido: PartidoRow, lado: Lado, delta: number): PartidoRow {
   const next = { ...partido };
   if (next.status === "finished") return next;
+  const reglas = reglasDe(partido);
   if (lado === "A") next.points_a = Math.max(0, next.points_a + delta);
   if (lado === "B") next.points_b = Math.max(0, next.points_b + delta);
 
   if (delta > 0) {
-    const ganadorSet = ganadorDelSet(next.points_a, next.points_b, next.set_number);
+    const ganadorSet = ganadorDelSet(reglas, next.points_a, next.points_b, next.set_number);
     if (ganadorSet) {
       const history = parseHistory(next.set_history);
       history.push({ a: next.points_a, b: next.points_b });
@@ -376,7 +421,7 @@ function aplicarPunto(partido: PartidoRow, lado: Lado, delta: number): PartidoRo
       next.points_a = 0;
       next.points_b = 0;
       next.set_number += 1;
-      const ganadorPartido = ganadorActual(next);
+      const ganadorPartido = ganadorDelPartido(reglas, next.sets_a, next.sets_b);
       if (ganadorPartido) {
         next.elapsed_ms = elapsedOnFinish(next);
         next.status = "finished";
@@ -410,19 +455,6 @@ async function guardarMarcador(db: D1Database, partido: PartidoRow) {
     .run();
 }
 
-function ganadorDelSet(a: number, b: number, setNumber: number): Lado | null {
-  const objetivo = setNumber >= 3 ? 15 : 21;
-  if (a >= objetivo && a - b >= 2) return "A";
-  if (b >= objetivo && b - a >= 2) return "B";
-  return null;
-}
-
-function ganadorActual(partido: Pick<PartidoRow, "sets_a" | "sets_b">): Lado | null {
-  if (partido.sets_a >= 2) return "A";
-  if (partido.sets_b >= 2) return "B";
-  return null;
-}
-
 function elapsedOnFinish(partido: Pick<PartidoRow, "elapsed_ms" | "started_at" | "status">) {
   const base = Number(partido.elapsed_ms) || 0;
   if (partido.status !== "live" || !partido.started_at) return base;
@@ -444,6 +476,16 @@ function mapearPartido(partido: PartidoRow) {
     ronda: partido.ronda,
     scheduledAt: partido.scheduled_at,
     status: partido.status,
+    // El cuadro se dibuja con esto: en qué fase está, a qué profundidad y en qué
+    // hueco. Antes el cliente se lo inventaba a partir del orden de la lista.
+    faseId: partido.fase_id,
+    grupoId: partido.grupo_id,
+    rondaOrden: partido.ronda_orden,
+    posicion: partido.posicion,
+    pista: partido.pista,
+    // Las que rigen este partido, para que el marcador del cliente no repita
+    // los 21/21/15 a mano como hacía antes.
+    reglas: normalizarReglas(partido.reglas).partido,
     setNumber: partido.set_number,
     points: { A: partido.points_a, B: partido.points_b },
     sets: { A: partido.sets_a, B: partido.sets_b },

@@ -83,22 +83,50 @@ window.CopaArenaMatches = (() => {
     };
   }
 
-  function setTarget(setNumber) {
-    return setNumber >= 3 ? 15 : 21;
+  /*
+   * Las reglas vienen con cada partido, en `match.reglas`, y las pone el
+   * servidor desde la fase a la que pertenece. Antes estaban escritas a mano
+   * aquí (21/21/15, al mejor de tres) y otra vez en functions/api/partidos.ts,
+   * sin nada que impidiera que divergieran. Estos valores son solo la red por si
+   * un partido viejo llega sin ellas.
+   */
+  const REGLAS_POR_DEFECTO = { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 };
+
+  function reglasDe(match) {
+    const reglas = match?.reglas;
+    if (!reglas || typeof reglas !== "object") return REGLAS_POR_DEFECTO;
+    return {
+      sets: Number(reglas.sets) || REGLAS_POR_DEFECTO.sets,
+      puntosPorSet: Number(reglas.puntosPorSet) || REGLAS_POR_DEFECTO.puntosPorSet,
+      puntosSetDecisivo: Number(reglas.puntosSetDecisivo) || REGLAS_POR_DEFECTO.puntosSetDecisivo,
+      diferencia: Number(reglas.diferencia) || REGLAS_POR_DEFECTO.diferencia
+    };
+  }
+
+  const setsMaximos = (reglas) => reglas.sets * 2 - 1;
+
+  /** El último set posible es el corto, salvo que solo haya uno. */
+  function setTarget(match, setNumber) {
+    const reglas = reglasDe(match);
+    const numero = setNumber ?? match.setNumber;
+    if (reglas.sets > 1 && numero >= setsMaximos(reglas)) return reglas.puntosSetDecisivo;
+    return reglas.puntosPorSet;
   }
 
   function setWinner(match) {
-    const target = setTarget(match.setNumber);
+    const reglas = reglasDe(match);
+    const target = setTarget(match);
     const a = match.points.A;
     const b = match.points.B;
-    if (a >= target && a - b >= 2) return "A";
-    if (b >= target && b - a >= 2) return "B";
+    if (a >= target && a - b >= reglas.diferencia) return "A";
+    if (b >= target && b - a >= reglas.diferencia) return "B";
     return null;
   }
 
   function matchWinner(match) {
-    if (match.sets.A >= 2) return "A";
-    if (match.sets.B >= 2) return "B";
+    const reglas = reglasDe(match);
+    if (match.sets.A >= reglas.sets) return "A";
+    if (match.sets.B >= reglas.sets) return "B";
     return null;
   }
 
@@ -158,47 +186,40 @@ window.CopaArenaMatches = (() => {
     return "Programado";
   }
 
-  function winnerName(match) {
-    if (!match?.winner) return "";
-    return match.teams[match.winner]?.name || "";
-  }
-
+  /*
+   * El cuadro se dibuja con los partidos que hay, agrupados por la ronda que
+   * traen del servidor (`rondaOrden` y `ronda`).
+   *
+   * Antes se fabricaba: se cogían los ocho primeros partidos de la lista, se
+   * inventaban cuatro semifinales y una final que no existían en la base, y se
+   * pintaba ese árbol pasara lo que pasara. Con doce equipos, o con fase de
+   * grupos, aquello enseñaba un cuadro que no era el del torneo.
+   */
   function renderBracket(target, matches, onOpen) {
     target.textContent = "";
+
+    const delCuadro = matches.filter((match) => match.rondaOrden !== null && match.rondaOrden !== undefined);
+    if (delCuadro.length === 0) return false;
+
+    const rondas = new Map();
+    delCuadro.forEach((match) => {
+      const clave = match.rondaOrden;
+      if (!rondas.has(clave)) rondas.set(clave, { etiqueta: match.ronda || `Ronda ${clave + 1}`, partidos: [] });
+      rondas.get(clave).partidos.push(match);
+    });
+
     const bracket = document.createElement("div");
     bracket.className = "tournament-bracket";
 
-    const firstRound = matches.slice(0, 8);
-    const semis = buildNextRound(firstRound, "Semifinal");
-    const final = buildNextRound(semis, "Final");
-
-    bracket.append(
-      bracketRound("Sorteo", firstRound, onOpen),
-      bracketRound("Semifinal", semis, onOpen),
-      bracketRound("Final", final.slice(0, 1), onOpen)
-    );
-    target.appendChild(bracket);
-  }
-
-  function buildNextRound(previous, label) {
-    const next = [];
-    for (let i = 0; i < previous.length; i += 2) {
-      const teamA = winnerName(previous[i]) || `${label} ${Math.floor(i / 2) + 1}`;
-      const teamB = winnerName(previous[i + 1]) || "Por decidir";
-      next.push({
-        id: "",
-        status: "scheduled",
-        scheduledAt: null,
-        points: { A: 0, B: 0 },
-        sets: { A: 0, B: 0 },
-        winner: null,
-        teams: {
-          A: { id: null, name: teamA },
-          B: { id: null, name: teamB }
-        }
+    [...rondas.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([, ronda]) => {
+        const ordenados = [...ronda.partidos].sort((a, b) => (a.posicion ?? 0) - (b.posicion ?? 0));
+        bracket.appendChild(bracketRound(ronda.etiqueta, ordenados, onOpen));
       });
-    }
-    return next.length ? next : [];
+
+    target.appendChild(bracket);
+    return true;
   }
 
   function bracketRound(label, matches, onOpen) {
@@ -261,6 +282,8 @@ window.CopaArenaMatches = (() => {
     formatDateTime,
     statusLabel,
     renderBracket,
+    reglasDe,
+    setTarget,
     clone
   };
 })();

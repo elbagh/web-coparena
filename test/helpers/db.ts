@@ -219,12 +219,98 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
   return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, capitanId: capitan?.id ?? null, jugadores };
 }
 
+export interface OpcionesFase {
+  clave?: string;
+  nombre?: string;
+  tipo?: "grupos" | "eliminatoria";
+  orden?: number;
+  reglas?: unknown;
+  clasifican?: number;
+  edicionId?: number;
+}
+
+export interface FaseSembrada {
+  id: number;
+  clave: string;
+  edicionId: number;
+}
+
+const edicionActualId = async (): Promise<number> =>
+  (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())!.id;
+
+export async function crearFase(opciones: OpcionesFase = {}): Promise<FaseSembrada> {
+  const n = siguiente();
+  const clave = opciones.clave ?? `fase-${n}`;
+  const edicionId = opciones.edicionId ?? (await edicionActualId());
+  const fila = await env.DB.prepare(
+    `INSERT INTO torneo_fases (edicion_id, clave, nombre, tipo, orden, reglas, clasifican)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id`
+  )
+    .bind(
+      edicionId,
+      clave,
+      opciones.nombre ?? `Fase ${n}`,
+      opciones.tipo ?? "grupos",
+      opciones.orden ?? 0,
+      typeof opciones.reglas === "string" ? opciones.reglas : JSON.stringify(opciones.reglas ?? {}),
+      opciones.clasifican ?? 0
+    )
+    .first<{ id: number }>();
+  return { id: fila!.id, clave, edicionId };
+}
+
+export async function crearGrupo(
+  faseId: number,
+  opciones: { nombre?: string; orden?: number; reglas?: unknown } = {}
+): Promise<number> {
+  const n = siguiente();
+  const fila = await env.DB.prepare(
+    "INSERT INTO torneo_grupos (fase_id, nombre, orden, reglas) VALUES (?1, ?2, ?3, ?4) RETURNING id"
+  )
+    .bind(
+      faseId,
+      opciones.nombre ?? `Grupo ${n}`,
+      opciones.orden ?? 0,
+      opciones.reglas === undefined
+        ? null
+        : typeof opciones.reglas === "string"
+          ? opciones.reglas
+          : JSON.stringify(opciones.reglas)
+    )
+    .first<{ id: number }>();
+  return fila!.id;
+}
+
+export async function asignarEquipoAGrupo(grupoId: number, faseId: number, equipoId: number): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO torneo_grupo_equipos (grupo_id, fase_id, equipo_id) VALUES (?1, ?2, ?3)"
+  )
+    .bind(grupoId, faseId, equipoId)
+    .run();
+}
+
 export interface OpcionesPartido {
   ronda?: string;
   equipoA?: EquipoSembrado;
   equipoB?: EquipoSembrado;
   /** Por defecto, la edición actual. Se pasa para sembrar histórico. */
   edicionId?: number;
+  faseId?: number;
+  grupoId?: number;
+  rondaOrden?: number;
+  posicion?: number;
+  reglas?: unknown;
+  status?: "scheduled" | "live" | "finished";
+  winner?: "A" | "B" | null;
+  setsA?: number;
+  setsB?: number;
+  /**
+   * Un hueco de cuadro todavía sin equipos: nombres vacíos y los dos lados
+   * marcados como `progresion`. Sin esto heredarían el `manual` por defecto de
+   * la columna, y `propagarResultado` se negaría a escribir en ellos — que es
+   * justo lo que tiene que hacer con un hueco puesto a mano.
+   */
+  vacio?: boolean;
 }
 
 /**
@@ -241,21 +327,58 @@ export async function crearPartido(opciones: OpcionesPartido = {}): Promise<stri
 
   await env.DB.prepare(
     `INSERT INTO partidos (
-       id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, edicion_id
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+       id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, edicion_id,
+       fase_id, grupo_id, ronda_orden, posicion, reglas, status, winner, sets_a, sets_b,
+       origen_equipo_a, origen_equipo_b
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17)`
   )
     .bind(
       id,
       opciones.ronda ?? "Sorteo",
       opciones.equipoA?.id ?? null,
       opciones.equipoB?.id ?? null,
-      opciones.equipoA?.nombre ?? "Equipo A",
-      opciones.equipoB?.nombre ?? "Equipo B",
-      edicionId
+      opciones.equipoA?.nombre ?? (opciones.vacio ? "" : "Equipo A"),
+      opciones.equipoB?.nombre ?? (opciones.vacio ? "" : "Equipo B"),
+      edicionId,
+      opciones.faseId ?? null,
+      opciones.grupoId ?? null,
+      opciones.rondaOrden ?? null,
+      opciones.posicion ?? null,
+      opciones.reglas === undefined
+        ? "{}"
+        : typeof opciones.reglas === "string"
+          ? opciones.reglas
+          : JSON.stringify(opciones.reglas),
+      opciones.status ?? "scheduled",
+      opciones.winner ?? null,
+      opciones.setsA ?? 0,
+      opciones.setsB ?? 0,
+      opciones.vacio ? "progresion" : "manual"
     )
     .run();
 
   return id;
+}
+
+/** Enlaza dos partidos del cuadro: quién gana sube, quién pierde baja. */
+export async function enlazarPartidos(
+  origenId: string,
+  destino: { ganador?: { id: string; slot: "A" | "B" }; perdedor?: { id: string; slot: "A" | "B" } }
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE partidos SET
+       siguiente_partido_id = ?1, siguiente_slot = ?2,
+       perdedor_partido_id = ?3, perdedor_slot = ?4
+     WHERE id = ?5`
+  )
+    .bind(
+      destino.ganador?.id ?? null,
+      destino.ganador?.slot ?? null,
+      destino.perdedor?.id ?? null,
+      destino.perdedor?.slot ?? null,
+      origenId
+    )
+    .run();
 }
 
 /**

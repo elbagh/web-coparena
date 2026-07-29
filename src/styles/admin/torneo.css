@@ -347,3 +347,235 @@
     flex: 1;
   }
 }
+
+/* ============================================================================
+   formato: fases, grupos y clasificación
+   ----------------------------------------------------------------------------
+   El torneo se lee de fuera adentro: una tarjeta por fase, dentro una por grupo,
+   y dentro la tabla. La jerarquía se marca con el fondo y un filete a la
+   izquierda, no con más bordes: la pantalla ya tiene muchos.
+   ========================================================================== */
+
+.torneo-fase {
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-radius);
+  margin-bottom: var(--adm-gap);
+  padding: var(--adm-pad);
+}
+
+.torneo-fase-head,
+.torneo-grupo-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.torneo-fase-titulo,
+.torneo-grupo-titulo {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.torneo-fase-titulo h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.torneo-grupo-titulo h4 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.torneo-grupos {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.torneo-grupo {
+  background: var(--adm-surface-alt);
+  border-left: 3px solid var(--adm-accent);
+  border-radius: 0 var(--adm-radius-sm) var(--adm-radius-sm) 0;
+  padding: 12px 14px;
+}
+
+/* Equipos del grupo: fichas que se quitan de una, sin abrir ningún diálogo. */
+.torneo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+}
+
+.torneo-chip {
+  align-items: center;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-line);
+  border-radius: 999px;
+  display: flex;
+  font-size: 0.82rem;
+  gap: 6px;
+  padding: 3px 6px 3px 11px;
+}
+
+.torneo-chip-quitar {
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  color: var(--adm-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 5px;
+}
+
+.torneo-chip-quitar:hover {
+  background: var(--adm-danger-soft);
+  color: var(--adm-danger);
+}
+
+.torneo-anadir {
+  margin-bottom: 10px;
+}
+
+.torneo-anadir .admin-select {
+  max-width: 260px;
+}
+
+.admin-select--sm {
+  font-size: 0.82rem;
+  max-width: 130px;
+  padding: 4px 8px;
+}
+
+/* Las acciones de una fase son muchas: que ninguna parta en dos líneas. */
+.torneo-fase-head .admin-btn,
+.torneo-grupo-head .admin-btn {
+  white-space: nowrap;
+}
+
+.torneo-opcion {
+  align-items: center;
+  color: var(--adm-muted);
+  display: flex;
+  font-size: 0.8rem;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------- clasificación --- */
+
+.torneo-clasificacion-scroll {
+  overflow-x: auto;
+}
+
+.torneo-clasificacion {
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  min-width: 460px;
+  width: 100%;
+}
+
+.torneo-clasificacion th,
+.torneo-clasificacion td {
+  border-bottom: 1px solid var(--adm-line);
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.torneo-clasificacion thead th {
+  color: var(--adm-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Las columnas de cifras se encogen a su contenido y el nombre del equipo se
+   queda con todo el resto: si no, ocho columnas al 100%% reparten el ancho a
+   partes iguales y quedan cifras flotando en medio de la nada. */
+.torneo-clasificacion td:nth-child(2),
+.torneo-clasificacion th:nth-child(2) {
+  width: 100%;
+}
+
+.torneo-clasificacion .is-num {
+  font-family: var(--adm-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.torneo-clasificacion tbody tr:last-child th,
+.torneo-clasificacion tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Una posición que salió de un desempate lleva marca: es la pregunta que
+   siempre acaba haciendo alguien. */
+.torneo-clasificacion tr.is-desempatado td:first-child::after {
+  color: var(--adm-warn);
+  content: "*";
+  margin-left: 2px;
+}
+
+/* --------------------------------------------------------------- cuadro --- */
+
+.torneo-cuadro-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adm-gap);
+  margin-top: 14px;
+}
+
+.torneo-cuadro-ronda {
+  min-width: 190px;
+}
+
+.torneo-cuadro-ronda h4 {
+  color: var(--adm-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.torneo-cuadro-cruce {
+  background: var(--adm-surface-alt);
+  border-radius: var(--adm-radius-sm);
+  font-size: 0.84rem;
+  margin: 0 0 5px;
+  padding: 6px 9px;
+}
+
+/* --------------------------------------------------------- desempates --- */
+
+.torneo-desempates {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+
+.torneo-desempate {
+  align-items: center;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 7px;
+}
+
+@media (max-width: 720px) {
+  .torneo-fase {
+    padding: 14px;
+  }
+
+  .torneo-fase-head,
+  .torneo-grupo-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
