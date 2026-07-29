@@ -302,7 +302,7 @@ function calcularPalmares(historial: EntradaHistorial[]) {
 
 /**
  * Primero la foto que subió al inscribirse y, si no hay, el avatar de Mi zona.
- * A diferencia de /api/admin/fotos —que sirve la misma imagen tras requireAdmin
+ * A diferencia de /api/admin/fotos —que sirve la misma imagen tras un permiso
  * y con no-store— aquí es pública: el consentimiento de la inscripción cubre
  * publicar las fotos de los participantes en la web.
  */

@@ -7,7 +7,7 @@
 // El puesto final de cada equipo se fija desde /api/admin/equipos?accion=posicion:
 // es una columna de `equipos`, aunque se edite desde esta pantalla.
 
-import { requireAdmin, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
+import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { limpiar } from "../../_lib/validacion";
 
 const ESTADOS = new Set(["proxima", "en_juego", "finalizada"]);
@@ -30,8 +30,8 @@ interface EquipoPuestoRow {
 }
 
 export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "ediciones.ver");
+  if (acceso instanceof Response) return acceso;
 
   try {
     return await cargarPanel(env.DB);
@@ -42,8 +42,8 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 };
 
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "ediciones.editar");
+  if (acceso instanceof Response) return acceso;
 
   try {
     return await crearEdicion(env.DB, await request.json().catch(() => null));
@@ -54,8 +54,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
 };
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "ediciones.editar");
+  if (acceso instanceof Response) return acceso;
 
   const id = idDeQuery(new URL(request.url));
   if (id === null) return accionNoValida();
@@ -69,8 +69,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 };
 
 export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "ediciones.borrar");
+  if (acceso instanceof Response) return acceso;
 
   const id = idDeQuery(new URL(request.url));
   if (id === null) return accionNoValida();

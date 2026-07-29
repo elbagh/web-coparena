@@ -3,7 +3,7 @@
 // salen también los contadores de la barra lateral y la edición activa.
 
 import {
-  requireAdmin,
+  requirePermiso,
   jsonAdmin,
   mapJugador,
   SELECT_JUGADOR,
@@ -38,8 +38,8 @@ interface CamisetaRow {
 }
 
 export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) => {
-  const admin = await requireAdmin(request, env);
-  if (admin instanceof Response) return admin;
+  const acceso = await requirePermiso(request, env, "panel.entrar");
+  if (acceso instanceof Response) return acceso;
 
   try {
     const [equipos, jugadores, camisetas, edicion] = await Promise.all([
@@ -57,7 +57,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
     });
 
     return jsonAdmin({
-      admin: publicUser(admin),
+      admin: publicUser(acceso.user),
       edicion,
       stats: {
         equipos: equipos.length,

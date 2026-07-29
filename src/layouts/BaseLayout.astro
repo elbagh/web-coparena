@@ -63,7 +63,21 @@ const structuredDataItems = Array.isArray(structuredData) ? structuredData : [st
       </p>
       <button type="button" class="ver-como-salir" data-ver-como-salir>Volver a mi cuenta</button>
     </div>
-    <slot />
+    {/*
+      Van ANTES del <slot/> a propósito. Los scripts `defer` se ejecutan en el
+      orden en que aparecen en el documento, y los de cada página salen dentro
+      del slot: puestos después, `directo.js` arrancaba más tarde que el script
+      de /torneo/, que se lo encontraba sin definir y se quedaba sin marcador.
+      Estar antes no adelanta nada respecto al DOM —`defer` espera a que el
+      documento esté entero— solo fija el orden.
+
+      Y van aquí y no en cada página porque la cabecera está en todas.
+      `directo.js` se calla solo donde no hay botón que pintar (el panel de
+      administración, que usa este mismo layout sin cabecera pública).
+    */}
     <script is:inline src="/assets/auth.js" defer></script>
+    <script is:inline src="/assets/header.js" defer></script>
+    <script is:inline src="/assets/directo.js" defer></script>
+    <slot />
   </body>
 </html>

@@ -3,7 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createVerComoCookie, getAuthContext, hayVerComo, verComoCookieName } from "../../functions/_lib/auth";
 import { onRequest as middleware } from "../../functions/_middleware";
 import { crearContexto } from "../helpers/ctx";
-import { cookieSesion, cookieVerComo, crearAdmin, crearUsuario } from "../helpers/db";
+import {
+  asignarRol,
+  cookieSesion,
+  cookieVerComo,
+  crearAdmin,
+  crearUsuario,
+  crearUsuarioConPermisos
+} from "../helpers/db";
 
 const URL_BASE = "https://copa.test/api/mi-equipo";
 
@@ -30,20 +37,45 @@ describe("resolución del usuario efectivo", () => {
     expect(contexto.impersonando).toBe(true);
   });
 
-  // Es el motivo de que el flag se relea en cada petición en vez de viajar en la
+  // Es el motivo de que el rol se relea en cada petición en vez de viajar en la
   // cookie: quitar el permiso corta la suplantación al instante.
-  it("revocar is_admin corta la suplantación en la siguiente petición", async () => {
+  it("quitar el rol corta la suplantación en la siguiente petición", async () => {
     const admin = await crearAdmin();
     const objetivo = await crearUsuario();
     const cookies = [await cookieSesion(admin), await cookieVerComo(admin, objetivo)];
 
     expect((await getAuthContext(conCookies(cookies), env)).impersonando).toBe(true);
 
-    await env.DB.prepare("UPDATE usuarios SET is_admin = 0 WHERE id = ?1").bind(admin.id).run();
+    await asignarRol(admin.id, null);
 
     const despues = await getAuthContext(conCookies(cookies), env);
     expect(despues.impersonando).toBe(false);
     expect(despues.user?.id).toBe(admin.id);
+  });
+
+  /*
+   * Lo que habilita la suplantación es el permiso `usuarios.ver_como`, no ser
+   * administrador. Un rol reducido que lo lleve suplanta igual, y uno que no lo
+   * lleve no suplanta aunque entre al panel: el corte es el permiso concreto.
+   */
+  it("un rol sin `usuarios.ver_como` no suplanta, aunque entre al panel", async () => {
+    const gestor = await crearUsuarioConPermisos(["panel.entrar", "usuarios.ver"]);
+    const objetivo = await crearUsuario();
+    const cookies = [await cookieSesion(gestor), await cookieVerComo(gestor, objetivo)];
+
+    const contexto = await getAuthContext(conCookies(cookies), env);
+    expect(contexto.impersonando).toBe(false);
+    expect(contexto.user?.id).toBe(gestor.id);
+  });
+
+  it("un rol reducido con `usuarios.ver_como` sí suplanta", async () => {
+    const gestor = await crearUsuarioConPermisos(["usuarios.ver", "usuarios.ver_como"]);
+    const objetivo = await crearUsuario();
+    const cookies = [await cookieSesion(gestor), await cookieVerComo(gestor, objetivo)];
+
+    const contexto = await getAuthContext(conCookies(cookies), env);
+    expect(contexto.impersonando).toBe(true);
+    expect(contexto.user?.id).toBe(objetivo.id);
   });
 
   // Copiar la cookie a otro navegador no sirve de nada: tiene que coincidir con

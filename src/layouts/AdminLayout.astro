@@ -11,16 +11,25 @@ import "../styles/admin/index.css";
 
 const { titulo, seccion, lede } = Astro.props;
 
-// Solo se listan las secciones que ya existen; cada fase añade la suya.
+/*
+ * Solo se listan las secciones que ya existen; cada fase añade la suya.
+ *
+ * `permiso` es el que abre esa sección. La barra lateral esconde en cliente lo
+ * que la cuenta no puede usar (core.js, `aplicarPermisos`), pero eso es
+ * cortesía: ofrecer un enlace que va a responder 403 es mala experiencia, no un
+ * agujero. Quien entre a mano por la URL verá la carcasa y un error, porque la
+ * puerta de verdad la pone cada endpoint en el servidor.
+ */
 const secciones = [
-  { clave: "resumen", nombre: "Resumen", href: "/admin/" },
-  { clave: "equipos", nombre: "Equipos", href: "/admin/equipos/" },
-  { clave: "jugadores", nombre: "Jugadores", href: "/admin/jugadores/" },
-  { clave: "estadisticas", nombre: "Estadísticas", href: "/admin/estadisticas/" },
-  { clave: "camisetas", nombre: "Camisetas", href: "/admin/camisetas/" },
-  { clave: "usuarios", nombre: "Usuarios", href: "/admin/usuarios/" },
-  { clave: "torneo", nombre: "Torneo", href: "/admin/torneo/" },
-  { clave: "ediciones", nombre: "Ediciones", href: "/admin/ediciones/" }
+  { clave: "resumen", nombre: "Resumen", href: "/admin/", permiso: "panel.entrar" },
+  { clave: "equipos", nombre: "Equipos", href: "/admin/equipos/", permiso: "equipos.ver" },
+  { clave: "jugadores", nombre: "Jugadores", href: "/admin/jugadores/", permiso: "jugadores.ver" },
+  { clave: "estadisticas", nombre: "Estadísticas", href: "/admin/estadisticas/", permiso: "estadisticas.ver" },
+  { clave: "camisetas", nombre: "Camisetas", href: "/admin/camisetas/", permiso: "camisetas.ver" },
+  { clave: "usuarios", nombre: "Usuarios", href: "/admin/usuarios/", permiso: "usuarios.ver" },
+  { clave: "roles", nombre: "Roles", href: "/admin/roles/", permiso: "roles.ver" },
+  { clave: "torneo", nombre: "Torneo", href: "/admin/torneo/", permiso: "torneo.ver" },
+  { clave: "ediciones", nombre: "Ediciones", href: "/admin/ediciones/", permiso: "ediciones.ver" }
 ];
 ---
 
@@ -39,6 +48,8 @@ const secciones = [
               class:list={["admin-nav-link", { "is-current": item.clave === seccion }]}
               href={item.href}
               aria-current={item.clave === seccion ? "page" : undefined}
+              data-permiso={item.permiso}
+              hidden
             >
               <span>{item.nombre}</span>
               <span class="admin-nav-count" data-admin-count={item.clave}></span>

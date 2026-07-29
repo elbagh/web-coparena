@@ -1,0 +1,22 @@
+-- Migration number: 0021 	 quien manda en el marcador de cada partido
+-- Solo un ALTER, y por eso va suelto: ADD COLUMN no es idempotente y D1
+-- reejecuta el fichero entero si algo falla a mitad.
+--
+-- Sin este discriminador, el marcador manual del panel y el log de eventos se
+-- pisarian en silencio: anotador marca punto -> alguien corrige a mano en el
+-- panel -> anotador marca otro punto, y el recalculo desde el log borra la
+-- correccion sin que nadie se entere.
+--
+-- 'manual'  = manda el panel. Es lo que hay hoy y lo que sigue habiendo por
+--             defecto, asi que ningun partido existente cambia de
+--             comportamiento.
+-- 'eventos' = manda el log. El marcador se deriva y el panel deja de poder
+--             tocarlo directamente (409) hasta que se suelte.
+--
+-- NOTA: `usuarios.is_admin` sigue SIN borrarse. El despliegue aplica las
+-- migraciones antes de subir el codigo, asi que si estas migraciones llegan a
+-- produccion en el mismo salto que el RBAC, el codigo viejo aun vivo leeria una
+-- columna que ya no existe. Se retira en un despliegue posterior, cuando
+-- produccion ya lleve una version que no la lee.
+
+ALTER TABLE partidos ADD COLUMN origen_marcador TEXT NOT NULL DEFAULT 'manual';

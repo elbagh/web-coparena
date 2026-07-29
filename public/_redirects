@@ -1,0 +1,5 @@
+# Cloudflare sirve estas reglas desde los assets estaticos, antes de buscar el
+# fichero. /competicion/ paso a colgar de /torneo/ cuando el cuadro real dejo de
+# ser una seccion mas de la pagina de premios.
+/competicion/ /torneo/premios/ 301
+/competicion /torneo/premios/ 301
