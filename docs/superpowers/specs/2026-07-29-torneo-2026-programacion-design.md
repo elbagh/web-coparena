@@ -225,14 +225,18 @@ aplica y no se tocan.
   sea «decisivo» es una arruga real del motor, pero se resuelve por configuración
   para este torneo y refactorizarla no sirve al objetivo.
 
-## Pregunta abierta
+## Alcance de las restricciones de disponibilidad (resuelto)
 
-Las restricciones de disponibilidad se han interpretado como «de esos tres días de
-la fase de grupos, yo puedo tal». Si fuesen absolutas —Showtime y Dosilva solo
-pueden jugar en lunes, nunca— entonces no podrían disputar ni cuartos (sáb 08/08)
-ni semifinales (dom 09/08), y «Calvos de Orión / Bye Bye Bye / Free Copa Arena solo
-sábado» les dejaría fuera del domingo 09/08 si ganan su cuarto. Hay que confirmarlo
-antes del sorteo, aunque no bloquea el trabajo de código.
+**Valen solo para el primer fin de semana**, el de la fase de grupos. El 8 y el 9
+de agosto pueden jugar todos, así que la eliminatoria se disputa sin condiciones.
+
+Queda escrito porque la alternativa rompía el torneo, y no por un caso raro: el
+grupo A tiene 3 equipos «solo sábado» de 4 y clasifican 2, así que **siempre** pasa
+al menos uno, y las semifinales son en domingo. Con las restricciones entendidas
+como absolutas no había recolocación de días que lo salvara — el problema no era
+qué grupo juega qué día, sino el segundo fin de semana entero. Si algún año vuelven
+restricciones de este tipo, hay que comprobarlas contra la eliminatoria y no solo
+contra los grupos.
 
 ## Tests
 
