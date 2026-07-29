@@ -167,7 +167,18 @@ Vitest, with three projects declared in [vitest.config.ts](vitest.config.ts). Ea
   git branch -d <rama>
   ```
 - Push work to the `feature/bugfix/release/hotfix` branch and merge into `development` freely as work completes — this does not require asking first. **`npm run verify` must be green first**, and the branch must carry tests for what it changed (see Tests above).
-- **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) ask for explicit confirmation before merging `development` into `main` and pushing.
+- **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) name the migrations production is missing (`npm run db:status`), (3) ask for explicit confirmation before merging `development` into `main` and pushing.
+- **Promoting to `main` *is* applying the migrations. Always, in every flow, no exceptions.** A deploy ships code, not schema. `main` is what production runs, so the moment `development` lands on `main`, production's D1 has to be at the same migration as the branch — otherwise the new code queries tables that do not exist. This has already taken the site down: the promotion carrying RBAC + torneo + directo shipped code needing 0013–0021 against a database stuck at 0012, and what broke was **login itself**, because `permisosDeUsuario` joins `roles`. Once the promotion is confirmed, it is these four steps in this order:
+
+  ```bash
+  npm run db:status          # what production is missing
+  npm run db:migrate         # apply it — BEFORE the code ships
+  git checkout main && git merge development && git push
+  npm run db:status          # must say "No migrations to apply!"
+  ```
+
+  Migrations go **first** so that during the seconds the deploy takes, the old code still serving traffic meets a schema that is a *superset* of what it knows. That ordering is also why a column is only dropped one release after the code stops reading it (see `is_admin`), and it is why every migration is additive: `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN`, `INSERT OR IGNORE`.
+- **`predeploy:worker` is a safety net, not the mechanism — never assume it ran.** It only fires if Cloudflare Workers Builds' *Deploy command* is `npm run deploy:worker`; with the default `npx wrangler deploy`, npm never runs the hook and the migrations are skipped in silence, deploy green. The closing `npm run db:status` above is what turns that silence into an answer.
 
 ## Conventions
 

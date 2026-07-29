@@ -33,6 +33,18 @@ export default defineConfig({
     name: "integration",
     root: import.meta.dirname,
     include: ["**/*.test.ts"],
-    setupFiles: ["./setup.ts"]
+    setupFiles: ["./setup.ts"],
+    // Los 5 s por defecto de Vitest son para tests en memoria. Aquí cada test
+    // habla con una D1 de verdad dentro de workerd, y el `afterEach` del setup
+    // vacía y resiembra todas las tablas. Los de anotación son los más largos
+    // con diferencia: recorren un partido punto a punto y cada punto recalcula
+    // el marcador entero desde el log, que es justamente el diseño (hay UN solo
+    // camino de recálculo). Uno de ~6 s cabe de sobra suelto, pero se pasaba de
+    // los 5 s cuando corre toda la suite en paralelo, y fallaba un test
+    // distinto en cada ejecución.
+    //
+    // Subir el techo no debilita ninguna aserción: un timeout no comprueba
+    // nada. Sigue habiendo tope para que un test colgado no bloquee la suite.
+    testTimeout: 30000
   }
 });
