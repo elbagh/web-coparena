@@ -2285,12 +2285,63 @@ html.js .reveal.in-view {
   background: var(--dune);
 }
 
+/* Capitán: la única tarjeta con contacto obligatorio y la que manda. Se
+   apoya en --sun, el mismo tono del dorsal, para que la insignia lea como
+   "quien lleva el mando" sin sumar un color nuevo a la paleta. */
+.player-card.is-capitan {
+  border-color: var(--sun);
+  box-shadow: 4px 4px 0 var(--sun);
+}
+
 .player-role {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 950;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.player-capitan {
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sun);
+  color: var(--deep);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.player-capitan-set {
+  margin-left: auto;
+  padding: 8px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foam);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 950;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.player-capitan-set:hover:not(:disabled) {
+  background: var(--sun);
+}
+
+.player-capitan-set:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Cuando el botón de ceder ya no está pegado al borde (porque hay insignia
+   antes), el margin-left:auto de .player-remove seguiría empujándolo: que
+   el de "Quitar" ya no sea el último en llevarse el hueco libre. */
+.player-capitan-set + .player-remove {
+  margin-left: 0;
 }
 
 .player-remove {
@@ -2309,6 +2360,18 @@ html.js .reveal.in-view {
 .player-remove:hover {
   background: var(--coral);
   color: var(--foam);
+}
+
+.player-warning {
+  margin: 0;
+  padding: 10px 14px;
+  border: 2px solid var(--ink);
+  border-left: 6px solid var(--sun);
+  border-radius: 8px;
+  background: rgba(255, 217, 93, 0.18);
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1.4;
 }
 
 .player-grid {
@@ -3962,6 +4025,11 @@ html.js .reveal.in-view {
     width: 40px;
     height: 40px;
     font-size: 1.15rem;
+  }
+
+  .player-warning {
+    padding: 8px 12px;
+    font-size: 0.82rem;
   }
 
   .add-player,

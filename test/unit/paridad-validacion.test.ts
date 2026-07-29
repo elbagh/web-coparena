@@ -88,6 +88,14 @@ describe("paridad entre team-form.js y validacion.ts", () => {
       "limpiar(v).toLowerCase()"
     );
   });
+
+  it("comparte el mensaje de contacto del capitán", () => {
+    comparar(
+      "mensaje de contacto del capitán",
+      /MENSAJE_CAPITAN_CONTACTO\s*=\s*(.+);/,
+      /MENSAJE_CAPITAN_CONTACTO\s*=\s*(.+);/
+    );
+  });
 });
 
 /*

@@ -23,6 +23,11 @@
   const NOMBRE_RE = /^[\p{L}\p{M}'’. -]+$/u;
   const HANDLE_RE = /^@?[a-zA-Z0-9._]{2,30}$/;
   const URL_SOCIAL_RE = /^https:\/\/\S{5,110}$/;
+  const MENSAJE_CAPITAN_CONTACTO = "El capitán necesita móvil y correo para que podamos avisaros.";
+  const AVISO_SIN_MOVIL = "Sin móvil no le añadiremos al grupo del torneo.";
+  const AVISO_SIN_CORREO = "Sin correo no recibirá los avisos del torneo.";
+  const AVISO_SIN_CONTACTO =
+    "Sin móvil ni correo no le añadiremos al grupo del torneo ni recibirá avisos.";
 
   const limpiar = (v) => v.trim().replace(/\s+/g, " ");
   const movilNormalizado = (v) => v.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, "");
@@ -30,6 +35,10 @@
 
   const cartas = () => Array.from(contenedor.querySelectorAll("[data-player]"));
   const usuarioActual = () => window.CopaAuth?.state?.user || null;
+
+  // El capitán se guarda por elemento, no por índice: las tarjetas se añaden y
+  // se quitan, y un índice se quedaría apuntando a otra persona.
+  let cartaCapitan = null;
 
   // ------------------------------ errores en pantalla ------------------------------
 
@@ -68,27 +77,95 @@
     const carta = plantilla.content.firstElementChild.cloneNode(true);
     carta.querySelector("[data-remove]").addEventListener("click", () => {
       carta.remove();
+      if (cartaCapitan === carta) cartaCapitan = null;
       reindexar();
+      actualizarCapitan();
+    });
+    carta.querySelector("[data-make-capitan]").addEventListener("click", () => {
+      if (!tieneContacto(carta)) return;
+      cartaCapitan = carta;
+      reindexar();
+      actualizarCapitan();
     });
     carta.querySelectorAll("input").forEach((input) => {
       input.addEventListener("blur", () => validarCampo(input));
+      if (input.dataset.field === "telefono" || input.dataset.field === "email") {
+        input.addEventListener("input", actualizarCapitan);
+      }
       if (input.dataset.field === "foto") {
         input.addEventListener("change", () => validarCampo(input));
       }
     });
     contenedor.appendChild(carta);
+    if (!cartaCapitan) cartaCapitan = carta;
     reindexar();
+    actualizarCapitan();
     return carta;
   }
 
   function rellenarEmailGoogle() {
     const userEmail = usuarioActual()?.email;
-    if (!userEmail) return;
-    const primerEmail = cartas()[0]?.querySelector('[data-field="email"]');
-    if (primerEmail && !limpiar(primerEmail.value)) {
-      primerEmail.value = userEmail;
-      validarCampo(primerEmail);
+    if (!userEmail || !cartaCapitan) return;
+    const campo = cartaCapitan.querySelector('[data-field="email"]');
+    if (campo && !limpiar(campo.value)) {
+      campo.value = userEmail;
+      validarCampo(campo);
+      actualizarCapitan();
     }
+  }
+
+  const valorDe = (carta, campo) => limpiar(carta.querySelector(`[data-field="${campo}"]`)?.value || "");
+  const tieneContacto = (carta) => Boolean(valorDe(carta, "telefono")) && Boolean(valorDe(carta, "email"));
+
+  /** Aviso bajo la tarjeta: dice qué falta y qué implica. */
+  function actualizarAviso(carta) {
+    const aviso = carta.querySelector("[data-contacto-aviso]");
+    if (!aviso) return;
+    if (carta === cartaCapitan) {
+      aviso.hidden = true;
+      return;
+    }
+    const sinMovil = !valorDe(carta, "telefono");
+    const sinCorreo = !valorDe(carta, "email");
+    const mensaje = sinMovil && sinCorreo
+      ? AVISO_SIN_CONTACTO
+      : sinMovil
+        ? AVISO_SIN_MOVIL
+        : sinCorreo
+          ? AVISO_SIN_CORREO
+          : "";
+    aviso.textContent = mensaje;
+    aviso.hidden = !mensaje;
+  }
+
+  /** Insignia, botón de cesión, rótulos opcionales y aviso de cada tarjeta. */
+  function actualizarCapitan() {
+    const lista = cartas();
+    if (!lista.includes(cartaCapitan)) cartaCapitan = lista[0] || null;
+
+    lista.forEach((carta) => {
+      const esCapitan = carta === cartaCapitan;
+      carta.classList.toggle("is-capitan", esCapitan);
+      carta.querySelector("[data-capitan-badge]").hidden = !esCapitan;
+
+      const boton = carta.querySelector("[data-make-capitan]");
+      boton.hidden = esCapitan;
+      boton.disabled = !tieneContacto(carta);
+      boton.title = boton.disabled ? "Necesita móvil y correo para ser capitán." : "";
+
+      carta.querySelector('[data-opt="telefono"]').hidden = esCapitan;
+      carta.querySelector('[data-opt="email"]').hidden = esCapitan;
+
+      const pista = carta.querySelector("[data-hint-email]");
+      if (pista) pista.hidden = !esCapitan;
+
+      // Al capitán no se le quita de la plantilla: primero se cede el mando.
+      // Esto va aquí y no en reindexar() porque depende de quién manda, y
+      // `actualizarCapitan` siempre corre después de `reindexar`.
+      if (esCapitan) carta.querySelector("[data-remove]").hidden = true;
+
+      actualizarAviso(carta);
+    });
   }
 
   function reindexar() {
@@ -135,13 +212,18 @@
         return v.length < 2 || v.length > 80 || !NOMBRE_RE.test(v)
           ? "Introduce los apellidos (solo letras, entre 2 y 80 caracteres)."
           : "";
-      case "telefono":
+      case "telefono": {
+        const esCapitan = input.closest("[data-player]") === cartaCapitan;
+        if (!v) return esCapitan ? MENSAJE_CAPITAN_CONTACTO : "";
         return !/^[67]\d{8}$/.test(movilNormalizado(v))
           ? "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos)."
           : "";
-      case "email":
-        if (!v) return "El correo de cada jugador es obligatorio.";
+      }
+      case "email": {
+        const esCapitan = input.closest("[data-player]") === cartaCapitan;
+        if (!v) return esCapitan ? MENSAJE_CAPITAN_CONTACTO : "";
         return !EMAIL_RE.test(v) || v.length > 120 ? "Ese correo no parece válido." : "";
+      }
       case "redSocial":
         return v && (v.length > 120 || !(HANDLE_RE.test(v) || URL_SOCIAL_RE.test(v)))
           ? "Usa un usuario tipo @nombre o un enlace https://."
@@ -173,9 +255,10 @@
     };
     const jugador = {
       nombre: valor("nombre"),
-      apellidos: valor("apellidos"),
-      telefono: valor("telefono")
+      apellidos: valor("apellidos")
     };
+    const telefono = valor("telefono");
+    if (telefono) jugador.telefono = telefono;
     const email = valor("email");
     if (email) jugador.email = email;
     const red = valor("redSocial");
@@ -241,19 +324,22 @@
 
     const lista = cartas();
     const jugadores = lista.map(datosJugador);
+    const indiceCapitan = lista.indexOf(cartaCapitan);
     const userEmail = usuarioActual()?.email;
     if (!userEmail) {
       mostrarBanner("Inicia sesión para que el equipo quede asociado a tu cuenta.");
       valido = false;
-    } else if (!jugadores.some((j) => emailNormalizado(j.email || "") === emailNormalizado(userEmail))) {
-      const primerEmail = lista[0]?.querySelector('[data-field="email"]');
-      if (primerEmail) {
+    } else if (
+      indiceCapitan < 0 ||
+      emailNormalizado(jugadores[indiceCapitan]?.email || "") !== emailNormalizado(userEmail)
+    ) {
+      if (cartaCapitan) {
         pintarError(
-          primerEmail.closest(".field"),
-          "El correo de tu cuenta debe aparecer en al menos un jugador."
+          cartaCapitan.querySelector('[data-field="email"]').closest(".field"),
+          "El capitán debe usar el correo con el que has iniciado sesión."
         );
       }
-      mostrarBanner(`Uno de los jugadores debe usar el correo con el que has iniciado sesión: ${userEmail}.`);
+      mostrarBanner(`El capitán del equipo debe usar tu correo: ${userEmail}.`);
       valido = false;
     }
 
@@ -266,6 +352,7 @@
     const payload = {
       equipo: limpiar(form.querySelector('[data-field="equipo"]').value),
       consentimiento: true,
+      capitan: indiceCapitan,
       jugadores
     };
 
@@ -327,6 +414,7 @@
 
   crearJugador();
   crearJugador();
+  actualizarCapitan();
   rellenarEmailGoogle();
 
   window.addEventListener("copa:auth", (event) => {
