@@ -4,7 +4,15 @@
 // `plantillaCuadro`), y las que tocan la base para materializarlas y para llevar
 // al ganador de un cruce al siguiente.
 
+import type { Semilla } from "./clasificados";
 import { reglasEfectivas, type ReglasFase } from "./reglas";
+
+/*
+ * La semilla la define quien decide QUIÉN pasa (`clasificados.ts`), no quien la
+ * coloca en el cuadro. Se reexporta para no obligar a los consumidores a
+ * conocer los dos módulos, pero definición hay una sola.
+ */
+export type { Semilla };
 
 export type Lado = "A" | "B";
 
@@ -286,11 +294,6 @@ export async function generarEliminatoria(
 
   await db.batch(sentencias);
   return { creados: nodos.length };
-}
-
-export interface Semilla {
-  equipoId: number;
-  nombre: string;
 }
 
 /**

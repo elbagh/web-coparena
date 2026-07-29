@@ -8,7 +8,17 @@ import {
 } from "../../functions/api/admin/torneo";
 import type { UsuarioSesion } from "../../functions/_lib/auth";
 import { ctx } from "../helpers/ctx";
-import { crearAdmin, crearEquipo, crearUsuario, crearUsuarioConPermisos, peticion } from "../helpers/db";
+import {
+  asignarEquipoAGrupo,
+  crearAdmin,
+  crearEquipo,
+  crearFase,
+  crearGrupo,
+  crearPartido,
+  crearUsuario,
+  crearUsuarioConPermisos,
+  peticion
+} from "../helpers/db";
 
 interface GrupoSalida {
   id: number;
@@ -387,5 +397,137 @@ describe("la clasificación viaja con el torneo", () => {
     expect(tabla).toHaveLength(3);
     expect(tabla.map((f) => f.posicion)).toEqual([1, 2, 3]);
     expect(equipos).toHaveLength(3);
+  });
+});
+
+/*
+ * El reparto de plazas cuando los grupos no son iguales: cada grupo puede tener
+ * su cupo y la fase puede repartir plazas de repesca entre los que quedan justo
+ * fuera. Lo que no puede pasar nunca es que la tabla pinte a unos y el cuadro
+ * siembre a otros.
+ */
+describe("plazas por grupo y repesca", () => {
+  it("guarda la repesca de la fase y el cupo propio de un grupo", async () => {
+    const admin = await crearAdmin();
+
+    const creada = await onRequestPost(
+      ctx(
+        await peticion("/api/admin/torneo?accion=fase", {
+          method: "POST",
+          user: admin,
+          json: { clave: "grupos", nombre: "Fase de grupos", tipo: "grupos", clasifican: 2, repesca: 1 }
+        }),
+        env
+      ) as never
+    );
+    expect(creada.status).toBe(201);
+    const trasCrear = (await creada.json()) as { fases: { id: number; clasifican: number; repesca: number }[] };
+    const fase = trasCrear.fases[0]!;
+    expect(fase.repesca).toBe(1);
+
+    const grupo = await onRequestPost(
+      ctx(
+        await peticion(`/api/admin/torneo?accion=grupo&fase=${fase.id}`, {
+          method: "POST",
+          user: admin,
+          json: { nombre: "C", orden: 2, clasifican: 3, enRepesca: false }
+        }),
+        env
+      ) as never
+    );
+    expect(grupo.status).toBe(201);
+
+    const datos = (await grupo.json()) as {
+      fases: {
+        grupos: { nombre: string; clasifican: number; clasificanPropio: number | null; enRepesca: boolean }[];
+      }[];
+    };
+    const c = datos.fases[0]!.grupos.find((g) => g.nombre === "C")!;
+    expect(c.clasifican).toBe(3);
+    expect(c.clasificanPropio).toBe(3);
+    expect(c.enRepesca).toBe(false);
+  });
+
+  it("un grupo sin cupo propio hereda el de la fase", async () => {
+    const admin = await crearAdmin();
+    const fase = await crearFase({ tipo: "grupos", clasifican: 2 });
+    await onRequestPost(
+      ctx(
+        await peticion(`/api/admin/torneo?accion=grupo&fase=${fase.id}`, {
+          method: "POST",
+          user: admin,
+          json: { nombre: "A", orden: 0 }
+        }),
+        env
+      ) as never
+    );
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/admin/torneo", { user: admin }), env) as never);
+    const datos = (await respuesta.json()) as {
+      fases: { grupos: { nombre: string; clasifican: number; clasificanPropio: number | null }[] }[];
+    };
+    const a = datos.fases[0]!.grupos.find((g) => g.nombre === "A")!;
+    expect(a.clasifican).toBe(2);
+    expect(a.clasificanPropio).toBeNull();
+  });
+
+  it("siembra exactamente a los que la clasificación pinta como clasificados", async () => {
+    const admin = await crearAdmin();
+
+    const grupos = await crearFase({ clave: "grupos", tipo: "grupos", clasifican: 1 });
+    await env.DB.prepare("UPDATE torneo_fases SET repesca = 1 WHERE id = ?1").bind(grupos.id).run();
+    const gA = await crearGrupo(grupos.id, { nombre: "A", orden: 0 });
+    const gB = await crearGrupo(grupos.id, { nombre: "B", orden: 1 });
+
+    const a1 = await crearEquipo({ nombre: "A uno" });
+    const a2 = await crearEquipo({ nombre: "A dos" });
+    const b1 = await crearEquipo({ nombre: "B uno" });
+    const b2 = await crearEquipo({ nombre: "B dos" });
+    await asignarEquipoAGrupo(gA, grupos.id, a1.id);
+    await asignarEquipoAGrupo(gA, grupos.id, a2.id);
+    await asignarEquipoAGrupo(gB, grupos.id, b1.id);
+    await asignarEquipoAGrupo(gB, grupos.id, b2.id);
+
+    // «A dos» encaja menos que «B dos»: es el mejor segundo y gana la repesca.
+    await crearPartido({
+      faseId: grupos.id, grupoId: gA, equipoA: a1, equipoB: a2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 30
+    });
+    await crearPartido({
+      faseId: grupos.id, grupoId: gB, equipoA: b1, equipoB: b2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 10
+    });
+
+    const cuadro = await crearFase({ clave: "cuadro", tipo: "eliminatoria", orden: 1 });
+    await onRequestPost(
+      ctx(
+        await peticion(`/api/admin/torneo?accion=generar-cuadro&fase=${cuadro.id}`, {
+          method: "POST", user: admin, json: { tamano: 4 }
+        }),
+        env
+      ) as never
+    );
+
+    const sembrada = await onRequestPost(
+      ctx(
+        await peticion(`/api/admin/torneo?accion=sembrar&fase=${cuadro.id}`, {
+          method: "POST", user: admin, json: { desdeFase: grupos.id }
+        }),
+        env
+      ) as never
+    );
+    expect(sembrada.status).toBe(200);
+
+    const { results } = await env.DB
+      .prepare(
+        `SELECT equipo_a_nombre, equipo_b_nombre FROM partidos
+          WHERE fase_id = ?1 AND ronda_orden = 0 ORDER BY posicion ASC`
+      )
+      .bind(cuadro.id)
+      .all<{ equipo_a_nombre: string; equipo_b_nombre: string }>();
+
+    const colocados = results.flatMap((p) => [p.equipo_a_nombre, p.equipo_b_nombre]).filter(Boolean);
+    // Pasan los dos primeros (directos) y el mejor segundo (repesca). «B dos» no.
+    expect(colocados.sort()).toEqual(["A dos", "A uno", "B uno"]);
   });
 });
