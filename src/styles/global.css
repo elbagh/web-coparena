@@ -4925,13 +4925,29 @@ html.js .header-directo.is-vivo .directo-llama {
   width: 100%;
 }
 
-/* Quién pasa de ronda es la lectura principal de una clasificación. */
-.torneo-tabla tbody tr.is-clasificado {
+/*
+ * Quién pasa de ronda es la lectura principal de una clasificación, y pasar
+ * directo no es lo mismo que pasar por repesca: esa plaza depende de cómo
+ * queden los otros grupos. Dos colores, no uno.
+ *
+ * El amarillo va más opaco que el verde y el borde lleva un ámbar oscurecido:
+ * --sun (#ffd95d) sobre crema, a 3px, no se distingue.
+ */
+.torneo-tabla tbody tr.is-directo {
   background: rgba(183, 230, 91, 0.18);
 }
 
-.torneo-tabla tbody tr.is-clasificado td:first-child {
+.torneo-tabla tbody tr.is-directo td:first-child {
   box-shadow: inset 3px 0 0 var(--sea);
+  font-weight: 800;
+}
+
+.torneo-tabla tbody tr.is-repesca {
+  background: rgba(255, 217, 93, 0.32);
+}
+
+.torneo-tabla tbody tr.is-repesca td:first-child {
+  box-shadow: inset 3px 0 0 #c79a1f;
   font-weight: 800;
 }
 
