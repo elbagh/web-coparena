@@ -104,7 +104,7 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     await env.DB.batch(sentencias);
   } catch (err) {
     console.error("Error guardando las estadísticas de un jugador:", err);
-    return jsonAdmin({ error: "No se han podido guardar las estadísticas." }, 500);
+    return jsonAdmin({ error: "No se han podido guardar los cambios." }, 500);
   }
 
   // Se relee en vez de devolver lo enviado: `ocultoPublico` es opcional y, si no

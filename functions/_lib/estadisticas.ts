@@ -29,16 +29,6 @@ export const METRICAS: Metrica[] = [
   { clave: "errores", columna: "errores", etiqueta: "Errores" }
 ];
 
-/**
- * Las que se registran en un partido: las unicas con columna propia.
- *
- * `columna` sigue rellena tambien en la derivada, y no es un descuido:
- * `mapEstadisticas` la usa para leer la fila agregada, y ahi `partidos_jugados`
- * existe como alias del COUNT. Dejarla a null pondria `partidosJugados` a cero
- * en silencio.
- */
-export const METRICAS_PARTIDO = METRICAS.filter((m) => !m.derivada);
-
 export type Estadisticas = Record<string, number>;
 
 export function estadisticasVacias(): Estadisticas {

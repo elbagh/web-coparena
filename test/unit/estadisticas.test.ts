@@ -4,7 +4,6 @@ import {
   hayEstadisticas,
   mapEstadisticas,
   METRICAS,
-  METRICAS_PARTIDO,
   sumarTotales,
   SUMA_METRICAS
 } from "../../functions/_lib/estadisticas";
@@ -56,17 +55,6 @@ describe("métricas derivadas", () => {
   it("los partidos jugados se cuentan, no se suman", () => {
     expect(SUMA_METRICAS).toContain("COUNT(DISTINCT e.partido_id) AS partidos_jugados");
     expect(SUMA_METRICAS).not.toContain("SUM(e.partidos_jugados)");
-  });
-
-  it("las métricas de partido son las que tienen columna propia", () => {
-    expect(METRICAS_PARTIDO.map((m) => m.clave)).toEqual([
-      "puntos",
-      "remates",
-      "bloqueos",
-      "aces",
-      "defensas",
-      "errores"
-    ]);
   });
 
   it("la derivada conserva su columna, que es el alias del COUNT", () => {

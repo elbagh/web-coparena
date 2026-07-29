@@ -174,7 +174,7 @@ Los estilos van en `src/styles/admin/dialog.css` o `forms.css` según dónde enc
 ## Lo que no cambia
 
 - `/jugadores/`, `/mi-equipo/` y `/api/perfil`: leen totales agregados y los seguirán leyendo igual.
-- `public/assets/players-list.js` y `public/assets/cromo.js`: sus listas de métricas siguen siendo válidas; `partidosJugados` sigue en la respuesta, sólo cambia de dónde sale.
+- `public/assets/players-list.js`: su lista de métricas sigue siendo válida; `partidosJugados` sigue en la respuesta, sólo cambia de dónde sale.
 - `jugador_atributos` y `oculto_publico`: son cosa de la organización, no del juego, y se siguen editando a mano. Nada en este spec los toca.
 
 ## Casos límite

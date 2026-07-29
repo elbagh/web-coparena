@@ -17,6 +17,17 @@ describe("el cerrojo de estadisticas", () => {
         .prepare("INSERT INTO estadisticas (jugador_id, partido_id, puntos) VALUES (?1, NULL, 5)")
         .bind(equipo.jugadores[0]!.id)
         .run()
+    ).rejects.toThrow(/NOT NULL/);
+  });
+
+  it("la base rechaza una estadística colgada de un partido que no existe", async () => {
+    const equipo = await crearEquipo();
+
+    await expect(
+      env.DB
+        .prepare("INSERT INTO estadisticas (jugador_id, partido_id, puntos) VALUES (?1, ?2, 5)")
+        .bind(equipo.jugadores[0]!.id, "partido-que-no-existe")
+        .run()
     ).rejects.toThrow();
   });
 

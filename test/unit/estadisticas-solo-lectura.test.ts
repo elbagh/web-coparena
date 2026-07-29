@@ -11,10 +11,12 @@ import { ejecutarScriptPublico } from "../helpers/dom";
  * <input> --, que ya no las manda al guardar, y que los atributos 1-5 se
  * mantienen como campos editables normales.
  *
- * El marcado replica el de src/pages/admin/estadisticas.astro. Si allí cambian
- * los `data-*` o el <dl data-stats-metricas>, este test se cae -- que es lo
- * que se quiere, porque el script también se caería en silencio (una caja
- * vacía sin decir nada).
+ * El marcado replica el de src/pages/admin/estadisticas.astro a mano -- es el
+ * mismo patrón que mi-equipo-solo-lectura.test.ts y album-jugadores.test.ts.
+ * Es una copia, no una lectura del fichero real: si allí cambian los `data-*`
+ * o el <dl data-stats-metricas>, este test sigue en verde y es producción la
+ * que se rompe (el script se cae en silencio, una caja vacía sin decir nada).
+ * Hay que mantener MARCADO sincronizado a mano con el .astro.
  */
 
 const MARCADO = `
