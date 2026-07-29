@@ -7,6 +7,7 @@ import {
   crearEdicion,
   crearEquipo,
   crearEstadistica,
+  crearPartido,
   crearUsuario,
   ocultarJugador,
   peticion,
@@ -66,11 +67,11 @@ describe("GET /api/jugadores (listado)", () => {
     expect(datos.jugadores.map((j) => j.nombre)).toEqual(["Visible"]);
   });
 
-  it("suma la carga manual y la de partido en los totales", async () => {
+  it("suma las cargas de varios partidos en los totales", async () => {
     const equipo = await crearEquipo();
     const jugadorId = equipo.jugadores[0]!.id;
-    await crearEstadistica(jugadorId, { puntos: 10, aces: 2 });
-    await crearEstadistica(jugadorId, { puntos: 5, aces: 1 }, await sembrarPartido());
+    await crearEstadistica(jugadorId, await crearPartido(), { puntos: 10, aces: 2 });
+    await crearEstadistica(jugadorId, await crearPartido(), { puntos: 5, aces: 1 });
 
     const respuesta = await jugadoresGet(ctx(await peticion("/api/jugadores"), env));
     const datos = (await respuesta.json()) as {
@@ -81,6 +82,7 @@ describe("GET /api/jugadores (listado)", () => {
     expect(jugador.estadisticas.puntos).toBe(15);
     expect(jugador.estadisticas.aces).toBe(3);
     expect(jugador.estadisticas.bloqueos).toBe(0);
+    expect(jugador.estadisticas.partidosJugados).toBe(2);
   });
 });
 
@@ -136,8 +138,8 @@ describe("GET /api/jugadores?id=N (ficha)", () => {
     const nueva = await crearEquipo({
       jugadores: [{ nombre: "Iago", apellidos: "Garcia", email: "iago@example.com" }, {}]
     });
-    await crearEstadistica(vieja.jugadores[0]!.id, { puntos: 7 });
-    await crearEstadistica(nueva.jugadores[0]!.id, { puntos: 3 });
+    await crearEstadistica(vieja.jugadores[0]!.id, await crearPartido(), { puntos: 7 });
+    await crearEstadistica(nueva.jugadores[0]!.id, await crearPartido(), { puntos: 3 });
 
     const respuesta = await jugadoresGet(ctx(await peticion(`/api/jugadores?id=${nueva.jugadores[0]!.id}`), env));
     const datos = (await respuesta.json()) as { carrera: Record<string, number> };
@@ -201,14 +203,3 @@ describe("GET /api/jugadores?foto=N", () => {
     expect(respuesta.status).toBe(404);
   });
 });
-
-/** Un partido mínimo al que colgar una estadística. */
-async function sembrarPartido(): Promise<string> {
-  const id = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO partidos (id, ronda, equipo_a_nombre, equipo_b_nombre) VALUES (?1, 'Sorteo', 'A', 'B')`
-  )
-    .bind(id)
-    .run();
-  return id;
-}

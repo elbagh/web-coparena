@@ -173,24 +173,58 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
   return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, capitanId: capitan?.id ?? null, jugadores };
 }
 
+export interface OpcionesPartido {
+  ronda?: string;
+  equipoA?: EquipoSembrado;
+  equipoB?: EquipoSembrado;
+}
+
 /**
- * Carga de estadísticas de un jugador. Sin `partidoId` es la carga manual de la
- * edición; con él, la que registraría un partido. Las dos suman.
+ * Un partido de la edición actual al que colgar estadísticas. Devuelve su id
+ * (es TEXT: un UUID). Los equipos son opcionales porque la mayoría de tests
+ * sólo necesitan algo de lo que colgar una fila.
+ */
+export async function crearPartido(opciones: OpcionesPartido = {}): Promise<string> {
+  const id = crypto.randomUUID();
+  const edicionId =
+    (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())?.id ?? null;
+
+  await env.DB.prepare(
+    `INSERT INTO partidos (
+       id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, edicion_id
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+  )
+    .bind(
+      id,
+      opciones.ronda ?? "Sorteo",
+      opciones.equipoA?.id ?? null,
+      opciones.equipoB?.id ?? null,
+      opciones.equipoA?.nombre ?? "Equipo A",
+      opciones.equipoB?.nombre ?? "Equipo B",
+      edicionId
+    )
+    .run();
+
+  return id;
+}
+
+/**
+ * Lo que un jugador hizo en un partido. `partidoId` va delante y es obligatorio:
+ * desde la migración 0012 una estadística sin partido no existe.
  */
 export async function crearEstadistica(
   jugadorId: number,
-  valores: Partial<Record<string, number>> = {},
-  partidoId: string | null = null
+  partidoId: string,
+  valores: Partial<Record<string, number>> = {}
 ): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO estadisticas (
-       jugador_id, partido_id, partidos_jugados, puntos, remates, bloqueos, aces, defensas, errores
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+       jugador_id, partido_id, puntos, remates, bloqueos, aces, defensas, errores
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
   )
     .bind(
       jugadorId,
       partidoId,
-      valores.partidosJugados ?? 0,
       valores.puntos ?? 0,
       valores.remates ?? 0,
       valores.bloqueos ?? 0,

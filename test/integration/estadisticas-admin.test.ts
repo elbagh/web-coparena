@@ -6,7 +6,7 @@ import {
 } from "../../functions/api/admin/estadisticas";
 import { onRequestGet as jugadoresGet } from "../../functions/api/jugadores";
 import { ctx } from "../helpers/ctx";
-import { crearAdmin, crearEquipo, crearUsuario, peticion } from "../helpers/db";
+import { crearAdmin, crearEquipo, crearEstadistica, crearPartido, crearUsuario, peticion } from "../helpers/db";
 
 describe("/api/admin/estadisticas", () => {
   it("exige ser administrador", async () => {
@@ -43,60 +43,62 @@ describe("/api/admin/estadisticas", () => {
     expect(datos.jugadores[0]!.estadisticas.puntos).toBe(0);
   });
 
-  it("guarda cifras y atributos, y repetir el guardado no duplica la carga manual", async () => {
+  it("guarda atributos e ignora las cifras que lleguen en el cuerpo", async () => {
     const admin = await crearAdmin();
     const equipo = await crearEquipo();
     const jugadorId = equipo.jugadores[0]!.id;
-    const url = `/api/admin/estadisticas?jugador=${jugadorId}`;
+    await crearEstadistica(jugadorId, await crearPartido(), { puntos: 7 });
 
-    const primera = await estadisticasPatch(
+    const respuesta = await estadisticasPatch(
       ctx(
-        await peticion(url, {
+        await peticion(`/api/admin/estadisticas?jugador=${jugadorId}`, {
           method: "PATCH",
           user: admin,
-          json: { estadisticas: { puntos: 12, aces: 3 }, atributos: { saque: 4 } }
+          json: { estadisticas: { puntos: 999, aces: 50 }, atributos: { saque: 5, bloqueo: 2 } }
         }),
         env
       )
     );
-    expect(primera.status).toBe(200);
+    expect(respuesta.status).toBe(200);
 
-    const segunda = await estadisticasPatch(
-      ctx(
-        await peticion(url, {
-          method: "PATCH",
-          user: admin,
-          json: { estadisticas: { puntos: 20, aces: 3 }, atributos: { saque: 5, bloqueo: 2 } }
-        }),
-        env
-      )
-    );
-    const datos = (await segunda.json()) as {
+    const datos = (await respuesta.json()) as {
       jugador: { estadisticas: Record<string, number>; atributos: Record<string, number> };
     };
 
-    expect(datos.jugador.estadisticas.puntos).toBe(20);
+    // Los atributos sí se guardan; las cifras siguen siendo las del partido.
     expect(datos.jugador.atributos).toEqual({ saque: 5, bloqueo: 2 });
+    expect(datos.jugador.estadisticas.puntos).toBe(7);
+    expect(datos.jugador.estadisticas.aces).toBe(0);
 
     const filas = await env.DB
-      .prepare("SELECT COUNT(*) AS n FROM estadisticas WHERE jugador_id = ?1 AND partido_id IS NULL")
+      .prepare("SELECT COUNT(*) AS n FROM estadisticas WHERE jugador_id = ?1")
       .bind(jugadorId)
       .first<{ n: number }>();
     expect(filas!.n).toBe(1);
   });
 
-  it("rechaza cifras y atributos fuera de rango", async () => {
+  it("suma los partidos del jugador y cuenta cuántos ha jugado", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo();
+    const jugadorId = equipo.jugadores[0]!.id;
+    await crearEstadistica(jugadorId, await crearPartido(), { puntos: 10, aces: 2 });
+    await crearEstadistica(jugadorId, await crearPartido(), { puntos: 5, aces: 1 });
+
+    const respuesta = await estadisticasGet(ctx(await peticion("/api/admin/estadisticas", { user: admin }), env));
+    const datos = (await respuesta.json()) as {
+      jugadores: { id: number; estadisticas: Record<string, number> }[];
+    };
+    const jugador = datos.jugadores.find((j) => j.id === jugadorId)!;
+
+    expect(jugador.estadisticas.puntos).toBe(15);
+    expect(jugador.estadisticas.aces).toBe(3);
+    expect(jugador.estadisticas.partidosJugados).toBe(2);
+  });
+
+  it("rechaza atributos fuera de rango", async () => {
     const admin = await crearAdmin();
     const equipo = await crearEquipo();
     const url = `/api/admin/estadisticas?jugador=${equipo.jugadores[0]!.id}`;
-
-    const cifras = await estadisticasPatch(
-      ctx(await peticion(url, { method: "PATCH", user: admin, json: { estadisticas: { puntos: -3 } } }), env)
-    );
-    expect(cifras.status).toBe(400);
-    expect(((await cifras.json()) as { campos: Record<string, string> }).campos).toHaveProperty([
-      "estadisticas.puntos"
-    ]);
 
     const atributos = await estadisticasPatch(
       ctx(await peticion(url, { method: "PATCH", user: admin, json: { atributos: { saque: 9 } } }), env)
