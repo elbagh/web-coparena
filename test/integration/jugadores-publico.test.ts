@@ -84,15 +84,18 @@ describe("GET /api/jugadores (listado)", () => {
 
   it("la ficha del cromo sale del jugador, no de la cuenta de Google", async () => {
     /*
-     * Este es el test que demuestra que el corte con `perfiles` se hizo. Se
-     * siembra a propósito un perfil con OTRO apodo para el mismo correo: si el
-     * álbum volviera a cruzar por correo, saldría «El de la cuenta».
+     * Este test sembraba un `perfiles` con OTRO apodo para el mismo correo, para
+     * demostrar que el álbum ya no cruzaba por correo. Desde la 0024 esa siembra
+     * **no se puede escribir**: `perfiles` no tiene columna `apodo`. La garantía
+     * dejó de depender de que ningún endpoint hiciera el join y pasó a ser del
+     * esquema, que es donde mejor está — el mismo salto que hizo `estadisticas`
+     * con `partido_id NOT NULL`.
+     *
+     * Lo que queda aquí es que la ficha llega entera desde `jugadores`; que
+     * `perfiles` ya no puede contradecirla lo sujeta
+     * `test/integration/perfiles-sin-ficha.test.ts`.
      */
     const user = await crearUsuario({ email: "doble@example.com" });
-    await env.DB.prepare("INSERT INTO perfiles (usuario_id, apodo, dorsal) VALUES (?1, ?2, ?3)")
-      .bind(user.id, "El De La Cuenta", 99)
-      .run();
-
     const equipo = await crearEquipo({
       jugadores: [{ email: user.email, apodo: "El Del Jugador", dorsal: 7, posicion: "Bloqueo", mano: "Zurdo" }, {}]
     });
