@@ -1,9 +1,10 @@
 /*
  * /admin/estadisticas/ — lo que alimenta el álbum público de /jugadores/.
  *
- * Una fila por jugador de la edición en juego. El diálogo guarda tres cosas de
- * golpe: las cifras de la edición, los atributos 1–5 y si la persona aparece o
- * no en el álbum.
+ * Una fila por jugador de la edición en juego. El diálogo enseña las cifras de
+ * juego en sólo lectura (salen de los partidos) y guarda las dos cosas que sí
+ * se anotan a mano: los atributos 1–5 y si la persona aparece o no en el
+ * álbum.
  *
  * Las métricas y los atributos llegan del servidor (GET devuelve `metricas` y
  * `atributos`), así que no hay una lista que mantener sincronizada aquí.
@@ -38,7 +39,7 @@
 
   const nombreCompleto = (j) => `${j.nombre} ${j.apellidos}`.trim();
 
-  // Columnas destacadas en la tabla; el resto se edita en el diálogo.
+  // Columnas destacadas en la tabla; el resto de cifras se ve en el diálogo.
   const COLUMNAS_TABLA = ["puntos", "remates", "bloqueos", "aces"];
 
   onReady(async () => {
@@ -102,6 +103,10 @@
 
   // ------------------------------------------------------------ diálogo ---
 
+  function cifraSoloLectura(nombre, valor) {
+    return [el("dt", "admin-stat-label", nombre), el("dd", "admin-stat-valor", valor ?? 0)];
+  }
+
   function campoNumero(clave, etiqueta, valor, { min, max, dataset }) {
     const wrap = el("div", "admin-field");
     const id = `stats-${dataset}-${clave}`;
@@ -134,13 +139,7 @@
 
     clear(cajaMetricas);
     metricas.forEach((m) => {
-      cajaMetricas.append(
-        campoNumero(m.clave, m.etiqueta, jugador.estadisticas?.[m.clave] ?? 0, {
-          min: 0,
-          max: 9999,
-          dataset: "metrica"
-        })
-      );
+      cajaMetricas.append(...cifraSoloLectura(m.etiqueta, jugador.estadisticas?.[m.clave]));
     });
 
     clear(cajaAtributos);
@@ -202,17 +201,14 @@
     guardar.disabled = true;
     try {
       await apiJson(`/api/admin/estadisticas?jugador=${encodeURIComponent(enEdicion.id)}`, "PATCH", {
-        estadisticas: recoger("metrica"),
         atributos: recoger("atributo"),
         ocultoPublico: Boolean(checkOculto?.checked)
       });
       dialogo.close();
       await recargar();
     } catch (err) {
-      // Los campos llegan como «estadisticas.puntos» / «atributos.saque»; en el
-      // formulario están como «metrica.puntos» / «atributo.saque».
       Object.entries(err.campos || {}).forEach(([clave, mensaje]) => {
-        marcarError(clave.replace("estadisticas.", "metrica.").replace("atributos.", "atributo."), mensaje);
+        marcarError(clave.replace("atributos.", "atributo."), mensaje);
       });
       banner(err.message);
     } finally {

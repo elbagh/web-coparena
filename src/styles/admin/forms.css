@@ -169,6 +169,44 @@
   gap: 12px;
 }
 
+/* Cifras de sólo lectura del diálogo de estadísticas: salen de los partidos, no
+   se editan, y por eso no son campos. */
+.admin-stats-readonly {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+}
+
+.admin-stat-label {
+  color: var(--adm-muted);
+  font-size: 0.82rem;
+  grid-column: 1;
+}
+
+.admin-stat-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  grid-column: 2;
+  margin: 0;
+  text-align: right;
+}
+
+@media (min-width: 901px) {
+  .admin-stats-readonly {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-stat-label {
+    grid-column: auto;
+  }
+
+  .admin-stat-valor {
+    grid-column: auto;
+    text-align: left;
+  }
+}
+
 .admin-form-actions {
   display: flex;
   flex-wrap: wrap;

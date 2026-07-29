@@ -5,7 +5,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 <AdminLayout
   titulo="Estadísticas"
   seccion="estadisticas"
-  lede="Lo que se anota aquí es lo que se ve en el álbum público de jugadores: cifras de juego, atributos y quién aparece."
+  lede="Atributos y visibilidad en el álbum público. Las cifras de juego salen de los partidos y aquí sólo se consultan."
 >
   <div class="admin-toolbar">
     <input
@@ -34,12 +34,11 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
       <div class="admin-dialog-body">
         <form class="admin-form" data-stats-form novalidate>
           <div class="admin-field">
-            <span class="admin-label">Cifras de la edición</span>
+            <span class="admin-label">Estadísticas de la edición</span>
             <p class="admin-field-hint">
-              Totales de la persona en esta edición. Cuando exista el registro por partido, estas
-              cifras se sumarán a las que llegue de cada encuentro.
+              Salen de los partidos jugados. Se cargarán partido a partido.
             </p>
-            <div class="admin-form-grid" data-stats-metricas></div>
+            <dl class="admin-stats-readonly" data-stats-metricas></dl>
           </div>
 
           <div class="admin-field">
