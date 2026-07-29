@@ -191,8 +191,8 @@ Los estilos van en `src/styles/admin/dialog.css` o `forms.css` según dónde enc
 
 ### `test/helpers/db.ts`
 
-- `sembrarEstadisticas(jugadorId, valores, partidoId)` — `partidoId` pasa de opcional (`string | null = null`) a **obligatorio**, y desaparece `partidos_jugados` de su `INSERT`.
-- **`crearPartido()`** — nuevo. Hoy no existe ningún helper de partidos. Debe permitir fijar los equipos y devolver el `id` (TEXT).
+- `crearEstadistica(jugadorId, partidoId, valores)` — el partido pasa a **segundo parámetro y obligatorio** (hoy es el tercero, opcional, con `null` por defecto). Cambia de orden porque en TypeScript un parámetro obligatorio no puede ir detrás de uno con valor por defecto. Desaparece `partidos_jugados` de su `INSERT`.
+- **`crearPartido()`** — nuevo en los helpers compartidos. Ya existe un `sembrarPartido()` local al final de `jugadores-publico.test.ts`: se sube a `test/helpers/db.ts`, se le añaden la edición y los equipos opcionales, y el local se borra.
 
 `partidos` ya está en la lista `TABLAS` de `test/integration/setup.ts`, así que sembrar partidos no filtra estado entre tests.
 
