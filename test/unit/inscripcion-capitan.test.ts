@@ -69,6 +69,10 @@ describe("capitán y aviso de contacto en la inscripción", () => {
     expect(primera!.querySelector("[data-capitan-badge]")!.hasAttribute("hidden")).toBe(false);
     expect(segunda!.querySelector("[data-capitan-badge]")!.hasAttribute("hidden")).toBe(true);
     expect(segunda!.querySelector("[data-make-capitan]")!.hasAttribute("hidden")).toBe(false);
+
+    // La primera tarjeta está vacía de móvil y correo y aun así es la capitana:
+    // su aviso de contacto debe quedar oculto, no mostrar lo que le falta.
+    expect(primera!.querySelector<HTMLElement>("[data-contacto-aviso]")!.hidden).toBe(true);
   });
 
   it("marca como opcionales el móvil y el correo de quien no es capitán", () => {
