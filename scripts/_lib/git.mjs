@@ -25,8 +25,12 @@ export function gitVisible(args, cwd) {
 }
 
 export function npmVisible(args, cwd) {
-  // shell: true porque en Windows «npm» es npm.cmd y execFile no lo resuelve.
-  const r = spawnSync("npm", args, { stdio: "inherit", cwd, shell: true });
+  // Una sola cadena con shell: true. Las dos alternativas están cerradas: pasar
+  // el array de argumentos con shell activo es lo que avisa DEP0190, y lanzar
+  // «npm.cmd» sin shell da EINVAL en Windows desde la corrección de
+  // CVE-2024-27980 (Node se niega a ejecutar .cmd/.bat sin shell). Los
+  // argumentos son literales nuestros, así que unirlos no abre nada.
+  const r = spawnSync(`npm ${args.join(" ")}`, { stdio: "inherit", cwd, shell: true });
   return r.status === 0;
 }
 

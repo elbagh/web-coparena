@@ -236,10 +236,11 @@ npm run ramas:limpiar -- --aplicar  # retira worktrees y ramas ya integradas
 ```
 
 It never retires the main checkout, the worktree you are in, one with uncommitted changes, or a branch that is not integrated — **another session's worktree can be alive even when its branch is already merged**, so it reports instead of guessing. By hand the order matters: `git worktree remove` **before** `git branch -d`, because git refuses to delete a branch that is still checked out somewhere. And never `rm -rf` a worktree: what is left is a directory git does not know, and any git command run inside it walks up and operates **on the main checkout** — `.worktrees/publica` was exactly that.
+
 ### Promoting to `main` — its own ceremony, and you ask first
 
 - **Never push to `main` or merge `development` → `main` without asking first.** When work is ready to promote, stop and: (1) give a summary of the changes being promoted, (2) name the migrations production is missing (`npm run db:status`), (3) ask for explicit confirmation before merging `development` into `main` and pushing.
-- **Promoting to `main` *is* applying the migrations. Always, in every flow, no exceptions.** A deploy ships code, not schema. `main` is what production runs, so the moment `development` lands on `main`, production's D1 has to be at the same migration as the branch — otherwise the new code queries tables that do not exist. This has already taken the site down: the promotion carrying RBAC + torneo + directo shipped code needing 0013–0021 against a database stuck at 0012, and what broke was **login itself**, because `permisosDeUsuario` joins `roles`. Once the promotion is confirmed, it is these four steps in this order:
+- **Promoting to `main` *is* applying the migrations. Always, in every flow, no exceptions.** A deploy ships code, not schema. `main` is what production runs, so the moment `development` lands on `main`, production's D1 has to be at the same migration as the branch — otherwise the new code queries tables that do not exist. This has already taken the site down: the promotion carrying RBAC + torneo + directo shipped code needing 0013–0021 against a database stuck at 0012, and what broke was **login itself**, because `permisosDeUsuario` joins `roles`. Once the promotion is confirmed, it is these steps in this order:
 
   ```bash
   git fetch origin

@@ -129,9 +129,11 @@ export function slotLibre(ocupados) {
 // -------------------------------------------------------------- worktrees ---
 
 /** Windows: rutas insensibles a mayúsculas y con las dos barras mezcladas. */
+const normalizar = (ruta) =>
+  path.resolve(String(ruta)).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+
 export function mismaRuta(a, b) {
-  const normal = (r) => path.resolve(String(r)).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-  return normal(a) === normal(b);
+  return normalizar(a) === normalizar(b);
 }
 
 /**
@@ -181,6 +183,22 @@ export function retirables(worktrees) {
     else aRetirar.push(wt);
   }
   return { retirables: aRetirar, retenidas };
+}
+
+/**
+ * Las ramas que seguirán teniendo un worktree detrás **después** de retirar lo
+ * retirable. El informe tiene que anunciar exactamente lo que hará
+ * `--aplicar`: calculado con los worktrees de ahora, las ramas que quedan
+ * libres justo al retirarlos no salen en el informe y `--aplicar` acaba
+ * borrando más de lo que dijo. Un informe que se queda corto en lo destructivo
+ * no sirve para revisar nada.
+ */
+export function ramasSostenidas({ worktrees, aRetirar }) {
+  const fuera = new Set(aRetirar.map((wt) => normalizar(wt.ruta)));
+  return worktrees
+    .filter((wt) => !fuera.has(normalizar(wt.ruta)))
+    .map((wt) => wt.rama)
+    .filter(Boolean);
 }
 
 /**
