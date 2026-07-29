@@ -1,6 +1,5 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
-import { MANOS, POSICIONES } from "../../../functions/_lib/perfil";
 ---
 
 <AdminLayout
@@ -52,43 +51,14 @@ import { MANOS, POSICIONES } from "../../../functions/_lib/perfil";
 
           <hr class="admin-separador" />
 
-          <p class="admin-label">Ficha de jugador</p>
-          <div class="admin-form-grid">
-            <div class="admin-field">
-              <label for="usuario-apodo">Apodo</label>
-              <input id="usuario-apodo" class="admin-input" type="text" maxlength="40" data-usuario-field="apodo" />
-              <p class="admin-field-error" data-usuario-error="apodo" hidden></p>
-            </div>
-            <div class="admin-field">
-              <label for="usuario-dorsal">Dorsal</label>
-              <input id="usuario-dorsal" class="admin-input" type="number" min="0" max="99" data-usuario-field="dorsal" />
-              <p class="admin-field-error" data-usuario-error="dorsal" hidden></p>
-            </div>
-            <div class="admin-field">
-              <label for="usuario-posicion">Posición</label>
-              <select id="usuario-posicion" class="admin-select" data-usuario-field="posicion">
-                <option value="">Sin definir</option>
-                {POSICIONES.map((p) => <option value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div class="admin-field">
-              <label for="usuario-mano">Mano</label>
-              <select id="usuario-mano" class="admin-select" data-usuario-field="mano">
-                <option value="">Sin definir</option>
-                {MANOS.map((m) => <option value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
-
           <div class="admin-field">
-            <label for="usuario-lema">Lema</label>
-            <input id="usuario-lema" class="admin-input" type="text" maxlength="80" data-usuario-field="lema" />
-            <p class="admin-field-error" data-usuario-error="lema" hidden></p>
-          </div>
-
-          <div class="admin-field">
-            <span class="admin-label">Atributos (1 a 5)</span>
-            <div class="admin-form-grid" data-usuario-atributos></div>
+            <span class="admin-label">Cromo</span>
+            <p class="admin-field-hint">
+              El cromo es del jugador de cada edición, no de la cuenta: la misma persona puede
+              tener ficha distinta en 2025 y en 2026, y quien nunca ha entrado también tiene la
+              suya. La identidad se edita en <a href="/admin/jugadores/">Jugadores</a> y la
+              valoración en <a href="/admin/estadisticas/">Estadísticas</a>.
+            </p>
           </div>
         </form>
 

@@ -7,6 +7,7 @@
 // de saber cuál miente.
 
 import { clasificacionDeGrupo, type PartidoClasificable } from "./clasificacion";
+import { calcularClasificados, type GrupoParaClasificar } from "./clasificados";
 import { normalizarReglas, reglasEfectivas, setsMaximos } from "./reglas";
 import type { FaseRow, GrupoRow } from "./torneo";
 
@@ -82,6 +83,43 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
     const gruposDeFase = grupos.results.filter((g) => g.fase_id === fase.id);
     const partidosDeFase = partidos.results.filter((p) => p.fase_id === fase.id);
 
+    const reglasDeFase = normalizarReglas(fase.reglas);
+
+    // Primero cada grupo por su cuenta; el reparto de plazas mira a todos a la vez.
+    const calculados = gruposDeFase.map((grupo) => {
+      const equiposDelGrupo = asignados.results
+        .filter((a) => a.grupo_id === grupo.id)
+        .map((a) => ({ id: a.equipo_id, nombre: a.nombre }));
+      const reglas = reglasEfectivas(fase, grupo);
+
+      return {
+        grupo,
+        equiposDelGrupo,
+        reglas,
+        /** El cupo del grupo si lo tiene; si no, el de la fase. */
+        clasifican: grupo.clasifican ?? fase.clasifican,
+        enRepesca: grupo.en_repesca !== 0,
+        clasificacion: clasificacionDeGrupo(
+          equiposDelGrupo,
+          partidosDeFase.filter((p) => p.grupo_id === grupo.id).map(aClasificable),
+          reglas.clasificacion
+        )
+      };
+    });
+
+    const paraClasificar: GrupoParaClasificar[] = calculados.map((c) => ({
+      id: c.grupo.id,
+      nombre: c.grupo.nombre,
+      clasifican: c.clasifican,
+      enRepesca: c.enRepesca,
+      clasificacion: c.clasificacion
+    }));
+    const { condiciones } = calcularClasificados(
+      paraClasificar,
+      fase.repesca,
+      reglasDeFase.clasificacion.desempates
+    );
+
     return {
       id: fase.id,
       clave: fase.clave,
@@ -89,28 +127,26 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
       tipo: fase.tipo,
       orden: fase.orden,
       clasifican: fase.clasifican,
-      reglas: normalizarReglas(fase.reglas),
-      grupos: gruposDeFase.map((grupo) => {
-        const equiposDelGrupo = asignados.results
-          .filter((a) => a.grupo_id === grupo.id)
-          .map((a) => ({ id: a.equipo_id, nombre: a.nombre }));
-        const reglas = reglasEfectivas(fase, grupo);
-
-        return {
-          id: grupo.id,
-          nombre: grupo.nombre,
-          orden: grupo.orden,
-          /** null si hereda; distinguirlo de «iguales por casualidad» importa al editar. */
-          reglasPropias: grupo.reglas === null ? null : normalizarReglas(grupo.reglas),
-          reglas,
-          equipos: equiposDelGrupo,
-          clasificacion: clasificacionDeGrupo(
-            equiposDelGrupo,
-            partidosDeFase.filter((p) => p.grupo_id === grupo.id).map(aClasificable),
-            reglas.clasificacion
-          )
-        };
-      }),
+      repesca: fase.repesca,
+      reglas: reglasDeFase,
+      grupos: calculados.map((c) => ({
+        id: c.grupo.id,
+        nombre: c.grupo.nombre,
+        orden: c.grupo.orden,
+        /** null si hereda; distinguirlo de «iguales por casualidad» importa al editar. */
+        reglasPropias: c.grupo.reglas === null ? null : normalizarReglas(c.grupo.reglas),
+        reglas: c.reglas,
+        /** Ya resuelto: el del grupo si lo tiene, si no el de la fase. */
+        clasifican: c.clasifican,
+        /** null en el grupo significa que hereda, y al editar hay que saberlo. */
+        clasificanPropio: c.grupo.clasifican,
+        enRepesca: c.enRepesca,
+        equipos: c.equiposDelGrupo,
+        clasificacion: c.clasificacion.map((fila) => ({
+          ...fila,
+          clasifica: condiciones.get(fila.equipoId) ?? null
+        }))
+      })),
       partidos: partidosDeFase.map(mapPartido)
     };
   });

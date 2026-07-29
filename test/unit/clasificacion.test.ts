@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { clasificacionDeGrupo, type PartidoClasificable } from "../../functions/_lib/clasificacion";
-import { REGLAS_POR_DEFECTO, type CriterioDesempate, type ReglasClasificacion } from "../../functions/_lib/reglas";
+import {
+  REGLAS_POR_DEFECTO,
+  normalizarReglas,
+  type CriterioDesempate,
+  type ReglasClasificacion
+} from "../../functions/_lib/reglas";
+import { aClasificable, type PartidoVistaRow } from "../../functions/_lib/torneo-vista";
 
 /*
  * La clasificación es lo único del torneo con reglas de verdad, y el desempate
@@ -248,5 +254,85 @@ describe("posiciones", () => {
 
     expect(tabla.map((f) => f.posicion)).toEqual([1, 2, 3, 4]);
     expect(new Set(tabla.map((f) => f.equipoId)).size).toBe(4);
+  });
+});
+
+/*
+ * Una trampa que hay que dejar clavada. `aClasificable` marca `setDecisivo`
+ * comparando los sets jugados con `setsMaximos`, y con `sets: 1` ese máximo vale
+ * 1: TODO partido a un set queda marcado como resuelto en el decisivo. No es un
+ * fallo —un partido a un set se resuelve, literalmente, en el único set que
+ * hay—, pero significa que un grupo que juegue a un set puntúa con los valores
+ * «ajustados» y no con los normales.
+ *
+ * El grupo de cinco del torneo 2026 depende de esto: lleva un bloque
+ * `clasificacion` propio para compensarlo. Sin estos tests, alguien «arregla»
+ * setDecisivo algún día y ese grupo empieza a puntuar mal en silencio.
+ */
+describe("un partido a un solo set", () => {
+  const partidoAUnSet = (reglas: unknown): PartidoVistaRow => ({
+    id: "p1",
+    ronda: "C · jornada 1",
+    fase_id: 1,
+    grupo_id: 1,
+    ronda_orden: null,
+    posicion: null,
+    equipo_a_id: 10,
+    equipo_b_id: 20,
+    equipo_a_nombre: "Uno",
+    equipo_b_nombre: "Dos",
+    scheduled_at: null,
+    pista: null,
+    status: "finished",
+    sets_a: 1,
+    sets_b: 0,
+    points_a: 21,
+    points_b: 15,
+    set_history: JSON.stringify([{ a: 21, b: 15 }]),
+    winner: "A",
+    reglas: JSON.stringify(reglas),
+    siguiente_partido_id: null,
+    perdedor_partido_id: null
+  });
+
+  const equipos = [
+    { id: 10, nombre: "Uno" },
+    { id: 20, nombre: "Dos" }
+  ];
+
+  const SIN_OVERRIDE = { partido: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } };
+  const GRUPO_C = {
+    ...SIN_OVERRIDE,
+    clasificacion: {
+      puntosVictoria: 3,
+      puntosDerrota: 0,
+      puntosVictoriaAjustada: 3,
+      puntosDerrotaAjustada: 0,
+      desempates: ["puntos", "ratio_puntos"]
+    }
+  };
+
+  const puntosDe = (reglas: unknown) => {
+    const tabla = clasificacionDeGrupo(
+      equipos,
+      [aClasificable(partidoAUnSet(reglas))],
+      normalizarReglas(reglas).clasificacion
+    );
+    return {
+      ganador: tabla.find((f) => f.equipoId === 10)!.puntos,
+      perdedor: tabla.find((f) => f.equipoId === 20)!.puntos
+    };
+  };
+
+  it("siempre cuenta como resuelto en el set decisivo", () => {
+    expect(aClasificable(partidoAUnSet(SIN_OVERRIDE)).setDecisivo).toBe(true);
+  });
+
+  it("por eso, sin bloque de clasificación propio, puntúa 2-1 en vez de 3-0", () => {
+    expect(puntosDe(SIN_OVERRIDE)).toEqual({ ganador: 2, perdedor: 1 });
+  });
+
+  it("con el bloque que lleva el grupo C, vuelve a puntuar 3-0", () => {
+    expect(puntosDe(GRUPO_C)).toEqual({ ganador: 3, perdedor: 0 });
   });
 });

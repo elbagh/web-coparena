@@ -38,7 +38,9 @@ const MARCADO = `
       <div class="admin-dialog-body">
         <form data-stats-form novalidate>
           <dl data-stats-metricas></dl>
+          <p><strong data-stats-media>—</strong></p>
           <div data-stats-atributos></div>
+          <select data-stats-nivel></select>
           <label>
             <input type="checkbox" data-stats-oculto />
             No mostrar a esta persona en el álbum público
@@ -64,7 +66,14 @@ const METRICAS = [
   { clave: "errores", etiqueta: "Errores" }
 ];
 
-const ATRIBUTOS = ["saque", "remate", "bloqueo"];
+// Como los manda el servidor: con etiqueta y abreviatura, no claves sueltas.
+const ATRIBUTOS = [
+  { clave: "saque", etiqueta: "Saque", abrev: "SAQ" },
+  { clave: "remate", etiqueta: "Remate", abrev: "REM" },
+  { clave: "bloqueo", etiqueta: "Bloqueo", abrev: "BLO" }
+];
+
+const NIVELES = ["bronce", "plata", "oro"];
 
 const jugador = () => ({
   id: 7,
@@ -72,6 +81,8 @@ const jugador = () => ({
   apellidos: "García",
   equipoNombre: "Los Tiburones",
   ocultoPublico: false,
+  nivel: "plata",
+  media: 70,
   estadisticas: {
     partidosJugados: 3,
     puntos: 12,
@@ -81,7 +92,7 @@ const jugador = () => ({
     defensas: 4,
     errores: 0
   },
-  atributos: { saque: 4, remate: null, bloqueo: 3 }
+  atributos: { saque: 80, remate: null, bloqueo: 60 }
 });
 
 const apiJson = vi.fn();
@@ -173,7 +184,12 @@ async function montarYAbrir() {
   dialogo.close = vi.fn();
 
   const j = jugador();
-  const esperarCarga = stubCopaAdmin({ jugadores: [j], metricas: METRICAS, atributos: ATRIBUTOS });
+  const esperarCarga = stubCopaAdmin({
+    jugadores: [j],
+    metricas: METRICAS,
+    atributos: ATRIBUTOS,
+    niveles: NIVELES
+  });
 
   ejecutarScriptPublico("admin/estadisticas.js");
   await esperarCarga();
@@ -201,16 +217,36 @@ describe("cifras de juego en /admin/estadisticas/", () => {
     expect(caja.querySelectorAll("input")).toHaveLength(0);
   });
 
-  it("los atributos siguen siendo campos numéricos editables", async () => {
+  it("los atributos siguen siendo campos numéricos editables, ahora hasta 99", async () => {
     const { dialogo } = await montarYAbrir();
 
     const campos = Array.from(dialogo.querySelectorAll("[data-stats-atributos] input")) as HTMLInputElement[];
     expect(campos).toHaveLength(ATRIBUTOS.length);
     expect(campos.every((input) => input.type === "number")).toBe(true);
-    expect(campos.map((input) => input.dataset.atributo)).toEqual(ATRIBUTOS);
+    expect(campos.map((input) => input.dataset.atributo)).toEqual(ATRIBUTOS.map((a) => a.clave));
+    expect(campos.every((input) => input.min === "1" && input.max === "99")).toBe(true);
+
+    // Las etiquetas llegan del servidor: el cliente ya no mantiene su copia.
+    const labels = Array.from(dialogo.querySelectorAll("[data-stats-atributos] label")).map((n) => n.textContent);
+    expect(labels).toEqual(ATRIBUTOS.map((a) => a.etiqueta));
   });
 
-  it("al guardar, el PATCH manda atributos y ocultoPublico pero nunca estadisticas", async () => {
+  it("el nivel del cromo se elige de la lista que manda el servidor", async () => {
+    const { dialogo } = await montarYAbrir();
+
+    const select = dialogo.querySelector("[data-stats-nivel]") as unknown as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(NIVELES);
+    expect(select.value).toBe("plata");
+  });
+
+  it("la nota es la del servidor, no una cuenta hecha en el cliente", async () => {
+    // Recalcularla aquí obligaría a copiar la fórmula de `mediaAtributos`, que
+    // es justo la duplicación que se quiere evitar.
+    const { dialogo } = await montarYAbrir();
+    expect((dialogo.querySelector("[data-stats-media]") as HTMLElement).textContent).toBe("70");
+  });
+
+  it("al guardar, el PATCH manda atributos, nivel y ocultoPublico pero nunca estadisticas", async () => {
     const { dialogo } = await montarYAbrir();
 
     (dialogo.querySelector("[data-stats-guardar]") as HTMLButtonElement).click();
@@ -222,5 +258,6 @@ describe("cifras de juego en /admin/estadisticas/", () => {
     expect(cuerpo).not.toHaveProperty("estadisticas");
     expect(cuerpo).toHaveProperty("atributos");
     expect(cuerpo).toHaveProperty("ocultoPublico");
+    expect(cuerpo.nivel).toBe("plata");
   });
 });

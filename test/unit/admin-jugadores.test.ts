@@ -53,6 +53,34 @@ const MARCADO = `
         <input type="text" data-jugador-field="redSocial" />
         <p data-jugador-error="redSocial" hidden></p>
       </div>
+      <div class="admin-field">
+        <input type="text" data-jugador-field="apodo" />
+        <p data-jugador-error="apodo" hidden></p>
+      </div>
+      <div class="admin-field">
+        <input type="number" data-jugador-field="dorsal" />
+        <p data-jugador-error="dorsal" hidden></p>
+      </div>
+      <div class="admin-field">
+        <select data-jugador-field="posicion">
+          <option value=""></option>
+          <option value="Bloqueo">Bloqueo</option>
+          <option value="Defensa">Defensa</option>
+        </select>
+        <p data-jugador-error="posicion" hidden></p>
+      </div>
+      <div class="admin-field">
+        <select data-jugador-field="mano">
+          <option value=""></option>
+          <option value="Diestro">Diestro</option>
+          <option value="Zurdo">Zurdo</option>
+        </select>
+        <p data-jugador-error="mano" hidden></p>
+      </div>
+      <div class="admin-field">
+        <input type="text" data-jugador-field="lema" />
+        <p data-jugador-error="lema" hidden></p>
+      </div>
       <img data-jugador-foto hidden />
       <span data-jugador-foto-vacia hidden></span>
       <input type="file" data-jugador-field="foto" hidden />
@@ -77,11 +105,21 @@ const jugador = (id: number, nombre: string, equipoId: number, extra: Record<str
   equipoId,
   equipoNombre: "Los Rompeolas",
   edicionAnio: 2026,
+  apodo: null,
+  dorsal: null,
+  posicion: null,
+  mano: null,
+  lema: null,
+  nivel: "bronce",
   ...extra
 });
 
-// Jugador 1 es el capitán del equipo 7; el 2 es un suplente sin mando.
-const JUGADORES = [jugador(1, "Ana", 7), jugador(2, "Luis", 7)];
+// Jugador 1 es el capitán del equipo 7; el 2 es un suplente sin mando. Luis
+// lleva el dorsal 0 a propósito: es un dorsal válido y se perdía con `|| ""`.
+const JUGADORES = [
+  jugador(1, "Ana", 7, { apodo: "La Jefa", posicion: "Defensa" }),
+  jugador(2, "Luis", 7, { dorsal: 0 })
+];
 const EQUIPOS = [{ id: 7, nombre: "Los Rompeolas", capitanJugadorId: 1 }];
 
 const api = vi.fn();
@@ -255,5 +293,42 @@ describe("contacto opcional en /admin/jugadores/", () => {
 
     expect(errorDe("telefono").hidden).toBe(true);
     expect(errorDe("email").hidden).toBe(true);
+  });
+});
+
+describe("ficha del cromo en /admin/jugadores/", () => {
+  beforeEach(() => {
+    montar();
+  });
+
+  it("manda apodo, dorsal, posición, mano y lema en el formulario", async () => {
+    await abrirEditor("Luis");
+    escribir("apodo", "El Muro");
+    escribir("dorsal", "7");
+    campo("posicion").value = "Bloqueo";
+    campo("mano").value = "Zurdo";
+    escribir("lema", "La red es mía");
+
+    guardar();
+    await vi.waitFor(() => expect(api).toHaveBeenCalledWith(expect.stringContaining("?id=2"), expect.any(Object)));
+
+    const [, opciones] = api.mock.calls.at(-1) as [string, { body: FormData }];
+    expect(opciones.body.get("apodo")).toBe("El Muro");
+    expect(opciones.body.get("dorsal")).toBe("7");
+    expect(opciones.body.get("posicion")).toBe("Bloqueo");
+    expect(opciones.body.get("mano")).toBe("Zurdo");
+    expect(opciones.body.get("lema")).toBe("La red es mía");
+  });
+
+  it("el dorsal 0 es un dorsal, no un hueco vacío", async () => {
+    // Con `|| ""` en vez de `?? ""`, el 0 se perdía al abrir la ficha.
+    await abrirEditor("Luis");
+    expect(campo("dorsal").value).toBe("0");
+  });
+
+  it("rellena la ficha con lo que ya tenía esa persona", async () => {
+    await abrirEditor("Ana");
+    expect(campo("apodo").value).toBe("La Jefa");
+    expect(campo("posicion").value).toBe("Defensa");
   });
 });

@@ -579,3 +579,26 @@
     flex-direction: column;
   }
 }
+
+/*
+ * Dos condiciones, dos colores. Pasar directo y pasar por repesca no son lo
+ * mismo: la segunda depende de cómo queden los demás grupos, y la tabla es
+ * donde se lee quién está dentro y quién todavía no.
+ */
+.torneo-clasificacion tbody tr.is-directo {
+  background: color-mix(in srgb, var(--adm-ok) 14%, transparent);
+}
+
+.torneo-clasificacion tbody tr.is-directo td:first-child {
+  box-shadow: inset 3px 0 0 var(--adm-ok);
+  font-weight: 700;
+}
+
+.torneo-clasificacion tbody tr.is-repesca {
+  background: color-mix(in srgb, var(--adm-warn) 14%, transparent);
+}
+
+.torneo-clasificacion tbody tr.is-repesca td:first-child {
+  box-shadow: inset 3px 0 0 var(--adm-warn);
+  font-weight: 700;
+}

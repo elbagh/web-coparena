@@ -103,6 +103,14 @@ export interface JugadorSemilla {
   email?: string | null;
   redSocial?: string | null;
   fotoKey?: string | null;
+  /* Ficha del cromo (migración 0023). Sin ellos, el jugador nace en bronce y
+     con la ficha en blanco, que es lo normal recién inscrito. */
+  apodo?: string | null;
+  dorsal?: number | null;
+  posicion?: string | null;
+  mano?: string | null;
+  lema?: string | null;
+  nivel?: string;
 }
 
 export interface EquipoSembrado {
@@ -184,8 +192,10 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
       `INSERT INTO jugadores (
          equipo_id, nombre, apellidos, nombre_completo_normalizado,
          telefono, telefono_normalizado, email, email_normalizado,
-         red_social, foto_key, es_suplente, orden, edicion_id
-       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+         red_social, foto_key, es_suplente, orden, edicion_id,
+         apodo, dorsal, posicion, mano, lema, nivel
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                 ?14, ?15, ?16, ?17, ?18, ?19)
        RETURNING id`
     )
       .bind(
@@ -201,7 +211,13 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
         semilla.fotoKey ?? null,
         i >= 2 ? 1 : 0,
         i + 1,
-        equipo!.edicion_id
+        equipo!.edicion_id,
+        semilla.apodo ?? null,
+        semilla.dorsal ?? null,
+        semilla.posicion ?? null,
+        semilla.mano ?? null,
+        semilla.lema ?? null,
+        semilla.nivel ?? "bronce"
       )
       .first<{ id: number }>();
 
@@ -412,7 +428,7 @@ export async function crearEstadistica(
     .run();
 }
 
-/** Atributos 1–5 de un jugador, los que pone la organización. */
+/** Atributos 1–99 de un jugador, los que pone la organización. */
 export async function crearAtributos(jugadorId: number, atributos: Record<string, number>): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO jugador_atributos (jugador_id, atributos) VALUES (?1, ?2)
@@ -424,6 +440,11 @@ export async function crearAtributos(jugadorId: number, atributos: Record<string
 
 export async function ocultarJugador(jugadorId: number): Promise<void> {
   await env.DB.prepare("UPDATE jugadores SET oculto_publico = 1 WHERE id = ?1").bind(jugadorId).run();
+}
+
+/** Metal del cromo. Todos nacen en bronce; ascender es cosa de la organización. */
+export async function fijarNivel(jugadorId: number, nivel: string): Promise<void> {
+  await env.DB.prepare("UPDATE jugadores SET nivel = ?2 WHERE id = ?1").bind(jugadorId, nivel).run();
 }
 
 /** Sube un objeto a R2 y devuelve su key, para los tests de fotos. */

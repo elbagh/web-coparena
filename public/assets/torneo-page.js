@@ -125,7 +125,7 @@
       return bloque;
     }
 
-    bloque.append(tablaClasificacion(grupo, fase.clasifican));
+    bloque.append(tablaClasificacion(grupo, fase));
 
     const partidos = (fase.partidos || []).filter((p) => p.grupoId === grupo.id);
     if (partidos.length > 0) {
@@ -142,7 +142,7 @@
    * lo que decide la posición: jugados, ganados y puntos. El resto (sets,
    * puntos a favor) va detrás de un resumen desplegable, no se tira.
    */
-  function tablaClasificacion(grupo, clasifican) {
+  function tablaClasificacion(grupo, fase) {
     const caja = el("div", "torneo-tabla-scroll");
     const tabla = el("table", "torneo-tabla");
 
@@ -159,8 +159,12 @@
     const tbody = document.createElement("tbody");
     grupo.clasificacion.forEach((fila) => {
       const tr = document.createElement("tr");
-      // Quién pasa de ronda es la lectura principal de la tabla.
-      if (clasifican > 0 && fila.posicion <= clasifican) tr.classList.add("is-clasificado");
+      /*
+       * Quién pasa de ronda es la lectura principal de la tabla, y pasar
+       * directo no es lo mismo que pasar por repesca: esa segunda plaza depende
+       * de cómo queden los demás grupos. Dos colores, no uno.
+       */
+      if (fila.clasifica) tr.classList.add(`is-${fila.clasifica}`);
 
       const celdas = [
         String(fila.posicion),
@@ -182,10 +186,27 @@
     tabla.append(thead, tbody);
     caja.append(tabla);
 
-    if (clasifican > 0) {
-      caja.append(el("p", "torneo-nota", `Pasan a la siguiente fase los ${clasifican} primeros de cada grupo.`));
-    }
+    const nota = notaDeClasificacion(grupo, fase);
+    if (nota) caja.append(el("p", "torneo-nota", nota));
     return caja;
+  }
+
+  /*
+   * La nota describe la regla real, que ya no es «pasan los N primeros»: cada
+   * grupo puede dar un número distinto de plazas y encima puede haber repesca.
+   * Con grupos de tamaños distintos, decir lo de siempre sería mentir.
+   */
+  function notaDeClasificacion(grupo, fase) {
+    const directas =
+      grupo.clasifican > 0
+        ? `Pasan ${grupo.clasifican === 1 ? "el primero" : `los ${grupo.clasifican} primeros`} de este grupo.`
+        : "";
+    if (!fase.repesca || grupo.enRepesca === false) return directas;
+    const extra =
+      fase.repesca === 1
+        ? "Una plaza más se decide entre los mejores clasificados que quedan justo fuera."
+        : `${fase.repesca} plazas más se deciden entre los mejores clasificados que quedan justo fuera.`;
+    return `${directas} ${extra}`.trim();
   }
 
   function tarjetaPartido(partido) {

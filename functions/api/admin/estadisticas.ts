@@ -1,7 +1,12 @@
 // /api/admin/estadisticas
 //   GET             plantilla de la edición en juego con sus totales, sus
-//                   atributos y si está oculta del directorio público
-//   PATCH ?jugador=N guarda atributos y visibilidad
+//                   atributos, su nivel de cromo y si está oculta del
+//                   directorio público
+//   PATCH ?jugador=N guarda atributos, nivel y visibilidad
+//
+// Es la página donde la organización **valora**: los seis atributos 1–99 y el
+// metal del cromo. La identidad de la persona (apodo, dorsal, posición, mano,
+// lema) se edita en /admin/jugadores/, que es la página persona a persona.
 //
 // Las cifras de juego **no se editan aquí**: salen de sumar los partidos del
 // jugador y son de sólo lectura. Si llegan en el cuerpo de un PATCH, se
@@ -10,7 +15,16 @@
 import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { edicionActual } from "../../_lib/ediciones";
 import { mapEstadisticas, METRICAS, totalesPorJugador } from "../../_lib/estadisticas";
-import { ATRIBUTOS, atributosPorJugador, sentenciaAtributos, validarAtributos } from "../../_lib/perfil";
+import {
+  ATRIBUTOS,
+  atributosPorJugador,
+  mediaAtributos,
+  NIVELES,
+  NIVEL_POR_DEFECTO,
+  sentenciaAtributos,
+  validarAtributos,
+  validarNivel
+} from "../../_lib/perfil";
 
 interface FilaPlantilla {
   id: number;
@@ -18,6 +32,7 @@ interface FilaPlantilla {
   apellidos: string;
   es_suplente: number;
   oculto_publico: number;
+  nivel: string | null;
   equipo_id: number;
   equipo_nombre: string;
 }
@@ -28,11 +43,13 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 
   try {
     const edicion = await edicionActual(env.DB);
-    if (!edicion) return jsonAdmin({ edicion: null, jugadores: [], metricas: METRICAS, atributos: ATRIBUTOS });
+    if (!edicion) {
+      return jsonAdmin({ edicion: null, jugadores: [], metricas: METRICAS, atributos: ATRIBUTOS, niveles: NIVELES });
+    }
 
     const { results } = await env.DB
       .prepare(
-        `SELECT j.id, j.nombre, j.apellidos, j.es_suplente, j.oculto_publico,
+        `SELECT j.id, j.nombre, j.apellidos, j.es_suplente, j.oculto_publico, j.nivel,
                 e.id AS equipo_id, e.nombre AS equipo_nombre
          FROM jugadores j
          JOIN equipos e ON e.id = j.equipo_id
@@ -50,8 +67,11 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 
     return jsonAdmin({
       edicion: { id: edicion.id, anio: edicion.anio, nombre: edicion.nombre, estado: edicion.estado },
+      // Las listas las manda el servidor: el cliente no mantiene ninguna copia
+      // de las etiquetas ni de los metales.
       metricas: METRICAS,
       atributos: ATRIBUTOS,
+      niveles: NIVELES,
       jugadores: results.map((fila) => ({
         id: fila.id,
         nombre: fila.nombre,
@@ -61,7 +81,9 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         equipoId: fila.equipo_id,
         equipoNombre: fila.equipo_nombre,
         estadisticas: totales.get(fila.id) ?? mapEstadisticas(null),
-        atributos: atributos.get(fila.id) ?? {}
+        atributos: atributos.get(fila.id) ?? {},
+        nivel: fila.nivel ?? NIVEL_POR_DEFECTO,
+        media: mediaAtributos(atributos.get(fila.id))
       }))
     });
   } catch (err) {
@@ -92,6 +114,18 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 
   const sentencias = [sentenciaAtributos(env.DB, jugadorId, atributos.atributos)];
 
+  // El nivel es **opcional**: un PATCH que no lo menciona no debe devolver a
+  // nadie a bronce. Mismo trato que `ocultoPublico`.
+  if (body.nivel !== undefined) {
+    const nivel = validarNivel(body.nivel);
+    if ("campos" in nivel) {
+      return jsonAdmin({ error: "Revisa los campos marcados.", campos: nivel.campos }, 400);
+    }
+    sentencias.push(
+      env.DB.prepare("UPDATE jugadores SET nivel = ?1 WHERE id = ?2").bind(nivel.nivel, jugadorId)
+    );
+  }
+
   if (body.ocultoPublico !== undefined) {
     sentencias.push(
       env.DB
@@ -107,12 +141,15 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     return jsonAdmin({ error: "No se han podido guardar los cambios." }, 500);
   }
 
-  // Se relee en vez de devolver lo enviado: `ocultoPublico` es opcional y, si no
-  // venía, lo que vale es lo que ya había en la fila.
+  // Se relee en vez de devolver lo enviado: `ocultoPublico` y `nivel` son
+  // opcionales y, si no venían, lo que vale es lo que ya había en la fila.
   const [totales, atributosGuardados, guardado] = await Promise.all([
     totalesPorJugador(env.DB, [jugadorId]),
     atributosPorJugador(env.DB, [jugadorId]),
-    env.DB.prepare("SELECT oculto_publico FROM jugadores WHERE id = ?1").bind(jugadorId).first<{ oculto_publico: number }>()
+    env.DB
+      .prepare("SELECT oculto_publico, nivel FROM jugadores WHERE id = ?1")
+      .bind(jugadorId)
+      .first<{ oculto_publico: number; nivel: string | null }>()
   ]);
 
   return jsonAdmin({
@@ -121,6 +158,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
       id: jugadorId,
       estadisticas: totales.get(jugadorId) ?? mapEstadisticas(null),
       atributos: atributosGuardados.get(jugadorId) ?? {},
+      media: mediaAtributos(atributosGuardados.get(jugadorId)),
+      nivel: guardado?.nivel ?? NIVEL_POR_DEFECTO,
       ocultoPublico: guardado?.oculto_publico === 1
     }
   });

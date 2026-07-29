@@ -4,29 +4,29 @@
 // PATCH /api/perfil — actualiza los campos propios de la ficha (apodo, dorsal,
 //   posicion, mano, lema). El avatar se gestiona aparte en /api/avatar.
 //
-// Los atributos 1-5 son de solo lectura aqui: los pone la organizacion desde
-// /admin/estadisticas/ sobre el jugador de la edicion, no su dueño.
+// La ficha es del **jugador de una edicion** (columnas de `jugadores` desde la
+// 0023), no de la cuenta de Google. Dos consecuencias que se ven aqui:
+//
+//   - se escribe solo sobre la fila vigente, nunca sobre las de años pasados:
+//     cambiar de apodo hoy no debe reescribir el cromo de 2025;
+//   - quien no esta en ninguna plantilla no tiene donde escribir, y eso se
+//     responde con 409 (ver mas abajo).
+//
+// Los atributos 1-99 y el nivel del cromo son de solo lectura aqui: los pone la
+// organizacion desde el panel, no su dueño.
 
 import { publicUser, requireUser, requireUserContext } from "../_lib/auth";
 import { claveAvatar } from "../_lib/avatar";
 import { edicionActual } from "../_lib/ediciones";
 import { mapEstadisticas, sumarTotales, totalesPorJugador } from "../_lib/estadisticas";
 import { json } from "../_lib/http";
-import { atributosPorJugador, guardarPerfil, validarPerfil } from "../_lib/perfil";
+import { atributosPorJugador, mediaAtributos, sentenciaFichaJugador, validarPerfil } from "../_lib/perfil";
 import { normalizarEmail } from "../_lib/validacion";
 
 interface Env {
   DB: D1Database;
   FOTOS?: R2Bucket;
   SESSION_SECRET: string;
-}
-
-interface PerfilRow {
-  apodo: string | null;
-  dorsal: number | null;
-  posicion: string | null;
-  mano: string | null;
-  lema: string | null;
 }
 
 interface MembresiaRow {
@@ -40,6 +40,21 @@ interface MembresiaRow {
   estado: string | null;
   jugador_nombre: string;
   jugador_apellidos: string;
+  apodo: string | null;
+  dorsal: number | null;
+  posicion: string | null;
+  mano: string | null;
+  lema: string | null;
+  nivel: string | null;
+}
+
+/**
+ * La inscripcion sobre la que se lee y se escribe la ficha: la de la edicion en
+ * juego y, si no juega esta, la mas reciente. Es la misma regla para leer y para
+ * escribir, para que nadie edite una ficha distinta de la que esta viendo.
+ */
+function membresiaVigente(membresias: MembresiaRow[], edicionId: number | null): MembresiaRow | undefined {
+  return membresias.find((m) => m.edicion_id === edicionId) ?? membresias[0];
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -51,11 +66,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const emailNormalizado = normalizarEmail(user.email);
     const edicion = await edicionActual(env.DB);
 
-    const [perfilRow, tieneAvatar, membresias, camisetas] = await Promise.all([
-      env.DB
-        .prepare("SELECT apodo, dorsal, posicion, mano, lema FROM perfiles WHERE usuario_id = ?1")
-        .bind(user.id)
-        .first<PerfilRow>(),
+    const [tieneAvatar, membresias, camisetas] = await Promise.all([
       // Solo se quiere saber si hay foto: en modo «ver como» no se siembra.
       claveAvatar(env.DB, env.FOTOS, user, { sembrar: !impersonando }).then((k) => k != null),
       cargarMembresias(env.DB, emailNormalizado),
@@ -66,9 +77,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const propio = membresias[0];
     const jugador = propio ? { id: propio.jugador_id, nombre: propio.jugador_nombre, apellidos: propio.jugador_apellidos } : null;
 
-    // Los atributos son los del jugador de la edición en juego; si no juega esta
-    // edición, los de su inscripción más reciente.
-    const jugadorVigente = membresias.find((m) => m.edicion_id === edicion?.id) ?? propio;
+    // Ficha y atributos son los del jugador de la edición en juego; si no juega
+    // esta edición, los de su inscripción más reciente.
+    const jugadorVigente = membresiaVigente(membresias, edicion?.id ?? null);
     const atributos = jugadorVigente
       ? (await atributosPorJugador(env.DB, [jugadorVigente.jugador_id])).get(jugadorVigente.jugador_id) ?? {}
       : {};
@@ -79,12 +90,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         jugador,
         edicionActual: edicion ? { anio: edicion.anio, nombre: edicion.nombre, estado: edicion.estado } : null,
         perfil: {
-          apodo: perfilRow?.apodo ?? null,
-          dorsal: perfilRow?.dorsal ?? null,
-          posicion: perfilRow?.posicion ?? null,
-          mano: perfilRow?.mano ?? null,
-          lema: perfilRow?.lema ?? null,
+          apodo: jugadorVigente?.apodo ?? null,
+          dorsal: jugadorVigente?.dorsal ?? null,
+          posicion: jugadorVigente?.posicion ?? null,
+          mano: jugadorVigente?.mano ?? null,
+          lema: jugadorVigente?.lema ?? null,
+          // El nivel se enseña, no se edita: lo pone la organización.
+          nivel: jugadorVigente?.nivel ?? null,
           atributos,
+          media: mediaAtributos(atributos),
           tieneAvatar
         },
         historial,
@@ -119,7 +133,33 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
 
   const p = resultado.perfil;
   try {
-    await guardarPerfil(env.DB, user.id, p);
+    const edicion = await edicionActual(env.DB);
+    const membresias = await cargarMembresias(env.DB, normalizarEmail(user.email));
+    const vigente = membresiaVigente(membresias, edicion?.id ?? null);
+
+    /*
+     * Sin inscripción no hay dónde escribir. Antes siempre la había, porque la
+     * ficha colgaba de la cuenta; ahora es una propiedad del jugador de una
+     * edición y una cuenta puede no tener ninguna.
+     *
+     * 409 y no otra cosa: la sesión es válida (no es 401/403), el cuerpo está
+     * bien formado (400 mandaría a revisar campos correctos) y la cuenta existe
+     * (404 mentiría). Es un conflicto de estado. Aun así debería ser el
+     * respaldo y no el camino normal: el GET ya devuelve `jugador: null` y
+     * «Mi zona» deshabilita el formulario con eso.
+     */
+    if (!vigente) {
+      return json(
+        {
+          error:
+            "Todavía no estás en ninguna plantilla. Cuando tu correo aparezca en una inscripción podrás personalizar tu cromo."
+        },
+        409,
+        { "Cache-Control": "no-store" }
+      );
+    }
+
+    await sentenciaFichaJugador(env.DB, vigente.jugador_id, p).run();
 
     return json(
       {
@@ -140,7 +180,8 @@ async function cargarMembresias(db: D1Database, emailNormalizado: string): Promi
     .prepare(
       `SELECT j.id AS jugador_id, e.id AS equipo_id, e.nombre AS equipo_nombre, e.posicion_final AS posicion_final,
               ed.id AS edicion_id, ed.anio AS anio, ed.nombre AS edicion_nombre, ed.estado AS estado,
-              j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos
+              j.nombre AS jugador_nombre, j.apellidos AS jugador_apellidos,
+              j.apodo, j.dorsal, j.posicion, j.mano, j.lema, j.nivel
        FROM jugadores j
        JOIN equipos e ON e.id = j.equipo_id
        LEFT JOIN ediciones ed ON ed.id = e.edicion_id
