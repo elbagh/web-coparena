@@ -258,4 +258,34 @@ describe("el capitán en /api/admin/jugadores", () => {
 
     expect(respuesta.status).toBe(201);
   });
+
+  // El test anterior solo ejercita la exclusión SQL: como ningún campo
+  // coincide, la consulta no devuelve filas y el forEach de buscarDuplicados
+  // no llega a compararlas. Para forzar que SÍ entre una fila con
+  // telefono_normalizado = '' hace falta que coincida por OTRA vía del OR (el
+  // nombre) — así el bucle sí compara los dos móviles vacíos entre sí.
+  it("un jugador sin móvil que repite el nombre de otro sin móvil no se marca también con móvil duplicado", async () => {
+    const admin = await crearAdmin();
+    const equipo = await crearEquipo({
+      jugadores: [{ nombre: "Colision", apellidos: "Nombre", telefono: "", email: "colision.nombre@example.com" }, {}]
+    });
+
+    const datos = new FormData();
+    datos.append("equipoId", String(equipo.id));
+    datos.append("nombre", "Colision");
+    datos.append("apellidos", "Nombre");
+    datos.append("telefono", "");
+    datos.append("email", "");
+
+    const respuesta = await jugadoresAdminPost(
+      ctx(await peticion("/api/admin/jugadores", { method: "POST", user: admin, body: datos }), env)
+    );
+
+    expect(respuesta.status).toBe(409);
+    const cuerpo = (await respuesta.json()) as { campos: Record<string, string> };
+    // El nombre repetido sí es un choque real: se espera. El móvil vacío no lo
+    // es, y es justo lo que protege la guarda del forEach.
+    expect(cuerpo.campos.nombre).toBeTruthy();
+    expect(cuerpo.campos.telefono).toBeUndefined();
+  });
 });
