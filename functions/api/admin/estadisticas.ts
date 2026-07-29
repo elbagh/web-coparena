@@ -1,21 +1,15 @@
 // /api/admin/estadisticas
-//   GET             plantilla de la edición en juego con su carga manual, sus
+//   GET             plantilla de la edición en juego con sus totales, sus
 //                   atributos y si está oculta del directorio público
-//   PATCH ?jugador=N guarda las tres cosas de un jugador
+//   PATCH ?jugador=N guarda atributos y visibilidad
 //
-// Es el reverso del directorio público: aquí se rellena lo que /api/jugadores
-// enseña. Mientras el registro por partido no exista, todo lo que se carga aquí
-// va a la fila manual de `estadisticas` (la que tiene `partido_id IS NULL`).
+// Las cifras de juego **no se editan aquí**: salen de sumar los partidos del
+// jugador y son de sólo lectura. Si llegan en el cuerpo de un PATCH, se
+// ignoran (test/integration/estadisticas-admin.test.ts lo comprueba).
 
 import { requireAdmin, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { edicionActual } from "../../_lib/ediciones";
-import {
-  mapEstadisticas,
-  METRICAS,
-  sentenciaCargaManual,
-  SUMA_METRICAS,
-  validarEstadisticas
-} from "../../_lib/estadisticas";
+import { mapEstadisticas, METRICAS, totalesPorJugador } from "../../_lib/estadisticas";
 import { ATRIBUTOS, atributosPorJugador, sentenciaAtributos, validarAtributos } from "../../_lib/perfil";
 
 interface FilaPlantilla {
@@ -49,8 +43,8 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
       .all<FilaPlantilla>();
 
     const ids = results.map((j) => j.id);
-    const [manuales, atributos] = await Promise.all([
-      cargasManuales(env.DB, ids),
+    const [totales, atributos] = await Promise.all([
+      totalesPorJugador(env.DB, ids),
       atributosPorJugador(env.DB, ids)
     ]);
 
@@ -66,7 +60,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         ocultoPublico: fila.oculto_publico === 1,
         equipoId: fila.equipo_id,
         equipoNombre: fila.equipo_nombre,
-        estadisticas: manuales.get(fila.id) ?? mapEstadisticas(null),
+        estadisticas: totales.get(fila.id) ?? mapEstadisticas(null),
         atributos: atributos.get(fila.id) ?? {}
       }))
     });
@@ -91,20 +85,12 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
 
   const body = ((await request.json().catch(() => null)) || {}) as Record<string, unknown>;
 
-  const estadisticas = validarEstadisticas(body.estadisticas);
-  if ("campos" in estadisticas) {
-    return jsonAdmin({ error: "Revisa los campos marcados.", campos: estadisticas.campos }, 400);
-  }
-
   const atributos = validarAtributos(body.atributos);
   if ("campos" in atributos) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos: atributos.campos }, 400);
   }
 
-  const sentencias = [
-    sentenciaCargaManual(env.DB, jugadorId, estadisticas.estadisticas),
-    sentenciaAtributos(env.DB, jugadorId, atributos.atributos)
-  ];
+  const sentencias = [sentenciaAtributos(env.DB, jugadorId, atributos.atributos)];
 
   if (body.ocultoPublico !== undefined) {
     sentencias.push(
@@ -118,13 +104,13 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     await env.DB.batch(sentencias);
   } catch (err) {
     console.error("Error guardando las estadísticas de un jugador:", err);
-    return jsonAdmin({ error: "No se han podido guardar las estadísticas." }, 500);
+    return jsonAdmin({ error: "No se han podido guardar los cambios." }, 500);
   }
 
   // Se relee en vez de devolver lo enviado: `ocultoPublico` es opcional y, si no
   // venía, lo que vale es lo que ya había en la fila.
-  const [manuales, atributosGuardados, guardado] = await Promise.all([
-    cargasManuales(env.DB, [jugadorId]),
+  const [totales, atributosGuardados, guardado] = await Promise.all([
+    totalesPorJugador(env.DB, [jugadorId]),
     atributosPorJugador(env.DB, [jugadorId]),
     env.DB.prepare("SELECT oculto_publico FROM jugadores WHERE id = ?1").bind(jugadorId).first<{ oculto_publico: number }>()
   ]);
@@ -133,32 +119,9 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     ok: true,
     jugador: {
       id: jugadorId,
-      estadisticas: manuales.get(jugadorId) ?? mapEstadisticas(null),
+      estadisticas: totales.get(jugadorId) ?? mapEstadisticas(null),
       atributos: atributosGuardados.get(jugadorId) ?? {},
       ocultoPublico: guardado?.oculto_publico === 1
     }
   });
 };
-
-/**
- * Solo la fila manual, no la suma. El panel edita esa carga concreta; los
- * totales que se ven en /jugadores/ ya suman también lo que venga de partidos.
- */
-async function cargasManuales(db: D1Database, jugadorIds: number[]) {
-  const mapa = new Map<number, ReturnType<typeof mapEstadisticas>>();
-  if (jugadorIds.length === 0) return mapa;
-
-  const placeholders = jugadorIds.map(() => "?").join(",");
-  const { results } = await db
-    .prepare(
-      `SELECT e.jugador_id, ${SUMA_METRICAS}
-       FROM estadisticas e
-       WHERE e.jugador_id IN (${placeholders}) AND e.partido_id IS NULL
-       GROUP BY e.jugador_id`
-    )
-    .bind(...jugadorIds)
-    .all<Record<string, number>>();
-
-  for (const fila of results) mapa.set(fila.jugador_id, mapEstadisticas(fila));
-  return mapa;
-}

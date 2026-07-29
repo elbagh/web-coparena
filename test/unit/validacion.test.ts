@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_FOTO_BYTES,
   MAX_JUGADORES,
+  MENSAJE_CAPITAN_CONTACTO,
   MIN_JUGADORES,
   limpiar,
   normalizarEmail,
@@ -22,6 +23,7 @@ const jugador = (extra: Record<string, unknown> = {}) => ({
 const registroValido = (extra: Record<string, unknown> = {}) => ({
   equipo: "Los Delfines",
   consentimiento: true,
+  capitan: 0,
   jugadores: [jugador(), jugador({ nombre: "Luis", apellidos: "Gómez", telefono: "677333444", email: "luis@example.com" })],
   ...extra
 });
@@ -181,18 +183,6 @@ describe("validarRegistro: campos de jugador", () => {
     expect(errores["jugadores.0.email"]).toBeTruthy();
   });
 
-  it("exige correo por jugador salvo que se desactive", () => {
-    const sinEmail = [jugador({ email: "" }), jugador({ nombre: "Luis", apellidos: "Gómez", telefono: "677333444", email: "" })];
-
-    const obligatorio = campos(validarRegistro(registroValido({ jugadores: sinEmail })));
-    expect(obligatorio["jugadores.0.email"]).toBeTruthy();
-
-    // Sin exigirlo por jugador, hace falta al menos uno en todo el equipo.
-    const opcional = campos(validarRegistro(registroValido({ jugadores: sinEmail }), { requirePlayerEmail: false }));
-    expect(opcional["jugadores.0.email"]).toBeUndefined();
-    expect(opcional.email).toBeTruthy();
-  });
-
   it("acepta red social como handle o como URL https, y rechaza lo demás", () => {
     const conHandle = validarRegistro(registroValido({ jugadores: [jugador({ redSocial: "@ana.volley" }), jugador({ nombre: "Luis", apellidos: "Gómez", telefono: "677333444", email: "b@example.com", redSocial: "https://instagram.com/luis" })] }));
     expect("registro" in conHandle).toBe(true);
@@ -272,15 +262,71 @@ describe("validarRegistro: duplicados dentro del envío", () => {
   });
 });
 
-describe("validarRegistro: correo del usuario que inscribe", () => {
-  it("exige que uno de los jugadores use el correo de la sesión", () => {
-    const errores = campos(validarRegistro(registroValido(), { ownerEmail: "otra@example.com" }));
-    expect(errores.email).toContain("iniciado sesión");
+describe("capitán", () => {
+  it("exige que el payload diga quién es el capitán", () => {
+    const errores = campos(validarRegistro({ ...registroValido(), capitan: undefined }));
+    expect(errores.capitan).toBe("Indica quién es el capitán del equipo.");
   });
 
-  it("valida cuando el correo de la sesión sí aparece, sin importar mayúsculas", () => {
-    const resultado = validarRegistro(registroValido(), { ownerEmail: "ANA@example.com" });
+  it("rechaza un capitán fuera de la plantilla", () => {
+    const errores = campos(validarRegistro({ ...registroValido(), capitan: 7 }));
+    expect(errores.capitan).toBe("Indica quién es el capitán del equipo.");
+  });
+
+  it("exige móvil y correo al capitán", () => {
+    const base = registroValido();
+    base.jugadores[0].telefono = "";
+    base.jugadores[0].email = "";
+    const errores = campos(validarRegistro({ ...base, capitan: 0 }));
+    expect(errores["jugadores.0.telefono"]).toBe(MENSAJE_CAPITAN_CONTACTO);
+    expect(errores["jugadores.0.email"]).toBe(MENSAJE_CAPITAN_CONTACTO);
+  });
+
+  it("deja sin móvil ni correo a quien no es capitán", () => {
+    const base = registroValido();
+    base.jugadores[1].telefono = "";
+    base.jugadores[1].email = "";
+    const resultado = validarRegistro({ ...base, capitan: 0 });
     expect("registro" in resultado).toBe(true);
+    if ("registro" in resultado) {
+      expect(resultado.registro.jugadores[1]!.telefono).toBe("");
+      expect(resultado.registro.jugadores[1]!.telefonoNormalizado).toBe("");
+      expect(resultado.registro.jugadores[1]!.email).toBeNull();
+      expect(resultado.registro.capitan).toBe(0);
+    }
+  });
+
+  it("valida el formato del móvil cuando sí se rellena", () => {
+    const base = registroValido();
+    base.jugadores[1].telefono = "123";
+    const errores = campos(validarRegistro({ ...base, capitan: 0 }));
+    expect(errores["jugadores.1.telefono"]).toBe(
+      "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos)."
+    );
+  });
+
+  it("no toma por duplicados a dos jugadores sin móvil", () => {
+    const base = registroValido();
+    base.jugadores[1].telefono = "";
+    base.jugadores.push({ nombre: "Tres", apellidos: "Tercero", telefono: "", email: "" });
+    // Ninguno de los dos es capitán, así que el registro valida entero: no hay
+    // "campos" que extraer. Se comprueba directamente sobre el resultado en vez
+    // de con el helper campos() (que asume que debe haber errores) para que
+    // esta prueba siga detectando una regresión del hueco vacío tratado como
+    // duplicado sin depender de que exista algún otro error en el payload.
+    const resultado = validarRegistro({ ...base, capitan: 0 });
+    const errores = "campos" in resultado ? resultado.campos : {};
+    expect(errores["jugadores.1.telefono"]).toBeUndefined();
+    expect(errores["jugadores.2.telefono"]).toBeUndefined();
+  });
+
+  it("exige que el correo del capitán sea el de la sesión cuando se pide", () => {
+    const errores = campos(
+      validarRegistro({ ...registroValido(), capitan: 0 }, { emailCapitanObligatorio: "otra@example.com" })
+    );
+    expect(errores["jugadores.0.email"]).toBe(
+      "El capitán debe usar el correo con el que has iniciado sesión."
+    );
   });
 });
 

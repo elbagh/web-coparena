@@ -169,6 +169,44 @@
   gap: 12px;
 }
 
+/* Cifras de sólo lectura del diálogo de estadísticas: salen de los partidos, no
+   se editan, y por eso no son campos. */
+.admin-stats-readonly {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+}
+
+.admin-stat-label {
+  color: var(--adm-muted);
+  font-size: 0.82rem;
+  grid-column: 1;
+}
+
+.admin-stat-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  grid-column: 2;
+  margin: 0;
+  text-align: right;
+}
+
+@media (min-width: 901px) {
+  .admin-stats-readonly {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-stat-label {
+    grid-column: auto;
+  }
+
+  .admin-stat-valor {
+    grid-column: auto;
+    text-align: left;
+  }
+}
+
 .admin-form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -437,6 +475,24 @@
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.07em;
+}
+
+/*
+ * El único radio marcado dice quién es capitán de la plantilla; el resto de
+ * la fila queda igual, sea titular o suplente. Se deshabilita mientras a esa
+ * fila le falten móvil o correo (ver refrescarRadio en equipos.js).
+ */
+.player-capitan-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--adm-ink);
+}
+
+.player-capitan-pick input:disabled + span {
+  opacity: 0.45;
 }
 
 .admin-dialog .admin-player-order {

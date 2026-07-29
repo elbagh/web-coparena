@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { onRequestGet as perfilGet, onRequestPatch as perfilPatch } from "../../functions/api/perfil";
 import { ctx } from "../helpers/ctx";
-import { crearAtributos, crearEquipo, crearEstadistica, crearUsuario, peticion } from "../helpers/db";
+import { crearAtributos, crearEquipo, crearEstadistica, crearPartido, crearUsuario, peticion } from "../helpers/db";
 
 /*
  * Los atributos 1–5 dejaron de ser autovaloración: ahora los pone la
@@ -13,9 +13,9 @@ import { crearAtributos, crearEquipo, crearEstadistica, crearUsuario, peticion }
 describe("GET /api/perfil", () => {
   it("devuelve los atributos que puso la organización y las estadísticas de la edición", async () => {
     const user = await crearUsuario({ email: "capi@example.com" });
-    const equipo = await crearEquipo({ ownerUserId: user.id, jugadores: [{ email: "capi@example.com" }, {}] });
+    const equipo = await crearEquipo({ jugadores: [{ email: user.email }, {}] });
     await crearAtributos(equipo.jugadores[0]!.id, { saque: 5, defensa: 3 });
-    await crearEstadistica(equipo.jugadores[0]!.id, { puntos: 9, aces: 2 });
+    await crearEstadistica(equipo.jugadores[0]!.id, await crearPartido(), { puntos: 9, aces: 2 });
 
     const respuesta = await perfilGet(ctx(await peticion("/api/perfil", { user }), env));
     expect(respuesta.status).toBe(200);

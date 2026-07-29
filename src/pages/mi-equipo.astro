@@ -70,6 +70,8 @@ import SiteFooter from "../components/SiteFooter.astro";
             <p class="eyebrow">Equipo</p>
             <h2>Aún no tienes equipo en la edición actual</h2>
             <p class="teams-status">Cuando tu correo aparezca en una inscripción de este año, el equipo aparecerá aquí para editarlo.</p>
+            {/* Se rellena cuando el guardado te saca del equipo (cesión de la capitanía). */}
+            <p class="teams-status" data-my-team-cedido hidden></p>
             <div class="teams-actions">
               <a class="button button-primary" href="/inscripcion/">Crear equipo</a>
               <a class="button button-secondary" href="/equipos/">Ver equipos</a>
@@ -81,13 +83,15 @@ import SiteFooter from "../components/SiteFooter.astro";
               <p class="eyebrow">Equipo de la edición en juego</p>
               <h2 data-my-team-titulo>Editar inscripción</h2>
               <p class="teams-status" data-my-team-intro>
-                Cada jugador necesita correo. Al menos uno debe coincidir con la cuenta con la que has iniciado sesión.
+                Mandas tú: eres el capitán. Solo tu móvil y tu correo son obligatorios; quien no
+                deje contacto no entrará en el grupo del torneo ni recibirá avisos. Puedes ceder el
+                equipo nombrando capitán a otra persona.
               </p>
               {/* Quien figura en el equipo pero no lo inscribió ve la plantilla
                   en modo lectura: los cambios los hace quien lo dio de alta. */}
               <p class="teams-status" data-my-team-lectura hidden>
-                Te inscribió otra persona, así que aquí solo consultas la plantilla. Para cambiar algo, habla con quien
-                inscribió el equipo o escríbenos a copa.arena.2000@gmail.com.
+                Aquí solo consultas la plantilla: el equipo lo lleva su capitán. Para cambiar algo,
+                habla con esa persona o escríbenos a copa.arena.2000@gmail.com.
               </p>
             </div>
 
@@ -212,6 +216,8 @@ import SiteFooter from "../components/SiteFooter.astro";
       <header class="player-head">
         <span class="player-dorsal" data-dorsal aria-hidden="true">1</span>
         <span class="player-role" data-role>Titular</span>
+        <span class="player-capitan" data-capitan-badge hidden>Capitán</span>
+        <button type="button" class="player-capitan-set" data-make-capitan hidden>Hacer capitán</button>
         <button type="button" class="player-remove" data-remove hidden>Quitar</button>
       </header>
       <div class="player-grid">
@@ -224,18 +230,19 @@ import SiteFooter from "../components/SiteFooter.astro";
           <input type="text" data-field="apellidos" maxlength="80" autocomplete="off" />
         </div>
         <div class="field">
-          <label>Móvil</label>
+          <label>Móvil <span class="field-opt" data-opt="telefono" hidden>(opcional)</span></label>
           <input type="tel" data-field="telefono" maxlength="18" autocomplete="off" placeholder="612 345 678" />
         </div>
         <div class="field">
-          <label>Correo</label>
-          <input type="email" data-field="email" maxlength="120" autocomplete="off" required />
+          <label>Correo <span class="field-opt" data-opt="email" hidden>(opcional)</span></label>
+          <input type="email" data-field="email" maxlength="120" autocomplete="off" />
         </div>
         <div class="field">
           <label>Instagram u otra red <span class="field-opt">(opcional)</span></label>
           <input type="text" data-field="redSocial" maxlength="120" autocomplete="off" placeholder="@usuario" />
         </div>
       </div>
+      <p class="player-warning" data-contacto-aviso hidden></p>
     </article>
   </template>
 

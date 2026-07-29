@@ -1,24 +1,26 @@
-// Estadisticas de juego por jugador: metricas, validacion y totales.
+// Estadisticas de juego por jugador: metricas y totales.
 //
-// Una fila de `estadisticas` es una carga: o la manual de la edicion
-// (partido_id NULL) o la de un partido concreto. Lo que se muestra siempre es
-// la SUMA de las filas del jugador, asi que cuando llegue el registro por
-// partido no hay que tocar ninguna consulta de lectura.
+// Una fila de `estadisticas` es lo que un jugador hizo en un partido. Desde la
+// migracion 0012 no hay otra forma de que exista: `partido_id` es NOT NULL, asi
+// que una cifra tecleada a mano, sin partido detras, no es representable. Lo
+// que se muestra es siempre la SUMA de las filas del jugador.
 //
-// La lista de metricas esta replicada en public/assets/players-list.js y en
-// public/assets/admin/estadisticas.js: al tocar aqui, tocar alli
+// La lista de metricas esta replicada en public/assets/players-list.js:
+// al tocar aqui, tocar alli
 // (test/unit/paridad-validacion.test.ts lo comprueba).
 
 export interface Metrica {
   /** Clave en el JSON de la API. */
   clave: string;
-  /** Columna de la tabla `estadisticas`. */
+  /** Nombre de la columna en la fila agregada. */
   columna: string;
   etiqueta: string;
+  /** No se almacena: se cuenta al agregar. */
+  derivada?: boolean;
 }
 
 export const METRICAS: Metrica[] = [
-  { clave: "partidosJugados", columna: "partidos_jugados", etiqueta: "Partidos" },
+  { clave: "partidosJugados", columna: "partidos_jugados", etiqueta: "Partidos", derivada: true },
   { clave: "puntos", columna: "puntos", etiqueta: "Puntos" },
   { clave: "remates", columna: "remates", etiqueta: "Remates" },
   { clave: "bloqueos", columna: "bloqueos", etiqueta: "Bloqueos" },
@@ -27,9 +29,6 @@ export const METRICAS: Metrica[] = [
   { clave: "errores", columna: "errores", etiqueta: "Errores" }
 ];
 
-/** Tope por carga: un numero mas alto es un dedazo, no un partidazo. */
-export const MAX_METRICA = 9999;
-
 export type Estadisticas = Record<string, number>;
 
 export function estadisticasVacias(): Estadisticas {
@@ -37,10 +36,14 @@ export function estadisticasVacias(): Estadisticas {
 }
 
 /**
- * `COALESCE(SUM(...), 0) AS <clave_columna>` para todas las metricas. Se usa en
- * las consultas que agregan por jugador o por edicion.
+ * Las columnas agregadas de las consultas que suman por jugador. Los partidos
+ * jugados se cuentan en vez de sumarse: son las propias filas.
  */
-export const SUMA_METRICAS = METRICAS.map((m) => `COALESCE(SUM(e.${m.columna}), 0) AS ${m.columna}`).join(", ");
+export const SUMA_METRICAS = METRICAS.map((m) =>
+  m.derivada
+    ? `COUNT(DISTINCT e.partido_id) AS ${m.columna}`
+    : `COALESCE(SUM(e.${m.columna}), 0) AS ${m.columna}`
+).join(", ");
 
 /** Pasa una fila con columnas de la tabla al objeto que viaja en la API. */
 export function mapEstadisticas(fila: Record<string, unknown> | null | undefined): Estadisticas {
@@ -67,43 +70,6 @@ export function sumarTotales(filas: Estadisticas[]): Estadisticas {
 /** ¿Tiene algo que enseñar? Sirve para no pintar bloques a cero. */
 export function hayEstadisticas(totales: Estadisticas): boolean {
   return METRICAS.some((m) => (totales[m.clave] ?? 0) > 0);
-}
-
-export function validarEstadisticas(raw: unknown): { estadisticas: Estadisticas } | { campos: Record<string, string> } {
-  const campos: Record<string, string> = {};
-  const body = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
-  const estadisticas = estadisticasVacias();
-
-  for (const m of METRICAS) {
-    const valor = body[m.clave];
-    if (valor === undefined || valor === null || valor === "") continue;
-    const n = Number(valor);
-    if (!Number.isInteger(n) || n < 0 || n > MAX_METRICA) {
-      campos[`estadisticas.${m.clave}`] = `Introduce un número entero entre 0 y ${MAX_METRICA}.`;
-    } else {
-      estadisticas[m.clave] = n;
-    }
-  }
-
-  if (Object.keys(campos).length > 0) return { campos };
-  return { estadisticas };
-}
-
-/** Upsert de la carga manual de la edición (la fila con `partido_id IS NULL`). */
-export function sentenciaCargaManual(db: D1Database, jugadorId: number, estadisticas: Estadisticas): D1PreparedStatement {
-  const columnas = METRICAS.map((m) => m.columna);
-  const placeholders = columnas.map((_, i) => `?${i + 2}`);
-  const sets = columnas.map((columna, i) => `${columna} = ?${i + 2}`);
-  const valores = METRICAS.map((m) => estadisticas[m.clave] ?? 0);
-
-  return db
-    .prepare(
-      `INSERT INTO estadisticas (jugador_id, partido_id, ${columnas.join(", ")})
-       VALUES (?1, NULL, ${placeholders.join(", ")})
-       ON CONFLICT (jugador_id) WHERE partido_id IS NULL DO UPDATE SET
-         ${sets.join(", ")}, updated_at = datetime('now')`
-    )
-    .bind(jugadorId, ...valores);
 }
 
 /** Totales por jugador para una lista de jugadores. Devuelve un mapa id → totales. */

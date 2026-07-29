@@ -6,74 +6,76 @@ export interface EquipoUsuarioRow {
   nombre: string;
   created_at: string;
   edicion_id: number | null;
+  capitan_jugador_id: number | null;
 }
 
-// Encuentra el equipo del usuario (por propiedad o por email entre los jugadores).
-// Si se pasa `edicionId`, se limita a esa edicion: asi un usuario con equipo en un
-// ano anterior puede volver a inscribirse/editar solo en la edicion viva.
+/**
+ * Equipo en el que el usuario figura: como capitán, o como jugador con su
+ * correo en la plantilla. Vale para **mirar**. El capitán tiene preferencia
+ * cuando hay más de uno.
+ */
 export async function equipoDeUsuario(
   db: D1Database,
   user: UsuarioSesion,
   edicionId?: number
 ): Promise<EquipoUsuarioRow | null> {
   const emailNormalizado = normalizarEmail(user.email);
-  const filtroEdicion = edicionId != null ? "AND e.edicion_id = ?3" : "";
+  const filtroEdicion = edicionId != null ? "AND e.edicion_id = ?2" : "";
 
   const stmt = db.prepare(
-    `SELECT e.id, e.nombre, e.created_at, e.edicion_id
+    `SELECT e.id, e.nombre, e.created_at, e.edicion_id, e.capitan_jugador_id
      FROM equipos e
      LEFT JOIN jugadores j
-       ON j.equipo_id = e.id
-      AND j.email_normalizado = ?2
-     WHERE (e.owner_user_id = ?1 OR j.id IS NOT NULL)
+       ON j.equipo_id = e.id AND j.email_normalizado = ?1
+     LEFT JOIN jugadores c
+       ON c.id = e.capitan_jugador_id AND c.email_normalizado = ?1
+     WHERE (j.id IS NOT NULL OR c.id IS NOT NULL)
        ${filtroEdicion}
      GROUP BY e.id
      ORDER BY
-       CASE WHEN e.owner_user_id = ?1 THEN 0 ELSE 1 END ASC,
+       CASE WHEN c.id IS NOT NULL THEN 0 ELSE 1 END ASC,
        e.created_at ASC,
        e.id ASC
      LIMIT 1`
   );
 
   return await (edicionId != null
-    ? stmt.bind(user.id, emailNormalizado, edicionId)
-    : stmt.bind(user.id, emailNormalizado)
+    ? stmt.bind(emailNormalizado, edicionId)
+    : stmt.bind(emailNormalizado)
   ).first<EquipoUsuarioRow>();
 }
 
 /**
- * Equipo del que el usuario es **propietario**, y solo eso. Es lo que autoriza
- * a escribir.
+ * Equipo del que el usuario es **capitán**, y solo eso. Es lo que autoriza a
+ * escribir.
  *
- * La otra vía de equipoDeUsuario —aparecer como jugador con tu correo— vale
+ * La otra vía de equipoDeUsuario —figurar en la plantilla con tu correo— vale
  * para mirar, pero no para modificar: ese correo lo teclea quien inscribe el
- * equipo, sin que su dueño confirme nada. Autorizar escrituras con él dejaba
- * que cualquiera diera de alta un equipo con el correo de un tercero y le
- * pasara el mando (renombrar, editar los datos personales de la plantilla o
- * borrarla entera), además de bloquearle su propia inscripción.
+ * equipo, sin que su dueño confirme nada. La fila del capitán es distinta: o la
+ * verificó Google al inscribir, o la designó el capitán anterior a propósito.
  */
-export async function equipoPropioDeUsuario(
+export async function equipoDelCapitan(
   db: D1Database,
   user: UsuarioSesion,
   edicionId?: number
 ): Promise<EquipoUsuarioRow | null> {
+  const emailNormalizado = normalizarEmail(user.email);
   const filtroEdicion = edicionId != null ? "AND e.edicion_id = ?2" : "";
 
   const stmt = db.prepare(
-    `SELECT e.id, e.nombre, e.created_at, e.edicion_id
+    `SELECT e.id, e.nombre, e.created_at, e.edicion_id, e.capitan_jugador_id
      FROM equipos e
-     WHERE e.owner_user_id = ?1
+     JOIN jugadores c ON c.id = e.capitan_jugador_id
+     WHERE c.email_normalizado = ?1
        ${filtroEdicion}
      ORDER BY e.created_at ASC, e.id ASC
      LIMIT 1`
   );
 
-  return await (edicionId != null ? stmt.bind(user.id, edicionId) : stmt.bind(user.id)).first<EquipoUsuarioRow>();
-}
-
-export function registroIncluyeEmailUsuario(registro: RegistroValidado, user: UsuarioSesion): boolean {
-  const emailNormalizado = normalizarEmail(user.email);
-  return registro.jugadores.some((jugador) => jugador.emailNormalizado === emailNormalizado);
+  return await (edicionId != null
+    ? stmt.bind(emailNormalizado, edicionId)
+    : stmt.bind(emailNormalizado)
+  ).first<EquipoUsuarioRow>();
 }
 
 /**
@@ -105,14 +107,15 @@ export async function buscarDuplicadosEdicion(
   const edicionId = equipo?.edicion_id ?? null;
 
   const nombres = registro.jugadores.map((j) => j.nombreCompletoNormalizado);
-  const telefonos = registro.jugadores.map((j) => j.telefonoNormalizado);
+  const telefonos = registro.jugadores.flatMap((j) => (j.telefonoNormalizado ? [j.telefonoNormalizado] : []));
   const emails = registro.jugadores.flatMap((j) => (j.emailNormalizado ? [j.emailNormalizado] : []));
 
-  const clausulas = [
-    `nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`,
-    `telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`
-  ];
-  const binds: (string | number | null)[] = [...nombres, ...telefonos];
+  const clausulas = [`nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`];
+  const binds: (string | number | null)[] = [...nombres];
+  if (telefonos.length > 0) {
+    clausulas.push(`telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`);
+    binds.push(...telefonos);
+  }
   if (emails.length > 0) {
     clausulas.push(`email_normalizado IN (${emails.map(() => "?").join(",")})`);
     binds.push(...emails);
@@ -136,7 +139,7 @@ export async function buscarDuplicadosEdicion(
     if (nombresOcupados.has(j.nombreCompletoNormalizado)) {
       campos[`jugadores.${i}.nombre`] = "Esta persona ya está inscrita en otro equipo.";
     }
-    if (telefonosOcupados.has(j.telefonoNormalizado)) {
+    if (j.telefonoNormalizado && telefonosOcupados.has(j.telefonoNormalizado)) {
       campos[`jugadores.${i}.telefono`] = "Este móvil ya está registrado en otra inscripción.";
     }
     if (j.emailNormalizado && emailsOcupados.has(j.emailNormalizado)) {

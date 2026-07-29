@@ -19,9 +19,10 @@ interface EquipoRow {
   created_at: string;
   foto_key: string | null;
   edicion_id: number | null;
-  owner_user_id: number | null;
-  owner_email: string | null;
-  owner_name: string | null;
+  capitan_jugador_id: number | null;
+  capitan_email: string | null;
+  capitan_nombre: string | null;
+  capitan_apellidos: string | null;
   jugadores: number;
 }
 
@@ -70,9 +71,9 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         createdAt: equipo.created_at,
         tieneFoto: Boolean(equipo.foto_key),
         edicionId: equipo.edicion_id,
-        ownerUserId: equipo.owner_user_id,
-        ownerEmail: equipo.owner_email,
-        ownerName: equipo.owner_name,
+        capitanJugadorId: equipo.capitan_jugador_id,
+        capitanEmail: equipo.capitan_email,
+        capitanNombre: [equipo.capitan_nombre, equipo.capitan_apellidos].filter(Boolean).join(" ") || null,
         jugadores: jugadoresPorEquipo.get(equipo.id) || [],
         jugadoresTotal: equipo.jugadores
       })),
@@ -96,10 +97,11 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 async function cargarEquipos(db: D1Database) {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.owner_user_id,
-              u.email AS owner_email, u.nombre AS owner_name, COUNT(j.id) AS jugadores
+      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id,
+              c.email AS capitan_email, c.nombre AS capitan_nombre, c.apellidos AS capitan_apellidos,
+              COUNT(j.id) AS jugadores
        FROM equipos e
-       LEFT JOIN usuarios u ON u.id = e.owner_user_id
+       LEFT JOIN jugadores c ON c.id = e.capitan_jugador_id
        LEFT JOIN jugadores j ON j.equipo_id = e.id
        GROUP BY e.id
        ORDER BY e.created_at DESC, e.id DESC`

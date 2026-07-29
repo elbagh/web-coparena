@@ -62,7 +62,7 @@ export function mapJugador(jugador: JugadorRow) {
     id: jugador.id,
     nombre: jugador.nombre,
     apellidos: jugador.apellidos,
-    telefono: jugador.telefono,
+    telefono: jugador.telefono || null,
     email: jugador.email,
     redSocial: jugador.red_social,
     tieneFoto: Boolean(jugador.foto_key),
@@ -74,10 +74,10 @@ export function mapJugador(jugador: JugadorRow) {
 export async function cargarEquipoConJugadores(db: D1Database, equipoId: number) {
   const equipo = await db
     .prepare(
-      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.owner_user_id,
-              u.email AS owner_email, u.nombre AS owner_name
+      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id,
+              c.email AS capitan_email, c.nombre AS capitan_nombre, c.apellidos AS capitan_apellidos
        FROM equipos e
-       LEFT JOIN usuarios u ON u.id = e.owner_user_id
+       LEFT JOIN jugadores c ON c.id = e.capitan_jugador_id
        WHERE e.id = ?1`
     )
     .bind(equipoId)
@@ -87,9 +87,10 @@ export async function cargarEquipoConJugadores(db: D1Database, equipoId: number)
       created_at: string;
       foto_key: string | null;
       edicion_id: number | null;
-      owner_user_id: number | null;
-      owner_email: string | null;
-      owner_name: string | null;
+      capitan_jugador_id: number | null;
+      capitan_email: string | null;
+      capitan_nombre: string | null;
+      capitan_apellidos: string | null;
     }>();
   if (!equipo) return null;
 
@@ -104,9 +105,9 @@ export async function cargarEquipoConJugadores(db: D1Database, equipoId: number)
     createdAt: equipo.created_at,
     tieneFoto: Boolean(equipo.foto_key),
     edicionId: equipo.edicion_id,
-    ownerUserId: equipo.owner_user_id,
-    ownerEmail: equipo.owner_email,
-    ownerName: equipo.owner_name,
+    capitanJugadorId: equipo.capitan_jugador_id,
+    capitanEmail: equipo.capitan_email,
+    capitanNombre: [equipo.capitan_nombre, equipo.capitan_apellidos].filter(Boolean).join(" ") || null,
     jugadores: jugadores.map(mapJugador),
     jugadoresTotal: jugadores.length
   };

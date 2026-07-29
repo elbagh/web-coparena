@@ -52,6 +52,7 @@ export const crearAdmin = (opciones: OpcionesUsuario = {}) => crearUsuario({ ...
 export interface JugadorSemilla {
   nombre?: string;
   apellidos?: string;
+  /** `""` siembra un jugador sin móvil. */
   telefono?: string;
   email?: string | null;
   redSocial?: string | null;
@@ -62,13 +63,15 @@ export interface EquipoSembrado {
   id: number;
   nombre: string;
   edicionId: number | null;
+  capitanId: number | null;
   jugadores: { id: number; nombre: string; apellidos: string; telefono: string; email: string | null }[];
 }
 
 export interface OpcionesEquipo {
   nombre?: string;
   jugadores?: JugadorSemilla[];
-  ownerUserId?: number;
+  /** Índice del jugador que es capitán. Por defecto, el primero. */
+  capitan?: number;
   fotoKey?: string | null;
   /** Por defecto, la edición actual. Se pasa para sembrar historial. */
   edicionId?: number;
@@ -108,14 +111,13 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
     null;
 
   const equipo = await env.DB.prepare(
-    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, owner_user_id, edicion_id, foto_key, posicion_final)
-     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5, ?6)
+    `INSERT INTO equipos (nombre, nombre_normalizado, consentimiento_rgpd_at, edicion_id, foto_key, posicion_final)
+     VALUES (?1, ?2, datetime('now'), ?3, ?4, ?5)
      RETURNING id, edicion_id`
   )
     .bind(
       nombre,
       normalizarTexto(nombre),
-      opciones.ownerUserId ?? null,
       edicionId,
       opciones.fotoKey ?? null,
       opciones.posicionFinal ?? null
@@ -160,27 +162,69 @@ export async function crearEquipo(opciones: OpcionesEquipo = {}): Promise<Equipo
     jugadores.push({ id: fila!.id, nombre: nombreJ, apellidos: apellidosJ, telefono, email });
   }
 
-  return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, jugadores };
+  // El capitán se fija al final: hasta aquí no existen los ids de jugador.
+  const capitan = jugadores[opciones.capitan ?? 0];
+  if (capitan) {
+    await env.DB.prepare("UPDATE equipos SET capitan_jugador_id = ?1 WHERE id = ?2")
+      .bind(capitan.id, equipo!.id)
+      .run();
+  }
+
+  return { id: equipo!.id, nombre, edicionId: equipo!.edicion_id, capitanId: capitan?.id ?? null, jugadores };
+}
+
+export interface OpcionesPartido {
+  ronda?: string;
+  equipoA?: EquipoSembrado;
+  equipoB?: EquipoSembrado;
 }
 
 /**
- * Carga de estadísticas de un jugador. Sin `partidoId` es la carga manual de la
- * edición; con él, la que registraría un partido. Las dos suman.
+ * Un partido de la edición actual al que colgar estadísticas. Devuelve su id
+ * (es TEXT: un UUID). Los equipos son opcionales porque la mayoría de tests
+ * sólo necesitan algo de lo que colgar una fila.
+ */
+export async function crearPartido(opciones: OpcionesPartido = {}): Promise<string> {
+  const id = crypto.randomUUID();
+  const edicionId =
+    (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())?.id ?? null;
+
+  await env.DB.prepare(
+    `INSERT INTO partidos (
+       id, ronda, equipo_a_id, equipo_b_id, equipo_a_nombre, equipo_b_nombre, edicion_id
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+  )
+    .bind(
+      id,
+      opciones.ronda ?? "Sorteo",
+      opciones.equipoA?.id ?? null,
+      opciones.equipoB?.id ?? null,
+      opciones.equipoA?.nombre ?? "Equipo A",
+      opciones.equipoB?.nombre ?? "Equipo B",
+      edicionId
+    )
+    .run();
+
+  return id;
+}
+
+/**
+ * Lo que un jugador hizo en un partido. `partidoId` va delante y es obligatorio:
+ * desde la migración 0012 una estadística sin partido no existe.
  */
 export async function crearEstadistica(
   jugadorId: number,
-  valores: Partial<Record<string, number>> = {},
-  partidoId: string | null = null
+  partidoId: string,
+  valores: Partial<Record<string, number>> = {}
 ): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO estadisticas (
-       jugador_id, partido_id, partidos_jugados, puntos, remates, bloqueos, aces, defensas, errores
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+       jugador_id, partido_id, puntos, remates, bloqueos, aces, defensas, errores
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
   )
     .bind(
       jugadorId,
       partidoId,
-      valores.partidosJugados ?? 0,
       valores.puntos ?? 0,
       valores.remates ?? 0,
       valores.bloqueos ?? 0,

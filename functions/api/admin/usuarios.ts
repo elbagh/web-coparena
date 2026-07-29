@@ -54,7 +54,12 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
                 e.id AS equipo_id, e.nombre AS equipo_nombre,
                 (SELECT COUNT(*) FROM camisetas_reservas c WHERE c.owner_user_id = u.id) AS camisetas
          FROM usuarios u
-         LEFT JOIN equipos e ON e.owner_user_id = u.id
+         LEFT JOIN equipos e ON e.id = (
+           SELECT eq.id FROM equipos eq
+           JOIN jugadores cap ON cap.id = eq.capitan_jugador_id
+           WHERE cap.email_normalizado = lower(trim(u.email))
+           ORDER BY eq.created_at DESC, eq.id DESC LIMIT 1
+         )
          ORDER BY u.is_admin DESC, u.created_at ASC, u.id ASC`
       )
       .all<UsuarioRow>();
@@ -211,18 +216,19 @@ async function cargarFicha(db: D1Database, usuarioId: number) {
       .prepare("SELECT apodo, dorsal, posicion, mano, lema, avatar_key FROM perfiles WHERE usuario_id = ?1")
       .bind(usuarioId)
       .first<PerfilRow>(),
-    // Por propiedad del equipo o por aparecer como jugador con ese correo: son
-    // las dos formas en que alguien está en un equipo (ver _lib/equipos.ts).
+    // Aparecer como jugador con ese correo es la única forma de estar en un
+    // equipo (ver _lib/equipos.ts): ser capitán no es más que ser el jugador
+    // que manda, así que ya lo cubre este mismo filtro.
     db
       .prepare(
         `SELECT DISTINCT e.id, e.nombre, ed.anio AS edicion_anio, e.posicion_final
          FROM equipos e
          LEFT JOIN ediciones ed ON ed.id = e.edicion_id
-         LEFT JOIN jugadores j ON j.equipo_id = e.id
-         WHERE e.owner_user_id = ?1 OR j.email_normalizado = ?2
+         JOIN jugadores j ON j.equipo_id = e.id
+         WHERE j.email_normalizado = ?1
          ORDER BY ed.anio DESC, e.nombre COLLATE NOCASE ASC`
       )
-      .bind(usuarioId, emailNormalizado)
+      .bind(emailNormalizado)
       .all<{ id: number; nombre: string; edicion_anio: number | null; posicion_final: number | null }>(),
     db
       .prepare(

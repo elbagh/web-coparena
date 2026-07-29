@@ -63,13 +63,13 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               <p class="admin-field-error" data-jugador-error="apellidos" hidden></p>
             </div>
             <div class="admin-field">
-              <label for="jugador-telefono">Móvil</label>
+              <label for="jugador-telefono">Móvil <span class="admin-field-hint" data-jugador-opt="telefono" hidden>(opcional)</span></label>
               <input id="jugador-telefono" class="admin-input" type="tel" maxlength="18" autocomplete="off"
                 data-jugador-field="telefono" />
               <p class="admin-field-error" data-jugador-error="telefono" hidden></p>
             </div>
             <div class="admin-field">
-              <label for="jugador-email">Correo</label>
+              <label for="jugador-email">Correo <span class="admin-field-hint" data-jugador-opt="email" hidden>(opcional)</span></label>
               <input id="jugador-email" class="admin-input" type="email" maxlength="120" autocomplete="off"
                 data-jugador-field="email" />
               <p class="admin-field-error" data-jugador-error="email" hidden></p>
