@@ -127,7 +127,9 @@
 
     bloque.append(tablaClasificacion(grupo, fase));
 
-    const partidos = (fase.partidos || []).filter((p) => p.grupoId === grupo.id);
+    const partidos = (fase.partidos || [])
+      .filter((p) => p.grupoId === grupo.id)
+      .sort((a, b) => ordenPorHora(a) - ordenPorHora(b));
     if (partidos.length > 0) {
       const lista = el("div", "torneo-partidos");
       partidos.forEach((partido) => lista.append(tarjetaPartido(partido)));
@@ -136,6 +138,9 @@
 
     return bloque;
   }
+
+  // Un partido sin hora todavía puesta va al final, no al principio.
+  const ordenPorHora = (partido) => (partido.scheduledAt ? Date.parse(partido.scheduledAt) : Infinity);
 
   /*
    * En el móvil una tabla de ocho columnas es ilegible, así que solo se enseña
