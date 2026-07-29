@@ -25,6 +25,21 @@ En el proyecto de Cloudflare Workers Builds:
 
 El build de Astro genera `dist/`. El deploy compila las funciones de `functions/` a `.worker/` y ejecuta `wrangler deploy`, usando `dist/` como assets estáticos del Worker.
 
+**El Deploy command tiene que ser `npm run deploy:worker`, no `npx wrangler deploy`.** Es lo único que hace correr `predeploy:worker`, que aplica las migraciones pendientes de D1 antes de subir el código. Con el comando por defecto, npm no ejecuta el hook: el deploy sale verde y el esquema se queda atrás, sin un solo aviso.
+
+### Promocionar a producción
+
+Un deploy sube código, no esquema. Cualquier merge a `main` va precedido de las migraciones, siempre:
+
+```bash
+npm run db:status    # qué le falta a producción
+npm run db:migrate   # aplicarlo, ANTES de que suba el código
+# merge development -> main y push
+npm run db:status    # tiene que decir "No migrations to apply!"
+```
+
+Las migraciones van primero para que, durante los segundos que dura el deploy, el código viejo que aún sirve tráfico se encuentre un esquema que es un superconjunto del que conoce. Por eso todas son aditivas y por eso una columna solo se borra un despliegue después de que el código deje de leerla.
+
 Si despliegas por CLI:
 
 ```bash
@@ -40,10 +55,11 @@ npx wrangler r2 bucket create copa-arena-fotos
 
 El binding de D1 debe llamarse `DB` y el bucket R2 debe llamarse `FOTOS`.
 
-Aplica las migraciones:
+Aplica las migraciones. El destino va explícito: sin bandera es fácil dejar producción atrás creyendo lo contrario.
 
 ```bash
-npx wrangler d1 migrations apply copa-arena-db
+npx wrangler d1 migrations apply copa-arena-db --local    # base de desarrollo
+npm run db:migrate                                        # producción
 ```
 
 ## Variables y secrets
