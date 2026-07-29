@@ -180,6 +180,25 @@ window.CopaArenaMatches = (() => {
     }).format(new Date(value));
   }
 
+  /*
+   * Las dos mitades de formatDateTime, por separado. Las pide la columna de un
+   * grupo: la fecha sale una vez en la cabecera y en cada partido queda solo la
+   * hora, que es lo único que cambia de uno a otro.
+   */
+  function formatDate(value) {
+    if (!value) return "Fecha pendiente";
+    return new Intl.DateTimeFormat("es", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short"
+    }).format(new Date(value));
+  }
+
+  function formatTime(value) {
+    if (!value) return "Hora pendiente";
+    return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  }
+
   function statusLabel(status) {
     if (status === "live") return "Jugando";
     if (status === "finished") return "Terminado";
@@ -280,6 +299,8 @@ window.CopaArenaMatches = (() => {
     elapsed,
     formatClock,
     formatDateTime,
+    formatDate,
+    formatTime,
     statusLabel,
     renderBracket,
     reglasDe,

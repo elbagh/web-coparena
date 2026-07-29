@@ -99,10 +99,22 @@
     seccion.append(el("h2", "", fase.nombre));
 
     if (fase.tipo === "grupos") {
-      fase.grupos.forEach((grupo) => seccion.append(bloqueDeGrupo(fase, grupo)));
+      seccion.classList.add("is-grupos");
       if (fase.grupos.length === 0) {
         seccion.append(el("p", "torneo-nota", "Los grupos se sortean antes de empezar."));
+        return seccion;
       }
+
+      seccion.append(leyendaDeFase(fase));
+
+      /*
+       * Un grupo es una columna entera: su clasificación y debajo sus partidos,
+       * que son los de una sola tarde. Apilados ocupaban tres pantallas para
+       * enseñar lo que cabe en una.
+       */
+      const rejilla = el("div", "torneo-grupos");
+      fase.grupos.forEach((grupo) => rejilla.append(bloqueDeGrupo(fase, grupo)));
+      seccion.append(rejilla);
       return seccion;
     }
 
@@ -116,9 +128,35 @@
     return seccion;
   }
 
+  /*
+   * Qué significa cada color, dicho una sola vez para toda la fase. Antes la
+   * frase de la repesca salía en la nota de cada grupo, y con los grupos en
+   * columnas eso son tres copias de lo mismo, una al lado de la otra.
+   */
+  function leyendaDeFase(fase) {
+    const entradas = [["directo", "Pasa al cuadro"]];
+    if (fase.repesca > 0 && fase.grupos.some((grupo) => grupo.enRepesca !== false)) {
+      entradas.push([
+        "repesca",
+        fase.repesca === 1 ? "Se juega la última plaza" : `Se juegan las ${fase.repesca} últimas plazas`
+      ]);
+    }
+
+    const leyenda = el("p", "torneo-leyenda");
+    entradas.forEach(([clave, texto]) => {
+      const item = el("span", "torneo-leyenda-item");
+      item.append(el("span", `torneo-leyenda-muestra is-${clave}`), el("span", "", texto));
+      leyenda.append(item);
+    });
+    return leyenda;
+  }
+
   function bloqueDeGrupo(fase, grupo) {
     const bloque = el("div", "torneo-grupo-publico");
-    bloque.append(el("h3", "", grupo.nombre));
+    const partidos = (fase.partidos || []).filter((p) => p.grupoId === grupo.id);
+    const comun = cuandoComun(partidos);
+
+    bloque.append(cabeceraDeGrupo(grupo, comun));
 
     if (grupo.equipos.length === 0) {
       bloque.append(el("p", "torneo-nota", "Sin equipos todavía."));
@@ -127,15 +165,60 @@
 
     bloque.append(tablaClasificacion(grupo, fase));
 
-    const partidos = (fase.partidos || []).filter((p) => p.grupoId === grupo.id);
     if (partidos.length > 0) {
       const lista = el("div", "torneo-partidos");
-      partidos.forEach((partido) => lista.append(tarjetaPartido(partido)));
+      partidos.forEach((partido) =>
+        lista.append(tarjetaPartido(partido, { prefijo: grupo.nombre, soloHora: comun !== null }))
+      );
       bloque.append(lista);
     }
 
     return bloque;
   }
+
+  function cabeceraDeGrupo(grupo, comun) {
+    const cabecera = el("h3", "torneo-grupo-cabecera");
+    cabecera.append(el("span", "torneo-grupo-letra", grupo.nombre));
+
+    if (comun) {
+      const cuando = el("span", "torneo-grupo-cuando");
+      const dia = utils?.formatDate ? utils.formatDate(comun.scheduledAt) : "";
+      if (dia) cuando.append(el("span", "", dia));
+      if (comun.pista) cuando.append(el("span", "", comun.pista));
+      if (cuando.childElementCount > 0) cabecera.append(cuando);
+    }
+
+    return cabecera;
+  }
+
+  /*
+   * La fecha y la pista suben a la cabecera de la columna solo cuando TODOS los
+   * partidos del grupo las comparten, que es lo normal: cada grupo juega su
+   * tarde entera del tirón. Repetirlas en cada tarjeta es gastar una línea por
+   * partido en decir lo mismo seis veces.
+   *
+   * Si el grupo se parte en dos tardes o en dos pistas devuelve null y cada
+   * tarjeta recupera las suyas. La cabecera no puede afirmar algo que no se
+   * cumple: se leería como el horario del grupo entero.
+   */
+  function cuandoComun(partidos) {
+    if (partidos.length === 0 || partidos.some((partido) => !partido.scheduledAt)) return null;
+
+    // Por el día tal y como se ve, no por el texto de la fecha: es el que se
+    // enseña, y el que decide si «sáb 1 ago» vale para toda la columna.
+    const dias = new Set(partidos.map((partido) => new Date(partido.scheduledAt).toDateString()));
+    const pistas = new Set(partidos.map((partido) => partido.pista || ""));
+    if (dias.size !== 1 || pistas.size !== 1) return null;
+
+    return { scheduledAt: partidos[0].scheduledAt, pista: partidos[0].pista || "" };
+  }
+
+  /** Lo que dice cada color, en palabras. */
+  const EXPLICACION = {
+    directo: "Pasa al cuadro.",
+    repesca: "Ahora mismo ocupa la plaza de repesca.",
+    aspirante: "Se juega la plaza de repesca."
+  };
 
   /*
    * En el móvil una tabla de ocho columnas es ilegible, así que solo se enseña
@@ -178,6 +261,11 @@
         const td = document.createElement("td");
         td.textContent = valor;
         if (indice !== 1) td.className = "is-num";
+        // El color no puede ser lo único que lo diga: quien no lo ve se queda
+        // con una tabla en la que no pasa nada.
+        if (indice === 0 && EXPLICACION[fila.clasifica]) {
+          td.append(el("span", "sr-only", ` ${EXPLICACION[fila.clasifica]}`));
+        }
         tr.append(td);
       });
       tbody.append(tr);
@@ -186,39 +274,27 @@
     tabla.append(thead, tbody);
     caja.append(tabla);
 
-    const nota = notaDeClasificacion(grupo, fase);
+    const nota = notaDeClasificacion(grupo);
     if (nota) caja.append(el("p", "torneo-nota", nota));
     return caja;
   }
 
   /*
-   * La nota describe la regla real, que ya no es «pasan los N primeros»: cada
-   * grupo puede dar un número distinto de plazas y encima puede haber repesca.
-   * Con grupos de tamaños distintos, decir lo de siempre sería mentir.
+   * La nota se queda en el cupo del grupo, que sí cambia de uno a otro: aquí,
+   * dos en A y B pero tres en C. Lo de la repesca lo cuenta la leyenda de la
+   * fase, una vez; repetido debajo de cada columna era la misma frase larga
+   * tres veces seguidas.
    */
-  function notaDeClasificacion(grupo, fase) {
-    const directas =
-      grupo.clasifican > 0
-        ? `Pasan ${grupo.clasifican === 1 ? "el primero" : `los ${grupo.clasifican} primeros`} de este grupo.`
-        : "";
-    if (!fase.repesca || grupo.enRepesca === false) return directas;
-    const extra =
-      fase.repesca === 1
-        ? "Una plaza más se decide entre los mejores clasificados que quedan justo fuera."
-        : `${fase.repesca} plazas más se deciden entre los mejores clasificados que quedan justo fuera.`;
-    return `${directas} ${extra}`.trim();
+  function notaDeClasificacion(grupo) {
+    if (!(grupo.clasifican > 0)) return "";
+    return `Pasan ${grupo.clasifican === 1 ? "el primero" : `los ${grupo.clasifican} primeros`}.`;
   }
 
-  function tarjetaPartido(partido) {
-    const caja = el("article", `torneo-partido is-${partido.status}`);
+  function tarjetaPartido(partido, opciones = {}) {
+    const compacto = opciones.prefijo !== undefined;
+    const caja = el("article", `torneo-partido is-${partido.status}${compacto ? " is-compacto" : ""}`);
 
-    const cabecera = el("div", "torneo-partido-meta");
-    cabecera.append(el("span", "", partido.ronda));
-    if (partido.scheduledAt && utils?.formatDateTime) {
-      cabecera.append(el("span", "", utils.formatDateTime(partido.scheduledAt)));
-    }
-    if (partido.pista) cabecera.append(el("span", "", partido.pista));
-    caja.append(cabecera);
+    caja.append(compacto ? metaDeColumna(partido, opciones) : metaSuelta(partido));
 
     const cruce = el("div", "torneo-partido-cruce");
     cruce.append(
@@ -232,6 +308,50 @@
       caja.append(el("p", "torneo-partido-sets", partido.history.map((set) => `${set.a}-${set.b}`).join(" · ")));
     }
     return caja;
+  }
+
+  /** Ronda, fecha y pista: la de un partido suelto, sin columna que lo sitúe. */
+  function metaSuelta(partido) {
+    const meta = el("div", "torneo-partido-meta");
+    meta.append(el("span", "", partido.ronda));
+    if (partido.scheduledAt && utils?.formatDateTime) {
+      meta.append(el("span", "", utils.formatDateTime(partido.scheduledAt)));
+    }
+    if (partido.pista) meta.append(el("span", "", partido.pista));
+    return meta;
+  }
+
+  /*
+   * Dentro de la columna de un grupo, la hora es lo único que se viene a buscar:
+   * el día y la pista están en la cabecera y el grupo, en la letra. Así que va
+   * delante y destacada, y de la ronda se quita el «A · » que ya dice la propia
+   * columna.
+   */
+  function metaDeColumna(partido, opciones) {
+    const meta = el("div", "torneo-partido-meta");
+
+    const cuando = horaDe(partido, opciones.soloHora === true);
+    if (cuando) meta.append(el("span", "torneo-partido-hora", cuando));
+
+    meta.append(el("span", "", rondaCorta(partido, opciones.prefijo)));
+    if (partido.pista && opciones.soloHora !== true) meta.append(el("span", "", partido.pista));
+    return meta;
+  }
+
+  function horaDe(partido, soloHora) {
+    if (!partido.scheduledAt) return "";
+    if (soloHora && utils?.formatTime) return utils.formatTime(partido.scheduledAt);
+    return utils?.formatDateTime ? utils.formatDateTime(partido.scheduledAt) : "";
+  }
+
+  /*
+   * El prefijo solo se quita si de verdad está: la ronda la escribe la
+   * organización y puede decir cualquier cosa. Recortar a ciegas los primeros
+   * caracteres convertiría «Repesca» en cualquier otro texto.
+   */
+  function rondaCorta(partido, prefijo) {
+    const marca = `${prefijo} · `;
+    return partido.ronda.startsWith(marca) ? partido.ronda.slice(marca.length) : partido.ronda;
   }
 
   function equipoDelPartido(partido, lado) {
