@@ -60,11 +60,31 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }
 
+  const registro = resultado.registro;
+  const nuevoCapitan = registro.jugadores[registro.capitan]!;
+  const sigueMandando =
+    nuevoCapitan.id !== undefined && nuevoCapitan.id === currentTeam.capitan_jugador_id;
+
+  // Cambiar el correo de la fila del capitán sería ceder el equipo por la
+  // puerta de atrás: quien entrase con ese correo pasaría a mandar. Ceder es un
+  // acto explícito, así que se pide hacerlo nombrando a otro capitán.
+  if (sigueMandando && nuevoCapitan.emailNormalizado !== normalizarEmail(user.email)) {
+    return json(
+      {
+        error: "Para ceder el equipo, designa a otro capitán.",
+        campos: {
+          [`jugadores.${registro.capitan}.email`]: "Mantén el correo con el que has iniciado sesión."
+        }
+      },
+      400
+    );
+  }
+
   try {
     // Guardado incremental por id de jugador: conserva la foto de quien sigue
     // en el equipo. Antes esto borraba y reinsertaba, y al capitán le
     // desaparecían todas las fotos cada vez que guardaba.
-    const error = await guardarEquipo(env, currentTeam.id, resultado.registro);
+    const error = await guardarEquipo(env, currentTeam.id, registro);
     if (error) return error;
 
     const team = await cargarEquipo(env.DB, user, edicion?.id);
