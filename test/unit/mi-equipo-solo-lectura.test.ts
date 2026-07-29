@@ -16,7 +16,9 @@ import { ejecutarScriptPublico } from "../helpers/dom";
 const MARCADO = `
   <div data-my-team>
     <div data-my-team-loading hidden></div>
-    <div data-my-team-empty hidden></div>
+    <div data-my-team-empty hidden>
+      <p data-my-team-cedido hidden></p>
+    </div>
     <div data-my-team-editor hidden>
       <h2 data-my-team-titulo>Editar inscripción</h2>
       <p data-my-team-intro>Cada jugador necesita correo.</p>
@@ -38,15 +40,18 @@ const MARCADO = `
       <header>
         <span data-dorsal>1</span>
         <span data-role>Titular</span>
+        <span data-capitan-badge hidden>Capitán</span>
+        <button type="button" data-make-capitan hidden>Hacer capitán</button>
         <button type="button" data-remove hidden>Quitar</button>
       </header>
       <div class="player-grid">
         <div class="field"><input type="text" data-field="nombre" /></div>
         <div class="field"><input type="text" data-field="apellidos" /></div>
-        <div class="field"><input type="tel" data-field="telefono" /></div>
-        <div class="field"><input type="email" data-field="email" /></div>
+        <div class="field"><label>Móvil <span data-opt="telefono" hidden>(opcional)</span></label><input type="tel" data-field="telefono" /></div>
+        <div class="field"><label>Correo <span data-opt="email" hidden>(opcional)</span></label><input type="email" data-field="email" /></div>
         <div class="field"><input type="text" data-field="redSocial" /></div>
       </div>
+      <p data-contacto-aviso hidden></p>
     </article>
   </template>
 `;
@@ -99,6 +104,7 @@ const equipo = (puedeEditar: boolean, jugadores = [jugador("Ana", "quien@example
   nombre: "Los Delfines",
   tieneFoto: false,
   puedeEditar,
+  capitanJugadorId: jugadores[0]?.id ?? null,
   jugadores
 });
 
