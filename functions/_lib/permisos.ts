@@ -53,7 +53,8 @@ export const ACCIONES = {
   ver: "Ver",
   editar: "Crear y editar",
   borrar: "Borrar",
-  ver_como: "Ver como"
+  ver_como: "Ver como",
+  anotar: "Anotar en directo"
 } as const;
 
 export type Accion = keyof typeof ACCIONES;
@@ -64,6 +65,10 @@ export type Accion = keyof typeof ACCIONES;
  * `partidos` no tiene `ver`: GET /api/partidos es público (lo lee la portada),
  * así que un permiso de lectura no guardaría nada. La página del panel se abre
  * con `torneo.ver`.
+ *
+ * `partidos.anotar` es distinto de `partidos.editar` a propósito: quien anota
+ * lleva el marcador de un partido punto a punto, pero no crea cruces, no los
+ * borra ni toca el cuadro. Es el permiso que sostiene el rol de anotador.
  */
 const CATALOGO: Record<Recurso, readonly Accion[]> = {
   panel: ["entrar"],
@@ -71,7 +76,7 @@ const CATALOGO: Record<Recurso, readonly Accion[]> = {
   jugadores: ["ver", "editar", "borrar"],
   estadisticas: ["ver", "editar"],
   camisetas: ["ver", "editar", "borrar"],
-  partidos: ["editar", "borrar"],
+  partidos: ["editar", "borrar", "anotar"],
   torneo: ["ver", "editar"],
   ediciones: ["ver", "editar", "borrar"],
   usuarios: ["ver", "editar", "ver_como"],
@@ -144,6 +149,18 @@ export const ROLES_SISTEMA: readonly RolDeSistema[] = [
       "ediciones.ver",
       "ediciones.editar"
     ]
+  },
+  {
+    clave: "anotador",
+    nombre: "Anotador",
+    descripcion: "Lleva el marcador de los partidos en directo. No toca el cuadro ni las cuentas.",
+    esSistema: false,
+    /*
+     * Deliberadamente corto. Un anotador necesita entrar al panel, ver quién
+     * juega para poder atribuir cada punto, y anotar. Nada más: ni crear
+     * cruces, ni borrarlos, ni tocar el formato.
+     */
+    permisos: ["panel.entrar", "jugadores.ver", "torneo.ver", "partidos.anotar"]
   }
 ];
 

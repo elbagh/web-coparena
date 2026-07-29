@@ -45,6 +45,9 @@ describe("el middleware de «ver como» está enganchado a todas las rutas", () 
       ["/api/admin/roles", "POST"],
       ["/api/admin/roles", "PATCH"],
       ["/api/admin/roles", "DELETE"],
+      // La anotación en directo también es escritura: suplantando no se anota.
+      ["/api/anotacion", "POST"],
+      ["/api/anotacion", "PATCH"],
       ["/api/avatar", "POST"]
     ];
 

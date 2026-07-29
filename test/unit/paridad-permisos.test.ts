@@ -1,19 +1,27 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CLAVES_PERMISO, ROLES_SISTEMA, ROL_ADMIN } from "../../functions/_lib/permisos";
 
 /*
- * Una migración no puede importar de functions/, así que la semilla de roles de
- * 0013_roles.sql repite a mano lo que declara ROLES_SISTEMA. Este test es lo que
- * convierte «mantenlos en sintonía» en una regla exigible, igual que hace
+ * Una migración no puede importar de functions/, así que las semillas de roles
+ * repiten a mano lo que declara ROLES_SISTEMA. Este test es lo que convierte
+ * «mantenlos en sintonía» en una regla exigible, igual que hace
  * paridad-validacion.test.ts con las reglas del formulario.
+ *
+ * Se leen TODAS las migraciones que siembran roles, no solo la primera: una
+ * migración ya aplicada en producción no se reescribe, se añade otra. El rol de
+ * anotador, por ejemplo, llegó mucho después que los dos originales.
  */
 
-const sql = readFileSync(
-  fileURLToPath(new URL("../../db/migrations/0013_roles.sql", import.meta.url)),
-  "utf8"
-);
+const carpeta = fileURLToPath(new URL("../../db/migrations/", import.meta.url));
+
+const sql = readdirSync(carpeta)
+  .filter((fichero) => fichero.endsWith(".sql"))
+  .sort()
+  .map((fichero) => readFileSync(`${carpeta}${fichero}`, "utf8"))
+  .filter((contenido) => contenido.includes("INSERT OR IGNORE INTO roles"))
+  .join("\n");
 
 /** Los permisos que la migración concede a un rol, por su clave. */
 function permisosSembrados(clave: string): string[] {

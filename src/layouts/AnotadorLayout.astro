@@ -1,0 +1,63 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import "../styles/anotador/index.css";
+
+/*
+ * El armazón del anotador. NO usa AdminLayout a propósito: aquella barra lateral
+ * fija y aquellas tablas densas están pensadas para un escritorio, y esto se usa
+ * de pie en la arena, con una mano y a pleno sol.
+ *
+ * La restricción real no es «que quepa en el móvil»: es que se usa **a ciegas
+ * entre miradas**. Quien anota está viendo el rally y solo mira la pantalla los
+ * tres o cuatro segundos que hay entre punto y punto. Todo lo demás —los
+ * tamaños, el contraste, que los botones no se muevan de sitio— sale de ahí.
+ */
+interface Props {
+  titulo: string;
+  volverA?: string;
+}
+
+const { titulo, volverA = "/anotador/" } = Astro.props;
+---
+
+<BaseLayout title={`${titulo} | Anotador | La Copa Arena`} noindex={true} bodyClass="is-anotador">
+  <div class="anot-app">
+    <header class="anot-topbar">
+      <a class="anot-volver" href={volverA} aria-label="Volver">←</a>
+      <h1 class="anot-titulo">{titulo}</h1>
+    </header>
+
+    <p class="anot-cargando" data-auth-loading>Comprobando la sesión…</p>
+
+    <section class="anot-puerta" data-auth-logged-out hidden>
+      <h2>Zona de anotadores</h2>
+      <p>Inicia sesión con la cuenta que tiene permiso para anotar.</p>
+      <div data-google-login></div>
+      <p class="anot-alerta" data-auth-error hidden></p>
+    </section>
+
+    <div data-auth-logged-in hidden>
+      {/*
+        Suplantar es solo lectura: el middleware rechaza toda escritura. Sin este
+        aviso, el panel parecería funcionar y cada toque daría 403 en silencio.
+      */}
+      <p class="anot-alerta anot-alerta--bloqueo" data-anot-verComo hidden>
+        Estás viendo el sitio como otra persona: desde aquí no se puede anotar.
+      </p>
+
+      {/*
+        Sin conexión no hay cola local a propósito: reproducirla contra el
+        UNIQUE(partido_id, orden) daría una cascada de conflictos. Es mejor
+        decir que no se está guardando que fingir que sí.
+      */}
+      <p class="anot-alerta anot-alerta--offline" data-anot-offline hidden>
+        Sin conexión: los puntos no se están guardando.
+      </p>
+
+      <p class="anot-alerta" role="alert" data-anot-error hidden></p>
+      <slot />
+    </div>
+  </div>
+
+  <slot name="scripts" />
+</BaseLayout>
