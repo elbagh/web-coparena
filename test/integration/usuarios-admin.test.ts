@@ -303,3 +303,31 @@ describe("GET /api/admin/usuarios", () => {
     expect(cuerpo.usuarios.find((u) => u.id === sinRol.id)).toMatchObject({ rolClave: null, esAdmin: false });
   });
 });
+
+/*
+ * La migración 0022 retira `usuarios.is_admin`, el booleano al que sustituyó el
+ * rol. Estos dos son los únicos tests del fichero que la echan de menos: todo lo
+ * demás seguiría en verde con la columna puesta, porque desde el RBAC ya no la
+ * leía nadie.
+ *
+ * Lo que sí vigila el resto del fichero es lo contrario — que no vuelva el
+ * espejo que la mantenía al día. Escribir `is_admin` contra una tabla que ya no
+ * la tiene no falla en un rincón: tumba el guardado de roles entero.
+ */
+describe("esquema: la columna is_admin ya no existe", () => {
+  it("usuarios ya no tiene la columna", async () => {
+    const { results } = await env.DB.prepare("PRAGMA table_info(usuarios)").all<{ name: string }>();
+
+    expect(results.map((c) => c.name)).not.toContain("is_admin");
+    expect(results.map((c) => c.name)).toContain("rol_id");
+  });
+
+  // SQLite se niega a soltar una columna indexada, así que la 0022 tiene que
+  // tirar antes este índice. Si sobreviviera, la migración habría fallado.
+  it("tampoco queda su índice", async () => {
+    const { results } = await env.DB.prepare("PRAGMA index_list(usuarios)").all<{ name: string }>();
+
+    expect(results.map((i) => i.name)).not.toContain("idx_usuarios_is_admin");
+    expect(results.map((i) => i.name)).toContain("idx_usuarios_rol");
+  });
+});
