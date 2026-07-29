@@ -25,6 +25,19 @@
   --metal-plata-oscuro: #d7dde2;
   --metal-bronce-claro: #f2c79b;
   --metal-bronce-oscuro: #d98f52;
+  /* El cromo necesita tres paradas, no dos: con dos el degradado sale plano y
+     no lee como metal. Son un juego aparte y no sustituyen a las de arriba,
+     que las siguen usando las medallas y el podio — ahí dos bastan y cambiar
+     su valor movería sitios que no tienen nada que ver con la carta. */
+  --cromo-oro-alto: #fff3c4;
+  --cromo-oro-medio: #f0c445;
+  --cromo-oro-bajo: #b8891f;
+  --cromo-plata-alto: #ffffff;
+  --cromo-plata-medio: #dee4ea;
+  --cromo-plata-bajo: #a9b4bd;
+  --cromo-bronce-alto: #ffd9b5;
+  --cromo-bronce-medio: #e9a26a;
+  --cromo-bronce-bajo: #b9713a;
   /* Los dos colores con los que una clasificación dice quién asciende. Son
      --lime y --sun rebajados sobre --foam hasta quedar sólidos: a la opacidad
      que tenían antes (18%) sencillamente no se veían sobre la crema, que es
@@ -2855,54 +2868,94 @@ html.js .reveal.in-view {
  * regla de tres líneas y nada más.
  */
 .cromo {
-  --nivel-claro: var(--metal-bronce-claro);
-  --nivel-oscuro: var(--metal-bronce-oscuro);
+  --nivel-alto: var(--cromo-bronce-alto);
+  --nivel-medio: var(--cromo-bronce-medio);
+  --nivel-bajo: var(--cromo-bronce-bajo);
   /* Texto secundario sobre metal: la tinta rebajada funciona en los tres,
      cosa que no hacía ni el coral ni el --muted. */
   --nivel-tinta: rgba(16, 21, 22, 0.66);
 
   position: relative;
+  display: grid;
   /* Una carta coleccionable es vertical y tiene un tamaño: estirada a todo el
      ancho de la página deja de parecerse a lo que es, y el retrato cuadrado se
      convierte en un bloque de 750px. En móvil `100%` la deja a sangre. */
   width: min(400px, 100%);
   margin-inline: auto;
-  border: 3px solid var(--ink);
-  border-top: 0; /* lo cierra el remate */
-  border-radius: 0 0 18px 18px;
-  background: linear-gradient(178deg, var(--nivel-oscuro) 0 6%, var(--nivel-claro) 44%, var(--nivel-oscuro) 100%);
-  box-shadow: 10px 10px 0 var(--ink);
+  /*
+   * La sombra dura de la casa, pero con `drop-shadow` en vez de `box-shadow`:
+   * la carta ya no es un rectángulo y `box-shadow` dibujaría la sombra de su
+   * caja, saliéndose por los lados de la punta. Con desenfoque 0 el resultado
+   * es el mismo desplazamiento seco de siempre, solo que siguiendo el contorno
+   * real. No hay `clip-path` de por medio, que es lo que se comería el filo.
+   */
+  filter: drop-shadow(10px 10px 0 var(--ink));
 }
 
 .cromo--plata {
-  --nivel-claro: var(--metal-plata-claro);
-  --nivel-oscuro: var(--metal-plata-oscuro);
+  --nivel-alto: var(--cromo-plata-alto);
+  --nivel-medio: var(--cromo-plata-medio);
+  --nivel-bajo: var(--cromo-plata-bajo);
 }
 
 .cromo--oro {
-  --nivel-claro: var(--metal-oro-claro);
-  --nivel-oscuro: var(--metal-oro-oscuro);
+  --nivel-alto: var(--cromo-oro-alto);
+  --nivel-medio: var(--cromo-oro-medio);
+  --nivel-bajo: var(--cromo-oro-bajo);
 }
 
 /*
- * El remate sale a sangre sobre los 3px de borde lateral: de ahí el ancho de
- * más y los márgenes negativos. `non-scaling-stroke` mantiene el trazo en 3px
- * reales, así que la carta grande y el mini de la rejilla llevan el mismo
- * grosor de tinta en vez de engordar con el tamaño.
+ * Los dos extremos de la carta. El remate y la punta traen su propio filo
+ * dentro del SVG; el cuerpo, que es el único tramo que crece, pone los
+ * laterales. El margen negativo cierra la costura de 1px que deja el redondeo
+ * a subpíxel entre el SVG y el borde del cuerpo.
  */
-.cromo-corona {
+.cromo-corona,
+.cromo-punta {
   display: block;
-  width: calc(100% + 6px);
+  width: 100%;
   height: auto;
-  margin: 0 -3px -1px;
 }
 
-.cromo-corona path {
-  fill: var(--nivel-oscuro);
+.cromo-corona {
+  margin-bottom: -1px;
+}
+
+.cromo-punta {
+  margin-top: -1px;
+}
+
+/* `non-scaling-stroke` mantiene el trazo en 3px reales, así que la carta grande
+   y el mini de la rejilla llevan el mismo grosor de tinta en vez de engordar
+   con el tamaño. */
+.cromo-filo {
+  fill: none;
   stroke: var(--ink);
   stroke-width: 3;
   stroke-linejoin: round;
+  stroke-linecap: square;
   vector-effect: non-scaling-stroke;
+}
+
+/* Duna, Monte Louro, Monte Louro con cima: la silueta exterior es la misma en
+   los tres metales, así que este relieve es lo que dice el nivel sin depender
+   del color. */
+.cromo-skyline {
+  fill: var(--nivel-bajo);
+  /* Bronce es el que manda aquí: su metal y su sombra están mucho más cerca que
+     en plata u oro, y por debajo de esto el relieve deja de verse justo en el
+     nivel donde más falta hace distinguirlo del oro. */
+  opacity: 0.72;
+}
+
+.cromo-cuerpo {
+  display: grid;
+  border-inline: 3px solid var(--ink);
+  background: linear-gradient(176deg, var(--nivel-medio) 0 4%, var(--nivel-alto) 46%, var(--nivel-medio) 100%);
+  /* Zócalo de metal antes de la punta. Sin él, una ficha con palmarés termina
+     en el crema del bloque extra y la punta arranca en metal de golpe: la
+     carta parece cortada y pegada. */
+  padding-bottom: 12px;
 }
 
 /* La cabecera continúa el remate: mismo metal plano y una regla de tinta
@@ -2914,7 +2967,7 @@ html.js .reveal.in-view {
   gap: 12px;
   padding: 2px 18px 14px;
   border-bottom: 3px solid var(--ink);
-  background: var(--nivel-oscuro);
+  background: var(--nivel-medio);
 }
 
 .cromo-nota {
@@ -3100,13 +3153,15 @@ html.js .reveal.in-view {
 /* Lo que es de la Copa Arena y no de una carta cualquiera: palmarés, «en
    pista» y el lema. Sobre crema, para que se lea como un añadido y no como
    parte de la anatomía del cromo. */
+/* Sin redondeo abajo y cerrado por los dos lados: antes la carta terminaba en
+   recto y este bloque hacía de suelo, así que se redondeaba. Ahora debajo va la
+   punta, y lo que necesita es cerrarse para que el metal vuelva a aparecer. */
 .cromo-extra {
   display: grid;
   gap: 18px;
   padding: 18px;
-  border-top: 3px solid var(--ink);
+  border-block: 3px solid var(--ink);
   background: var(--foam);
-  border-radius: 0 0 15px 15px;
 }
 
 .cromo-lema {
@@ -3452,36 +3507,44 @@ html.js .reveal.in-view {
    de «80 SAQ» dejan unos 70px por celda y no se leen. La rejilla enseña metal,
    nota y posición; el desglose está a un toque. */
 .album-cromo {
-  --nivel-claro: var(--metal-bronce-claro);
-  --nivel-oscuro: var(--metal-bronce-oscuro);
+  --nivel-alto: var(--cromo-bronce-alto);
+  --nivel-medio: var(--cromo-bronce-medio);
+  --nivel-bajo: var(--cromo-bronce-bajo);
+  --nivel-tinta: rgba(16, 21, 22, 0.66);
 
-  display: block;
-  border: 3px solid var(--ink);
-  border-top: 0;
-  border-radius: 0 0 14px 14px;
-  background: linear-gradient(178deg, var(--nivel-oscuro) 0 8%, var(--nivel-claro) 60%, var(--nivel-oscuro) 100%);
-  box-shadow: 6px 6px 0 var(--ink);
-  transition: transform 140ms ease, box-shadow 140ms ease;
+  display: grid;
+  /* Misma razón que en la carta grande: la silueta ya no es una caja, así que
+     la sombra dura tiene que seguir el contorno. */
+  filter: drop-shadow(6px 6px 0 var(--ink));
+  transition: transform 140ms ease, filter 140ms ease;
 }
 
 .album-cromo--plata {
-  --nivel-claro: var(--metal-plata-claro);
-  --nivel-oscuro: var(--metal-plata-oscuro);
+  --nivel-alto: var(--cromo-plata-alto);
+  --nivel-medio: var(--cromo-plata-medio);
+  --nivel-bajo: var(--cromo-plata-bajo);
 }
 
 .album-cromo--oro {
-  --nivel-claro: var(--metal-oro-claro);
-  --nivel-oscuro: var(--metal-oro-oscuro);
+  --nivel-alto: var(--cromo-oro-alto);
+  --nivel-medio: var(--cromo-oro-medio);
+  --nivel-bajo: var(--cromo-oro-bajo);
+}
+
+.album-cromo-cuerpo {
+  display: block;
+  border-inline: 3px solid var(--ink);
+  background: linear-gradient(176deg, var(--nivel-medio) 0 6%, var(--nivel-alto) 50%, var(--nivel-medio) 100%);
 }
 
 .album-cromo:hover {
   transform: translate(-3px, -3px);
-  box-shadow: 9px 9px 0 var(--ink);
+  filter: drop-shadow(9px 9px 0 var(--ink));
 }
 
 .album-cromo:active {
   transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0 var(--ink);
+  filter: drop-shadow(2px 2px 0 var(--ink));
 }
 
 .album-cromo-foto {
@@ -3506,7 +3569,7 @@ html.js .reveal.in-view {
   padding: 3px 8px 4px;
   border: 2px solid var(--ink);
   border-radius: 10px;
-  background: var(--nivel-claro);
+  background: var(--nivel-alto);
 }
 
 .album-cromo-nota-valor {

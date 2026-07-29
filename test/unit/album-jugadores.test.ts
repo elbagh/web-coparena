@@ -180,10 +180,20 @@ describe("álbum de jugadores", () => {
     expect(cromos[0]!.classList.contains("album-cromo--oro")).toBe(true);
     expect(cromos[1]!.classList.contains("album-cromo--plata")).toBe(true);
 
-    // Cada metal tiene su silueta: el remate no puede ser el mismo path.
-    const paths = Array.from(document.querySelectorAll(".cromo-corona path")).map((p) => p.getAttribute("d"));
-    expect(paths).toHaveLength(2);
-    expect(paths[0]).not.toBe(paths[1]);
+    // Cada metal tiene su silueta. El contorno de la carta es común a los tres,
+    // así que el que no puede repetirse es el relieve de dentro del arco: es lo
+    // único que distingue bronce de oro sin mirar el color.
+    const skylines = Array.from(document.querySelectorAll(".cromo-skyline")).map((p) => p.getAttribute("d"));
+    expect(skylines).toHaveLength(2);
+    expect(skylines[0]).not.toBe(skylines[1]);
+
+    // Y el contorno sí es el mismo, que es lo que hace que sea una colección.
+    const filos = Array.from(document.querySelectorAll(".cromo-corona .cromo-filo")).map((p) => p.getAttribute("d"));
+    expect(filos).toHaveLength(2);
+    expect(filos[0]).toBe(filos[1]);
+
+    // La punta cierra la carta abajo: sin ella el mini se queda en un rectángulo.
+    expect(cromos[0]!.querySelector(".cromo-punta")).not.toBeNull();
 
     expect(cromos[0]!.querySelector(".album-cromo-nota-valor")!.textContent).toBe("85");
     expect(cromos[0]!.querySelector(".album-cromo-nota-pos")!.textContent).toBe("Bloqueo");
@@ -285,5 +295,55 @@ describe("ficha de un jugador", () => {
     const cromo = document.querySelector(".cromo") as HTMLElement;
     expect(cromo.classList.contains("cromo--bronce")).toBe(true);
     expect(cromo.querySelector(".cromo-corona path")).not.toBeNull();
+    // Cae a bronce entero, relieve incluido: un nivel raro no puede dejar el
+    // arco liso, que es como se ve un cromo al que le falta algo.
+    expect(cromo.querySelector(".cromo-skyline")).not.toBeNull();
+  });
+
+  it("la carta se arma en tres tramos, y el cuerpo es el único que crece", async () => {
+    await montarFicha(FICHA);
+
+    // Remate, cuerpo y punta, en ese orden. Si la punta se cuela dentro del
+    // cuerpo se lleva los bordes laterales por delante.
+    const cromo = document.querySelector(".cromo") as HTMLElement;
+    const tramos = Array.from(cromo.children).map((n) => n.getAttribute("class"));
+    expect(tramos.filter((c) => c && !c.includes("sr-only"))).toEqual([
+      "cromo-corona",
+      "cromo-cuerpo",
+      "cromo-punta"
+    ]);
+
+    // Lo que tiene alto variable va dentro del cuerpo, no suelto en la carta.
+    const cuerpo = cromo.querySelector(".cromo-cuerpo")!;
+    expect(cuerpo.querySelector(".cromo-retrato")).not.toBeNull();
+    expect(cuerpo.querySelector(".cromo-stats")).not.toBeNull();
+  });
+});
+
+describe("metal del cromo", () => {
+  /*
+   * Un <linearGradient> se referencia por id. Con el id repetido, todas las
+   * cartas de la rejilla se pintarían con el metal de la primera — y el fallo
+   * no se ve en un test que monte una sola.
+   */
+  it("cada carta trae su propio degradado, no el de la primera", async () => {
+    await montar([
+      jugador(1, "Marta", { nivel: "oro" }),
+      jugador(2, "Xoán", { nivel: "plata" }),
+      jugador(3, "Uxía", { nivel: "bronce" })
+    ]);
+
+    const ids = Array.from(document.querySelectorAll(".album-cromo linearGradient")).map((g) => g.id);
+    expect(ids.length).toBeGreaterThanOrEqual(6); // remate + punta por cromo
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // Y cada relleno apunta al degradado que va con él.
+    const placas = Array.from(document.querySelectorAll(".album-cromo .cromo-placa"));
+    const referencias = placas.map((p) => p.getAttribute("fill"));
+    expect(new Set(referencias).size).toBe(placas.length);
+    referencias.forEach((ref) => {
+      const id = ref!.slice(5, -1); // url(#...)
+      expect(document.getElementById(id)).not.toBeNull();
+    });
   });
 });
