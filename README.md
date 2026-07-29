@@ -91,5 +91,5 @@ UPDATE usuarios SET rol_id = (SELECT id FROM roles WHERE clave = 'admin')
 ```
 
   A partir de ahí, todo lo demás (crear roles, asignarlos) se hace desde el panel. La columna
-  `usuarios.is_admin` sigue existiendo pero **ya no la lee nadie**: se conserva un despliegue más como red
-  para poder volver atrás, y se retirará en una migración posterior.
+  `usuarios.is_admin`, que era la forma vieja de marcar quién entraba, **ya no existe**: la retiró la
+  migración 0022, una vez producción llevó un despliegue en el que nadie la leía.

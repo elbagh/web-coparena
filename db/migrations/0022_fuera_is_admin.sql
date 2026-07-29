@@ -1,0 +1,47 @@
+-- Migration number: 0022 	 fuera is_admin
+-- Se retira usuarios.is_admin, el booleano al que sustituyo el rol en la 0013.
+--
+-- Las 0013 y 0021 la dejaron viva a proposito, y dijeron cuando se iria: cuando
+-- produccion llevase una version que no la lee. El despliegue aplica las
+-- migraciones ANTES de subir el codigo (predeploy:worker en package.json), asi
+-- que durante unos segundos el codigo viejo sigue sirviendo trafico. Si la
+-- columna hubiera desaparecido en el mismo salto que el RBAC, ese codigo habria
+-- ejecutado SELECT is_admin en requireAdmin y, peor, en getAuthContext, que
+-- sostiene /api/me para todo el mundo.
+--
+-- La condicion ya se cumple: el 2026-07-29 produccion quedo con las migraciones
+-- 0013-0021 aplicadas y con el worker dc48468e, que resuelve los permisos por
+-- usuarios.rol_id + roles y no lee is_admin en ningun sitio. El unico
+-- superviviente era el espejo de un solo sentido de PATCH /api/admin/usuarios,
+-- que se va en este mismo cambio: una red de rollback deja de servir de nada
+-- cuando lo que se retira es la propia columna.
+--
+-- Queda una ventana conocida, y es la unica: dc48468e ya no LEE la columna,
+-- pero todavia la ESCRIBE en ese espejo. Entre el db:migrate y el despliegue
+-- del codigo nuevo, un cambio de rol desde /admin/usuarios/ responderia 500. Es
+-- de segundos, hace falta que un administrador guarde un rol justo en ese
+-- hueco, y se arregla reintentando. Nada de lo que sostiene el login o el sitio
+-- publico pasa por ahi.
+--
+-- El orden de las dos sentencias no es cosmetico, y cada una responde a algo
+-- distinto:
+--
+--   1. SQLite se niega a soltar una columna indexada ("error in index ... after
+--      drop column"), asi que idx_usuarios_is_admin (migracion 0005) tiene que
+--      caer antes. Es el unico objeto del esquema que depende de la columna: no
+--      hay vistas ni disparadores en toda la base, y las claves ajenas que
+--      apuntan a usuarios lo hacen contra su id.
+--
+--   2. D1 manda el fichero como una sola consulta multi-sentencia y sin
+--      transaccion, de modo que lo reejecuta entero si algo falla a mitad.
+--      DROP INDEX IF EXISTS se puede repetir; DROP COLUMN no, porque SQLite no
+--      admite ahi un IF EXISTS. Por eso va el ultimo, igual que el ALTER de la
+--      0013.
+--
+-- Es la primera migracion destructiva sobre una tabla viva, y no tiene vuelta
+-- atras: volver a una version anterior del codigo exigiria reponer la columna a
+-- mano y rellenarla desde rol_id.
+
+DROP INDEX IF EXISTS idx_usuarios_is_admin;
+
+ALTER TABLE usuarios DROP COLUMN is_admin;
