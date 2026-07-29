@@ -25,10 +25,12 @@ export function gitVisible(args, cwd) {
 }
 
 export function npmVisible(args, cwd) {
-  // npm.cmd explícito en Windows en vez de shell: true, que con argumentos
-  // sueltos los concatena sin escapar (DEP0190 en Node 22).
-  const binario = process.platform === "win32" ? "npm.cmd" : "npm";
-  const r = spawnSync(binario, args, { stdio: "inherit", cwd });
+  // Una sola cadena con shell: true. Las dos alternativas están cerradas: pasar
+  // el array de argumentos con shell activo es lo que avisa DEP0190, y lanzar
+  // «npm.cmd» sin shell da EINVAL en Windows desde la corrección de
+  // CVE-2024-27980 (Node se niega a ejecutar .cmd/.bat sin shell). Los
+  // argumentos son literales nuestros, así que unirlos no abre nada.
+  const r = spawnSync(`npm ${args.join(" ")}`, { stdio: "inherit", cwd, shell: true });
   return r.status === 0;
 }
 
