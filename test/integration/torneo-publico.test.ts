@@ -174,3 +174,104 @@ describe("no filtra datos personales", () => {
     expect(crudo.toLowerCase()).not.toContain("telefono");
   });
 });
+
+/*
+ * Quién pasa ya no es «los N primeros de cada grupo»: cada grupo puede tener su
+ * cupo y la fase puede repartir plazas de repesca entre los que quedan justo
+ * fuera. La página tiene que poder pintar las dos condiciones por separado.
+ */
+describe("condición de clasificación", () => {
+  it("marca cada fila con si pasa directo, por repesca o no pasa", async () => {
+    const fase = await crearFase({ tipo: "grupos", clasifican: 1 });
+    await env.DB.prepare("UPDATE torneo_fases SET repesca = 1 WHERE id = ?1").bind(fase.id).run();
+
+    const grupoA = await crearGrupo(fase.id, { nombre: "A", orden: 0 });
+    const grupoB = await crearGrupo(fase.id, { nombre: "B", orden: 1 });
+
+    const a1 = await crearEquipo({ nombre: "A uno" });
+    const a2 = await crearEquipo({ nombre: "A dos" });
+    const b1 = await crearEquipo({ nombre: "B uno" });
+    const b2 = await crearEquipo({ nombre: "B dos" });
+
+    await asignarEquipoAGrupo(grupoA, fase.id, a1.id);
+    await asignarEquipoAGrupo(grupoA, fase.id, a2.id);
+    await asignarEquipoAGrupo(grupoB, fase.id, b1.id);
+    await asignarEquipoAGrupo(grupoB, fase.id, b2.id);
+
+    // Los dos segundos pierden 0-2, pero «A dos» encajó menos: es el mejor segundo.
+    await crearPartido({
+      faseId: fase.id, grupoId: grupoA, equipoA: a1, equipoB: a2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 30
+    });
+    await crearPartido({
+      faseId: fase.id, grupoId: grupoB, equipoA: b1, equipoB: b2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 10
+    });
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/torneo"), env) as never);
+    const datos = (await respuesta.json()) as {
+      fases: {
+        repesca: number;
+        grupos: {
+          nombre: string;
+          clasifican: number;
+          enRepesca: boolean;
+          clasificacion: { nombre: string; clasifica: string | null }[];
+        }[];
+      }[];
+    };
+
+    const salida = datos.fases[0]!;
+    expect(salida.repesca).toBe(1);
+    expect(salida.grupos[0]!.clasifican).toBe(1);
+    expect(salida.grupos[0]!.enRepesca).toBe(true);
+
+    const condicion = (nombre: string) =>
+      salida.grupos.flatMap((g) => g.clasificacion).find((f) => f.nombre === nombre)?.clasifica;
+
+    expect(condicion("A uno")).toBe("directo");
+    expect(condicion("B uno")).toBe("directo");
+    expect(condicion("A dos")).toBe("repesca");
+    expect(condicion("B dos")).toBeNull();
+  });
+
+  it("un grupo fuera del bote no aporta candidatos a la repesca", async () => {
+    const fase = await crearFase({ tipo: "grupos", clasifican: 1 });
+    await env.DB.prepare("UPDATE torneo_fases SET repesca = 1 WHERE id = ?1").bind(fase.id).run();
+
+    const grupoA = await crearGrupo(fase.id, { nombre: "A", orden: 0 });
+    const grupoC = await crearGrupo(fase.id, { nombre: "C", orden: 1 });
+    await env.DB.prepare("UPDATE torneo_grupos SET en_repesca = 0 WHERE id = ?1").bind(grupoC).run();
+
+    const a1 = await crearEquipo({ nombre: "A uno" });
+    const a2 = await crearEquipo({ nombre: "A dos" });
+    const c1 = await crearEquipo({ nombre: "C uno" });
+    const c2 = await crearEquipo({ nombre: "C dos" });
+    await asignarEquipoAGrupo(grupoA, fase.id, a1.id);
+    await asignarEquipoAGrupo(grupoA, fase.id, a2.id);
+    await asignarEquipoAGrupo(grupoC, fase.id, c1.id);
+    await asignarEquipoAGrupo(grupoC, fase.id, c2.id);
+
+    // «C dos» encaja mucho menos que «A dos», pero su grupo no entra al bote.
+    await crearPartido({
+      faseId: fase.id, grupoId: grupoA, equipoA: a1, equipoB: a2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 10
+    });
+    await crearPartido({
+      faseId: fase.id, grupoId: grupoC, equipoA: c1, equipoB: c2,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 42, puntosB: 40
+    });
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/torneo"), env) as never);
+    const datos = (await respuesta.json()) as {
+      fases: { grupos: { nombre: string; enRepesca: boolean; clasificacion: { nombre: string; clasifica: string | null }[] }[] }[];
+    };
+    const salida = datos.fases[0]!;
+    const condicion = (nombre: string) =>
+      salida.grupos.flatMap((g) => g.clasificacion).find((f) => f.nombre === nombre)?.clasifica;
+
+    expect(salida.grupos.find((g) => g.nombre === "C")!.enRepesca).toBe(false);
+    expect(condicion("A dos")).toBe("repesca");
+    expect(condicion("C dos")).toBeNull();
+  });
+});

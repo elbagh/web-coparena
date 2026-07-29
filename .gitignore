@@ -10,3 +10,6 @@ dist/
 .DS_Store
 
 .worktrees/
+# El SQL de horarios se genera por entorno (scripts/programar-torneo-2026.mjs):
+# lleva los ids de la base contra la que se genero y no se comparte entre entornos.
+db/seeds/

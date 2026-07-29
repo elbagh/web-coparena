@@ -17,6 +17,7 @@
 // con los resultados, y corregir un marcador viejo dejaría una tabla mintiendo.
 
 import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
+import { calcularClasificados } from "../../_lib/clasificados";
 import { CRITERIOS, normalizarReglas, validarReglas } from "../../_lib/reglas";
 import { cargarTorneo } from "../../_lib/torneo-vista";
 import {
@@ -179,10 +180,19 @@ async function crearFase(db: D1Database, body: Record<string, unknown>): Promise
 
   await db
     .prepare(
-      `INSERT INTO torneo_fases (edicion_id, clave, nombre, tipo, orden, reglas, clasifican)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+      `INSERT INTO torneo_fases (edicion_id, clave, nombre, tipo, orden, reglas, clasifican, repesca)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
     )
-    .bind(edicion.id, datos.clave, datos.nombre, datos.tipo, datos.orden, JSON.stringify(datos.reglas), datos.clasifican)
+    .bind(
+      edicion.id,
+      datos.clave,
+      datos.nombre,
+      datos.tipo,
+      datos.orden,
+      JSON.stringify(datos.reglas),
+      datos.clasifican,
+      datos.repesca
+    )
     .run();
 
   return await respuesta(db, 201);
@@ -199,10 +209,18 @@ async function editarFase(db: D1Database, id: number, body: Record<string, unkno
   await db
     .prepare(
       `UPDATE torneo_fases SET nombre = ?1, tipo = ?2, orden = ?3, reglas = ?4, clasifican = ?5,
-              updated_at = datetime('now')
-       WHERE id = ?6`
+              repesca = ?6, updated_at = datetime('now')
+       WHERE id = ?7`
     )
-    .bind(datos.nombre, datos.tipo, datos.orden, JSON.stringify(datos.reglas), datos.clasifican, id)
+    .bind(
+      datos.nombre,
+      datos.tipo,
+      datos.orden,
+      JSON.stringify(datos.reglas),
+      datos.clasifican,
+      datos.repesca,
+      id
+    )
     .run();
 
   return await respuesta(db);
@@ -223,6 +241,10 @@ async function crearGrupo(db: D1Database, url: URL, body: Record<string, unknown
   const reglas = leerReglasOpcionales(body);
   if (reglas instanceof Response) return reglas;
 
+  const cupo = leerCupoOpcional(body);
+  if (cupo instanceof Response) return cupo;
+  const enRepesca = body.enRepesca === false ? 0 : 1;
+
   const repetido = await db
     .prepare("SELECT id FROM torneo_grupos WHERE fase_id = ?1 AND nombre = ?2")
     .bind(faseId, nombre)
@@ -232,8 +254,11 @@ async function crearGrupo(db: D1Database, url: URL, body: Record<string, unknown
   }
 
   await db
-    .prepare("INSERT INTO torneo_grupos (fase_id, nombre, orden, reglas) VALUES (?1, ?2, ?3, ?4)")
-    .bind(faseId, nombre, Number(body.orden) || 0, reglas)
+    .prepare(
+      `INSERT INTO torneo_grupos (fase_id, nombre, orden, reglas, clasifican, en_repesca)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+    )
+    .bind(faseId, nombre, Number(body.orden) || 0, reglas, cupo, enRepesca)
     .run();
 
   return await respuesta(db, 201);
@@ -251,9 +276,17 @@ async function editarGrupo(db: D1Database, id: number, body: Record<string, unkn
   const reglas = leerReglasOpcionales(body);
   if (reglas instanceof Response) return reglas;
 
+  const cupo = leerCupoOpcional(body);
+  if (cupo instanceof Response) return cupo;
+  const enRepesca = body.enRepesca === false ? 0 : 1;
+
   await db
-    .prepare("UPDATE torneo_grupos SET nombre = ?1, orden = ?2, reglas = ?3, updated_at = datetime('now') WHERE id = ?4")
-    .bind(nombre, Number(body.orden) || 0, reglas, id)
+    .prepare(
+      `UPDATE torneo_grupos SET nombre = ?1, orden = ?2, reglas = ?3, clasifican = ?4, en_repesca = ?5,
+              updated_at = datetime('now')
+       WHERE id = ?6`
+    )
+    .bind(nombre, Number(body.orden) || 0, reglas, cupo, enRepesca, id)
     .run();
 
   return await respuesta(db);
@@ -365,7 +398,8 @@ async function accionSembrar(db: D1Database, url: URL, body: Record<string, unkn
   ]);
   if (!fase || !desde) return jsonAdmin({ error: "Esa fase ya no existe." }, 404);
   if (fase.tipo !== "eliminatoria") return jsonAdmin({ error: "Solo se siembra una fase eliminatoria." }, 409);
-  if (desde.clasifican < 1) {
+  // Un cupo por grupo de 0 sigue valiendo si la fase reparte plazas de repesca.
+  if (desde.clasifican < 1 && desde.repesca < 1) {
     return jsonAdmin({ error: "La fase de origen no dice cuántos equipos clasifican." }, 409);
   }
 
@@ -376,17 +410,21 @@ async function accionSembrar(db: D1Database, url: URL, body: Record<string, unkn
   }
 
   /*
-   * Se siembra por posición y no grupo a grupo: primero todos los primeros, luego
-   * todos los segundos. Así el emparejamiento 1.º contra último cruza cabezas de
-   * serie con colistas, que es lo que hace que un cuadro tenga sentido.
+   * Las semillas salen de la MISMA función que pinta los colores de la tabla. Si
+   * se recalculasen aquí, un día la tabla diría que pasa uno y el cuadro
+   * colocaría a otro, y no habría forma de saber cuál miente.
    */
-  const semillas: { equipoId: number; nombre: string }[] = [];
-  for (let posicion = 1; posicion <= desde.clasifican; posicion += 1) {
-    for (const grupo of origen.grupos) {
-      const fila = grupo.clasificacion.find((f) => f.posicion === posicion);
-      if (fila) semillas.push({ equipoId: fila.equipoId, nombre: fila.nombre });
-    }
-  }
+  const { semillas } = calcularClasificados(
+    origen.grupos.map((grupo) => ({
+      id: grupo.id,
+      nombre: grupo.nombre,
+      clasifican: grupo.clasifican,
+      enRepesca: grupo.enRepesca,
+      clasificacion: grupo.clasificacion
+    })),
+    origen.repesca,
+    origen.reglas.clasificacion.desempates
+  );
 
   if (semillas.length === 0) return jsonAdmin({ error: "No hay ningún equipo clasificado todavía." }, 409);
 
@@ -402,6 +440,7 @@ interface FaseValidada {
   tipo: "grupos" | "eliminatoria";
   orden: number;
   clasifican: number;
+  repesca: number;
   reglas: ReturnType<typeof normalizarReglas>;
 }
 
@@ -424,6 +463,12 @@ function validarFase(body: Record<string, unknown>): FaseValidada | { campos: Re
     campos.clasifican = "Tiene que estar entre 0 y 8.";
   }
 
+  // Plazas que NO salen de un cupo por grupo, sino de comparar entre grupos.
+  const repesca = Number(body.repesca ?? 0);
+  if (!Number.isInteger(repesca) || repesca < 0 || repesca > 8) {
+    campos.repesca = "Tiene que estar entre 0 y 8.";
+  }
+
   const reglasValidadas = validarReglas(body.reglas ?? {});
   if ("campos" in reglasValidadas) Object.assign(campos, reglasValidadas.campos);
 
@@ -434,8 +479,22 @@ function validarFase(body: Record<string, unknown>): FaseValidada | { campos: Re
     tipo: tipo as "grupos" | "eliminatoria",
     orden: Number(body.orden) || 0,
     clasifican,
+    repesca,
     reglas: (reglasValidadas as { reglas: ReturnType<typeof normalizarReglas> }).reglas
   };
+}
+
+/**
+ * El cupo propio de un grupo. `null` (o ausente) significa «hereda de la fase»,
+ * que no es lo mismo que 0: 0 sería «de aquí no pasa nadie».
+ */
+function leerCupoOpcional(body: Record<string, unknown>): number | null | Response {
+  if (body.clasifican === undefined || body.clasifican === null || body.clasifican === "") return null;
+  const n = Number(body.clasifican);
+  if (!Number.isInteger(n) || n < 0 || n > 8) {
+    return jsonAdmin({ error: "Revisa los campos marcados.", campos: { clasifican: "Tiene que estar entre 0 y 8." } }, 400);
+  }
+  return n;
 }
 
 /** El grupo puede no traer reglas: entonces hereda, y se guarda NULL. */

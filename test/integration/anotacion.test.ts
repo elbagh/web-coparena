@@ -344,6 +344,12 @@ describe("corregir un evento antiguo", () => {
  * log manda. Si añadir y recalcular pudieran discrepar, un día lo harían.
  */
 describe("el log es la fuente de verdad", () => {
+  /*
+   * Este es el test más caro de la suite: 24 puntos secuenciales, y cada uno
+   * repliega el log entero y reescribe las estadísticas de los ocho jugadores.
+   * Ese coste ES lo que se está probando. El `testTimeout` de
+   * test/integration/vitest.config.ts existe sobre todo por él.
+   */
   it("recalcular desde el log da lo mismo que ir anotando", async () => {
     const admin = await crearAdmin();
     const { partidoId, local, visitante } = await montarPartido(admin);

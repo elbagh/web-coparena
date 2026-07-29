@@ -4,7 +4,15 @@
 // `plantillaCuadro`), y las que tocan la base para materializarlas y para llevar
 // al ganador de un cruce al siguiente.
 
+import type { Semilla } from "./clasificados";
 import { reglasEfectivas, type ReglasFase } from "./reglas";
+
+/*
+ * La semilla la define quien decide QUIÉN pasa (`clasificados.ts`), no quien la
+ * coloca en el cuadro. Se reexporta para no obligar a los consumidores a
+ * conocer los dos módulos, pero definición hay una sola.
+ */
+export type { Semilla };
 
 export type Lado = "A" | "B";
 
@@ -149,7 +157,10 @@ export interface FaseRow {
   tipo: "grupos" | "eliminatoria";
   orden: number;
   reglas: string;
+  /** Plazas directas por grupo. Un grupo puede sobrescribirlo. */
   clasifican: number;
+  /** Plazas extra que se reparten comparando entre grupos. */
+  repesca: number;
 }
 
 export interface GrupoRow {
@@ -158,6 +169,10 @@ export interface GrupoRow {
   nombre: string;
   orden: number;
   reglas: string | null;
+  /** null = hereda el cupo de la fase, que no es lo mismo que 0. */
+  clasifican: number | null;
+  /** 0/1: si el siguiente de este grupo entra al bote de la repesca. */
+  en_repesca: number;
 }
 
 interface EquipoNombrado {
@@ -279,11 +294,6 @@ export async function generarEliminatoria(
 
   await db.batch(sentencias);
   return { creados: nodos.length };
-}
-
-export interface Semilla {
-  equipoId: number;
-  nombre: string;
 }
 
 /**
