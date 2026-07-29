@@ -22,8 +22,9 @@ import { crearEquipo, crearUsuario, peticion, type EquipoSembrado } from "../hel
 const RUTA = "/api/mi-equipo";
 
 /** El cuerpo que manda el editor: la plantilla tal cual, con los ids. */
-const payloadDe = (equipo: EquipoSembrado, nombre = equipo.nombre) => ({
+const payloadDe = (equipo: EquipoSembrado, nombre = equipo.nombre, capitan = 0) => ({
   equipo: nombre,
+  capitan,
   jugadores: equipo.jugadores.map((j) => ({
     id: j.id,
     nombre: j.nombre,

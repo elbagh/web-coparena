@@ -18,6 +18,7 @@ const alta = async (user: Awaited<ReturnType<typeof crearUsuario>>) => {
     JSON.stringify({
       equipo: "Equipo Nuevo",
       consentimiento: true,
+      capitan: 0,
       jugadores: [
         { nombre: "Ana", apellidos: "Ferro", telefono: "600111222", email: user.email },
         { nombre: "Bea", apellidos: "Louro", telefono: "600111333", email: "otra@example.com" }
@@ -64,9 +65,9 @@ describe("POST /api/equipos cuando ya figuras en un equipo", () => {
 });
 
 describe("POST /api/equipos: capitán", () => {
-  // La validación solo exige que el correo de la sesión aparezca *en algún*
-  // jugador, no en el primero: el alta tiene que nombrar capitán al jugador
-  // correcto sea cual sea su posición en la plantilla.
+  // El capitán se identifica por índice, no por buscar el correo de la sesión
+  // en la plantilla: el alta tiene que nombrar capitán al jugador correcto sea
+  // cual sea su posición, siempre que su correo sea el de la sesión.
   it("nombra capitán al jugador que lleva el correo de la sesión aunque no sea el primero", async () => {
     const user = await crearUsuario({ email: "ana@example.com" });
     const form = new FormData();
@@ -75,6 +76,7 @@ describe("POST /api/equipos: capitán", () => {
       JSON.stringify({
         equipo: "Equipo Capitana Segunda",
         consentimiento: true,
+        capitan: 1,
         jugadores: [
           { nombre: "Bea", apellidos: "Louro", telefono: "600111333", email: "otra@example.com" },
           { nombre: "Ana", apellidos: "Ferro", telefono: "600111222", email: user.email }
@@ -96,5 +98,34 @@ describe("POST /api/equipos: capitán", () => {
       .first<{ email: string }>();
 
     expect(capitan?.email).toBe(user.email);
+  });
+
+  it("guarda al capitán indicado en el alta", async () => {
+    const user = await crearUsuario({ email: "capi@example.com" });
+    const payload = {
+      equipo: "Los Rompeolas",
+      consentimiento: true,
+      capitan: 1,
+      jugadores: [
+        { nombre: "Ana", apellidos: "Pérez", telefono: "", email: "" },
+        { nombre: "Luis", apellidos: "Gómez", telefono: "600111222", email: user.email }
+      ]
+    };
+    const datos = new FormData();
+    datos.append("payload", JSON.stringify(payload));
+
+    const respuesta = await onRequestPost(
+      ctx(await peticion("/api/equipos", { method: "POST", user, body: datos }), env)
+    );
+    expect(respuesta.status).toBe(201);
+
+    const fila = await env.DB
+      .prepare(
+        `SELECT c.email FROM equipos e JOIN jugadores c ON c.id = e.capitan_jugador_id
+         WHERE e.nombre = ?1`
+      )
+      .bind("Los Rompeolas")
+      .first<{ email: string }>();
+    expect(fila?.email).toBe(user.email);
   });
 });

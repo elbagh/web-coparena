@@ -55,7 +55,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Los datos del formulario no son válidos." }, 400);
   }
 
-  const resultado = validarRegistro(body, { requireConsent: false, ownerEmail: user.email });
+  const resultado = validarRegistro(body, { requireConsent: false });
   if ("campos" in resultado) {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }

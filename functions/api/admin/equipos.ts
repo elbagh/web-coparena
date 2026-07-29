@@ -154,7 +154,7 @@ async function editarEquipo(request: Request, env: AdminEnv, equipoId: number): 
     return jsonAdmin({ error: "Los datos del formulario no son válidos." }, 400);
   }
 
-  const resultado = validarRegistro(payload, { requireConsent: false, requirePlayerEmail: true });
+  const resultado = validarRegistro(payload, { requireConsent: false });
   if ("campos" in resultado) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }

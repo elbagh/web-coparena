@@ -98,6 +98,7 @@ describe("unicidad de jugador por edición", () => {
       "payload",
       JSON.stringify({
         equipo: "Los De Ahora",
+        capitan: 0,
         jugadores: [
           {
             id: actual.jugadores[0]!.id,

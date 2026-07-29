@@ -23,10 +23,11 @@ interface EntradaJugador {
 }
 
 /** Construye el registro ya validado que recibe guardarEquipo. */
-function registro(nombreEquipo: string, jugadores: EntradaJugador[]): RegistroValidado {
+function registro(nombreEquipo: string, jugadores: EntradaJugador[], capitan = 0): RegistroValidado {
   return {
     equipo: nombreEquipo,
     equipoNormalizado: normalizarTexto(nombreEquipo),
+    capitan,
     jugadores: jugadores.map<JugadorValidado>((j) => ({
       id: j.id,
       nombre: j.nombre,
@@ -374,18 +375,17 @@ describe("guardarEquipo: conflictos de unicidad", () => {
 });
 
 describe("guardarEquipo: capitán", () => {
-  // La Tarea 1 no manda `capitan` desde ningún cliente todavía (llega en la
-  // Tarea 2). Sin este resguardo, la sentencia se ejecutaba igual y devolvía
-  // siempre el mando al jugador de `orden 1`, aunque el capitán real fuera
-  // otro: un PATCH /api/mi-equipo del propio capitán se lo quitaba a sí mismo.
-  it("sin `capitan` en el registro, conserva el capitán que ya tenía aunque no sea el de orden 1", async () => {
+  // `capitan` es obligatorio en RegistroValidado desde la Tarea 2, y guardarEquipo
+  // lo aplica siempre por índice: quien llama tiene que mandar el índice de
+  // quien sigue mandando, o el mando saltaría al jugador de `orden 1`.
+  it("fija el capitán según el índice enviado, aunque no sea el de orden 1", async () => {
     const equipo = await crearEquipo({ jugadores: [{}, {}], capitan: 1 });
     expect(equipo.capitanId).toBe(equipo.jugadores[1]!.id);
 
     const error = await guardarEquipo(
       env,
       equipo.id,
-      registro(equipo.nombre, [comoEntrada(equipo.jugadores[0]!), comoEntrada(equipo.jugadores[1]!)])
+      registro(equipo.nombre, [comoEntrada(equipo.jugadores[0]!), comoEntrada(equipo.jugadores[1]!)], 1)
     );
 
     expect(error).toBeNull();

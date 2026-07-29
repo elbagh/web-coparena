@@ -107,14 +107,15 @@ export async function buscarDuplicadosEdicion(
   const edicionId = equipo?.edicion_id ?? null;
 
   const nombres = registro.jugadores.map((j) => j.nombreCompletoNormalizado);
-  const telefonos = registro.jugadores.map((j) => j.telefonoNormalizado);
+  const telefonos = registro.jugadores.flatMap((j) => (j.telefonoNormalizado ? [j.telefonoNormalizado] : []));
   const emails = registro.jugadores.flatMap((j) => (j.emailNormalizado ? [j.emailNormalizado] : []));
 
-  const clausulas = [
-    `nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`,
-    `telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`
-  ];
-  const binds: (string | number | null)[] = [...nombres, ...telefonos];
+  const clausulas = [`nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`];
+  const binds: (string | number | null)[] = [...nombres];
+  if (telefonos.length > 0) {
+    clausulas.push(`telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`);
+    binds.push(...telefonos);
+  }
   if (emails.length > 0) {
     clausulas.push(`email_normalizado IN (${emails.map(() => "?").join(",")})`);
     binds.push(...emails);
@@ -138,7 +139,7 @@ export async function buscarDuplicadosEdicion(
     if (nombresOcupados.has(j.nombreCompletoNormalizado)) {
       campos[`jugadores.${i}.nombre`] = "Esta persona ya está inscrita en otro equipo.";
     }
-    if (telefonosOcupados.has(j.telefonoNormalizado)) {
+    if (j.telefonoNormalizado && telefonosOcupados.has(j.telefonoNormalizado)) {
       campos[`jugadores.${i}.telefono`] = "Este móvil ya está registrado en otra inscripción.";
     }
     if (j.emailNormalizado && emailsOcupados.has(j.emailNormalizado)) {

@@ -22,21 +22,20 @@ export interface JugadorValidado {
   eliminarFoto: boolean;
 }
 
+export const MENSAJE_CAPITAN_CONTACTO = "El capitán necesita móvil y correo para que podamos avisaros.";
+
 export interface RegistroValidado {
   equipo: string;
   equipoNormalizado: string;
+  /** Índice, dentro de `jugadores`, de quien manda en el equipo. */
+  capitan: number;
   jugadores: JugadorValidado[];
-  /**
-   * Índice del jugador capitán. Opcional en esta tarea (Tarea 1): la
-   * validación todavía no lo rellena. La Tarea 2 lo hace obligatorio.
-   */
-  capitan?: number;
 }
 
 interface OpcionesValidacion {
   requireConsent?: boolean;
-  ownerEmail?: string;
-  requirePlayerEmail?: boolean;
+  /** Correo que debe llevar el capitán (el de la sesión, en el alta). */
+  emailCapitanObligatorio?: string;
 }
 
 export const normalizarTexto = (s: string): string =>
@@ -74,8 +73,9 @@ export function validarRegistro(
 ): { registro: RegistroValidado } | { campos: Record<string, string> } {
   const campos: Record<string, string> = {};
   const requireConsent = opciones.requireConsent !== false;
-  const requirePlayerEmail = opciones.requirePlayerEmail !== false;
-  const ownerEmailNormalizado = opciones.ownerEmail ? normalizarEmail(opciones.ownerEmail) : "";
+  const emailCapitan = opciones.emailCapitanObligatorio
+    ? normalizarEmail(opciones.emailCapitanObligatorio)
+    : "";
 
   if (typeof raw !== "object" || raw === null) {
     return { campos: { equipo: "El formulario ha llegado vacío. Recarga la página e inténtalo de nuevo." } };
@@ -99,13 +99,27 @@ export function validarRegistro(
     campos.jugadores = `Como máximo se admiten ${MAX_JUGADORES} personas por equipo.`;
   }
 
+  // El capitán llega como índice dentro de la plantilla enviada. No hay valor
+  // por defecto a propósito: dar por supuesto el jugador 1 en un guardado
+  // podría cambiar el mando de un equipo sin que nadie lo pidiera.
+  const capitanRaw = body.capitan;
+  const capitan =
+    typeof capitanRaw === "number" && Number.isInteger(capitanRaw)
+      ? capitanRaw
+      : typeof capitanRaw === "string" && /^\d+$/.test(capitanRaw)
+        ? Number(capitanRaw)
+        : -1;
+  const totalJugadores = Math.min(jugadoresRaw.length, MAX_JUGADORES);
+  if (capitan < 0 || capitan >= totalJugadores) {
+    campos.capitan = "Indica quién es el capitán del equipo.";
+  }
+
   const jugadores: JugadorValidado[] = [];
-  let hayEmail = false;
-  let hayOwnerEmail = false;
 
   jugadoresRaw.slice(0, MAX_JUGADORES).forEach((item, i) => {
     const j = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
     const clave = (campo: string) => `jugadores.${i}.${campo}`;
+    const esCapitan = i === capitan;
 
     const nombre = capitalizarPropio(limpiar(j.nombre));
     if (nombre.length < 2 || nombre.length > 60 || !NOMBRE_PATTERN.test(nombre)) {
@@ -117,9 +131,13 @@ export function validarRegistro(
       campos[clave("apellidos")] = "Introduce los apellidos (solo letras, entre 2 y 80 caracteres).";
     }
 
+    // Móvil: obligatorio solo para el capitán. Quien no lo dé se queda fuera
+    // del grupo del torneo, y el formulario ya se lo avisa.
     const telefono = limpiar(j.telefono);
-    const telefonoNormalizado = normalizarTelefono(telefono);
-    if (!MOVIL_PATTERN.test(telefonoNormalizado)) {
+    const telefonoNormalizado = telefono ? normalizarTelefono(telefono) : "";
+    if (!telefono) {
+      if (esCapitan) campos[clave("telefono")] = MENSAJE_CAPITAN_CONTACTO;
+    } else if (!MOVIL_PATTERN.test(telefonoNormalizado)) {
       campos[clave("telefono")] = "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos).";
     }
 
@@ -132,13 +150,12 @@ export function validarRegistro(
       } else {
         email = emailRaw;
         emailNormalizado = normalizarEmail(emailRaw);
-        hayEmail = true;
-        if (emailNormalizado === ownerEmailNormalizado) {
-          hayOwnerEmail = true;
+        if (esCapitan && emailCapitan && emailNormalizado !== emailCapitan) {
+          campos[clave("email")] = "El capitán debe usar el correo con el que has iniciado sesión.";
         }
       }
-    } else if (requirePlayerEmail) {
-      campos[clave("email")] = "El correo de cada jugador es obligatorio.";
+    } else if (esCapitan) {
+      campos[clave("email")] = MENSAJE_CAPITAN_CONTACTO;
     }
 
     let redSocial: string | null = null;
@@ -173,10 +190,6 @@ export function validarRegistro(
     });
   });
 
-  if (!hayEmail && !requirePlayerEmail && !campos.jugadores) {
-    campos.email = "Indica al menos un correo en el equipo para poder enviaros la confirmación.";
-  }
-
   // Duplicados dentro del propio envío.
   const vistos = { nombres: new Map<string, number>(), telefonos: new Map<string, number>(), emails: new Map<string, number>() };
   jugadores.forEach((j, i) => {
@@ -204,11 +217,6 @@ export function validarRegistro(
     }
   });
 
-  const hayErroresEmail = Object.keys(campos).some((key) => /^jugadores\.\d+\.email$/.test(key));
-  if (ownerEmailNormalizado && !hayOwnerEmail && !hayErroresEmail && !campos.jugadores) {
-    campos.email = "Uno de los correos de los jugadores debe ser el mismo con el que has iniciado sesión.";
-  }
-
   if (Object.keys(campos).length > 0) {
     return { campos };
   }
@@ -217,6 +225,7 @@ export function validarRegistro(
     registro: {
       equipo,
       equipoNormalizado: normalizarTexto(equipo),
+      capitan,
       jugadores
     }
   };

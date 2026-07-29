@@ -9,7 +9,6 @@ import { fotoNoEncontrada, limpiarFotos, servirFoto, subirFoto, type ExtensionFo
 import { enviarEmail, construirEmailConfirmacion } from "../_lib/gmail";
 import {
   MAX_BODY_BYTES,
-  normalizarEmail,
   validarRegistro,
   validarFoto,
   type RegistroValidado
@@ -51,7 +50,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ error: "Los datos del formulario no son válidos. Recarga la página e inténtalo de nuevo." }, 400);
   }
 
-  const resultado = validarRegistro(payload, { ownerEmail: user.email });
+  const resultado = validarRegistro(payload, { emailCapitanObligatorio: user.email });
   if ("campos" in resultado) {
     return json({ error: "Revisa los campos marcados.", campos: resultado.campos }, 400);
   }
@@ -161,11 +160,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         .prepare(
           `UPDATE equipos SET capitan_jugador_id = (
              SELECT j.id FROM jugadores j
-             WHERE j.equipo_id = equipos.id AND j.email_normalizado = ?2
-             ORDER BY j.orden ASC LIMIT 1
+             WHERE j.equipo_id = equipos.id AND j.orden = ?2
            ) WHERE nombre_normalizado = ?1`
         )
-        .bind(registro.equipoNormalizado, normalizarEmail(user.email))
+        .bind(registro.equipoNormalizado, registro.capitan + 1)
     ];
     const resultados = await env.DB.batch(statements);
     equipoId = resultados[0].meta.last_row_id;
@@ -311,14 +309,15 @@ async function buscarDuplicados(
   }
 
   const nombres = registro.jugadores.map((j) => j.nombreCompletoNormalizado);
-  const telefonos = registro.jugadores.map((j) => j.telefonoNormalizado);
+  const telefonos = registro.jugadores.flatMap((j) => (j.telefonoNormalizado ? [j.telefonoNormalizado] : []));
   const emails = registro.jugadores.flatMap((j) => (j.emailNormalizado ? [j.emailNormalizado] : []));
 
-  const clausulas = [
-    `nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`,
-    `telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`
-  ];
-  const binds: (string | number | null)[] = [...nombres, ...telefonos];
+  const clausulas = [`nombre_completo_normalizado IN (${nombres.map(() => "?").join(",")})`];
+  const binds: (string | number | null)[] = [...nombres];
+  if (telefonos.length > 0) {
+    clausulas.push(`telefono_normalizado IN (${telefonos.map(() => "?").join(",")})`);
+    binds.push(...telefonos);
+  }
   if (emails.length > 0) {
     clausulas.push(`email_normalizado IN (${emails.map(() => "?").join(",")})`);
     binds.push(...emails);
@@ -342,7 +341,7 @@ async function buscarDuplicados(
     if (nombresOcupados.has(j.nombreCompletoNormalizado)) {
       campos[`jugadores.${i}.nombre`] = "Esta persona ya está inscrita en otro equipo.";
     }
-    if (telefonosOcupados.has(j.telefonoNormalizado)) {
+    if (j.telefonoNormalizado && telefonosOcupados.has(j.telefonoNormalizado)) {
       campos[`jugadores.${i}.telefono`] = "Este móvil ya está registrado en otra inscripción.";
     }
     if (j.emailNormalizado && emailsOcupados.has(j.emailNormalizado)) {
