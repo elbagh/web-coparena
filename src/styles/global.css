@@ -25,6 +25,13 @@
   --metal-plata-oscuro: #d7dde2;
   --metal-bronce-claro: #f2c79b;
   --metal-bronce-oscuro: #d98f52;
+  /* Los dos colores con los que una clasificación dice quién asciende. Son
+     --lime y --sun rebajados sobre --foam hasta quedar sólidos: a la opacidad
+     que tenían antes (18%) sencillamente no se veían sobre la crema, que es
+     como no tenerlos. Verde: pasa. Ámbar: se lo está jugando. */
+  --clasifica-directo: #d2ed91;
+  --clasifica-repesca: #ffeaa9;
+  --clasifica-repesca-borde: #c79a1f;
   --font-display: "Titan One", "Arial Rounded MT Bold", ui-rounded, ui-sans-serif, sans-serif;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   font-family:
@@ -4999,19 +5006,25 @@ html.js .header-directo.is-vivo .directo-llama {
   overflow-x: auto;
 }
 
+/*
+ * Sin ancho mínimo: la tabla vive dentro de la columna de su grupo y allí no
+ * hay 380px que valgan. Antes que un scroll horizontal por columna, que esconde
+ * justo la columna de puntos, se deja que parta el nombre largo en dos líneas.
+ * `.torneo-tabla-scroll` se queda como red por si algún día vuelve a hacer falta.
+ */
 .torneo-tabla {
   border-collapse: collapse;
-  font-size: 0.9rem;
-  min-width: 380px;
+  font-size: 0.86rem;
   width: 100%;
 }
 
 .torneo-tabla th,
 .torneo-tabla td {
   border-bottom: 1px solid var(--line);
-  padding: 7px 9px;
+  padding: 6px 7px;
   text-align: left;
 }
+
 
 .torneo-tabla thead th {
   color: var(--muted);
@@ -5027,19 +5040,25 @@ html.js .header-directo.is-vivo .directo-llama {
 }
 
 .torneo-tabla td:nth-child(2) {
+  overflow-wrap: anywhere;
   width: 100%;
 }
 
 /*
- * Quién pasa de ronda es la lectura principal de una clasificación, y pasar
- * directo no es lo mismo que pasar por repesca: esa plaza depende de cómo
- * queden los otros grupos. Dos colores, no uno.
+ * Quién asciende es la lectura principal de una clasificación, y son tres
+ * estados con solo dos colores:
  *
- * El amarillo va más opaco que el verde y el borde lleva un ámbar oscurecido:
- * --sun (#ffd95d) sobre crema, a 3px, no se distingue.
+ *   verde              pasa por su grupo, no depende de nadie
+ *   ámbar + barra      ahora mismo ocupa la plaza que se disputa entre grupos
+ *   ámbar sin barra    está en ese mismo bote y hoy se queda fuera
+ *
+ * Los dos ámbar comparten fondo a propósito: el mensaje es «de estos pasa uno».
+ * El tercer color sería un color para un matiz, y la barra ya lo cuenta. Y el
+ * borde ámbar va oscurecido porque --sun (#ffd95d) a 3px sobre el propio fondo
+ * ámbar no se distingue.
  */
 .torneo-tabla tbody tr.is-directo {
-  background: rgba(183, 230, 91, 0.18);
+  background: var(--clasifica-directo);
 }
 
 .torneo-tabla tbody tr.is-directo td:first-child {
@@ -5047,13 +5066,19 @@ html.js .header-directo.is-vivo .directo-llama {
   font-weight: 800;
 }
 
-.torneo-tabla tbody tr.is-repesca {
-  background: rgba(255, 217, 93, 0.32);
+.torneo-tabla tbody tr.is-repesca,
+.torneo-tabla tbody tr.is-aspirante {
+  background: var(--clasifica-repesca);
 }
 
 .torneo-tabla tbody tr.is-repesca td:first-child {
-  box-shadow: inset 3px 0 0 #c79a1f;
+  box-shadow: inset 3px 0 0 var(--clasifica-repesca-borde);
   font-weight: 800;
+}
+
+.torneo-tabla tbody tr.is-directo td:nth-child(2),
+.torneo-tabla tbody tr.is-repesca td:nth-child(2) {
+  font-weight: 700;
 }
 
 .torneo-partidos {
@@ -5120,6 +5145,207 @@ html.js .header-directo.is-vivo .directo-llama {
 .torneo-cuadro {
   margin-top: 14px;
   overflow-x: auto;
+}
+
+/* ---------------------- torneo: los grupos, en columnas -------------------- */
+
+/*
+ * Un grupo es una columna: su clasificación arriba y sus partidos colgando
+ * debajo, que son los de una sola tarde. En móvil sigue habiendo una columna y
+ * el orden de lectura no cambia; lo que cambia es que en un portátil las tres
+ * caben de una vez en lugar de pedir tres pantallas de scroll.
+ */
+
+.torneo-leyenda {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  gap: 6px 18px;
+  margin: 8px 0 0;
+}
+
+.torneo-leyenda-item {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.torneo-leyenda-muestra {
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  flex: 0 0 auto;
+  height: 14px;
+  width: 14px;
+}
+
+.torneo-leyenda-muestra.is-directo {
+  background: var(--clasifica-directo);
+}
+
+.torneo-leyenda-muestra.is-repesca {
+  background: var(--clasifica-repesca);
+}
+
+/*
+ * `align-items: start` y no el estirado por defecto: el grupo de cinco juega
+ * diez partidos y los de cuatro seis, así que igualar alturas deja dos columnas
+ * con un tercio de caja vacía, que se lee como que allí falta algo.
+ */
+.torneo-grupos {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 16px;
+}
+
+.torneo-grupo-publico {
+  background: var(--foam);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 5px 5px 0 var(--ink);
+  min-width: 0;
+  padding: 12px 13px 14px;
+}
+
+/* Gana a `.torneo-seccion h3`, que es más específico que una sola clase. */
+.torneo-grupo-publico .torneo-grupo-cabecera {
+  align-items: baseline;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  padding-bottom: 6px;
+}
+
+.torneo-grupo-letra {
+  color: var(--deep);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.torneo-grupo-cuando {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  font-weight: 700;
+  gap: 2px 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/*
+ * Dentro de la columna los partidos son filas de una lista, no tarjetas: una
+ * caja dentro de otra caja, seis veces seguidas, es marco y sombra para no
+ * decir nada. Lo que separa un partido del siguiente es una línea fina.
+ */
+.torneo-grupos .torneo-partidos {
+  border-top: 1px solid var(--line);
+  gap: 0;
+  margin-top: 12px;
+}
+
+.torneo-partido.is-compacto {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 6px 2px;
+}
+
+.torneo-partido.is-compacto:last-child {
+  border-bottom: 0;
+}
+
+.torneo-partido.is-compacto.is-live {
+  background: rgba(255, 107, 74, 0.14);
+  border-radius: 8px;
+  box-shadow: none;
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+.torneo-partido.is-compacto .torneo-partido-meta {
+  font-size: 0.68rem;
+  gap: 8px;
+}
+
+.torneo-partido-hora {
+  color: var(--deep);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.torneo-partido.is-compacto .torneo-partido-cruce {
+  font-size: 0.88rem;
+  gap: 7px;
+  margin-top: 1px;
+}
+
+.torneo-partido.is-compacto .torneo-partido-equipo {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 561px) {
+  .torneo-grupos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 901px) {
+  /*
+   * La página se ensancha solo aquí, y con ella todas sus secciones: si la fase
+   * de grupos llegara al borde y el cuadro se quedara centrado a 900, sus dos
+   * títulos empezarían en sitios distintos y parecería un descuadre. Lo único
+   * que se queda estrecho es la lista de partidos sueltos, que son tarjetas de
+   * una sola columna y a 1240px de ancho no serían tarjetas de nada.
+   */
+  .torneo-page {
+    width: min(1240px, calc(100% - 32px));
+  }
+
+  .torneo-seccion {
+    max-width: 1240px;
+  }
+
+  .torneo-seccion:not(.is-grupos) .torneo-partidos {
+    max-width: 760px;
+  }
+
+  .torneo-grupos {
+    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/*
+ * La franja justa donde ya caben tres columnas pero por poco: un portátil de
+ * 1280 con la ventana a medias. Sin apretar aquí, «Croquetillas de Arena» parte
+ * en dos líneas y la tabla queda con las filas a alturas distintas.
+ */
+@media (min-width: 901px) and (max-width: 1099px) {
+  .torneo-grupos .torneo-tabla {
+    font-size: 0.78rem;
+  }
+
+  .torneo-grupos .torneo-tabla th,
+  .torneo-grupos .torneo-tabla td {
+    padding: 6px 4px;
+  }
+
+  .torneo-grupo-publico {
+    padding: 10px 9px 12px;
+  }
+
+  /* Tiene que ganar a `.torneo-partido.is-compacto .torneo-partido-cruce`. */
+  .torneo-grupos .torneo-partido.is-compacto .torneo-partido-cruce {
+    font-size: 0.82rem;
+  }
 }
 
 /* ----------------------------- reduced motion ------------------------------ */

@@ -178,10 +178,12 @@ describe("no filtra datos personales", () => {
 /*
  * Quién pasa ya no es «los N primeros de cada grupo»: cada grupo puede tener su
  * cupo y la fase puede repartir plazas de repesca entre los que quedan justo
- * fuera. La página tiene que poder pintar las dos condiciones por separado.
+ * fuera. La página tiene que poder pintar las tres condiciones por separado —
+ * incluida la del que está en el bote y hoy se queda fuera, que no es lo mismo
+ * que estar eliminado.
  */
 describe("condición de clasificación", () => {
-  it("marca cada fila con si pasa directo, por repesca o no pasa", async () => {
+  it("marca cada fila con si pasa directo, ocupa la repesca, se la juega o está fuera", async () => {
     const fase = await crearFase({ tipo: "grupos", clasifican: 1 });
     await env.DB.prepare("UPDATE torneo_fases SET repesca = 1 WHERE id = ?1").bind(fase.id).run();
 
@@ -232,7 +234,9 @@ describe("condición de clasificación", () => {
     expect(condicion("A uno")).toBe("directo");
     expect(condicion("B uno")).toBe("directo");
     expect(condicion("A dos")).toBe("repesca");
-    expect(condicion("B dos")).toBeNull();
+    // «B dos» pierde el bote por diferencia de puntos, pero sigue en él: la
+    // plaza se decide entre los dos y la tabla tiene que enseñar a los dos.
+    expect(condicion("B dos")).toBe("aspirante");
   });
 
   it("un grupo fuera del bote no aporta candidatos a la repesca", async () => {

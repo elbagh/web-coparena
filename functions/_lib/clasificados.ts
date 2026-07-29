@@ -16,7 +16,18 @@
 import { valorDeCriterio, type FilaClasificacion } from "./clasificacion";
 import type { CriterioDesempate } from "./reglas";
 
-export type Condicion = "directo" | "repesca";
+// Tres condiciones, dos de ellas plaza y la tercera no:
+//   - `directo`   pasa por su grupo, no depende de nadie más.
+//   - `repesca`   ahora mismo ocupa la plaza que se disputa entre grupos.
+//   - `aspirante` está en ese mismo bote y hoy se queda fuera.
+//
+// `aspirante` existe porque la tabla tiene que enseñar a los DOS que se juegan
+// la plaza, no solo al que va ganando. Pintar únicamente a uno decía que el otro
+// está eliminado, y no lo está: le basta con ganar el último partido.
+export type Condicion = "directo" | "repesca" | "aspirante";
+
+/** Las que de verdad dan plaza. Un aspirante no se siembra: todavía no ha pasado. */
+export type CondicionClasificado = Exclude<Condicion, "aspirante">;
 
 export interface GrupoParaClasificar {
   id: number;
@@ -32,11 +43,11 @@ export interface Semilla {
   equipoId: number;
   nombre: string;
   grupoId: number;
-  condicion: Condicion;
+  condicion: CondicionClasificado;
 }
 
 export interface Clasificados {
-  /** equipoId → condición. Solo lleva a quien pasa. */
+  /** equipoId → condición. Lleva a quien pasa y a quien todavía se lo juega. */
   condiciones: Map<number, Condicion>;
   /** En orden de siembra: todos los primeros, luego los segundos… y las repescas al final. */
   semillas: Semilla[];
@@ -93,7 +104,18 @@ export function calcularClasificados(
     return a.fila.nombre.localeCompare(b.fila.nombre, "es");
   });
 
-  bote.slice(0, Math.max(0, repesca)).forEach(({ grupo, fila }) => {
+  /*
+   * El bote entero queda marcado, no solo la parte de arriba: los de abajo son
+   * `aspirante`. Sin plazas de repesca no hay bote que valga y nadie se marca —
+   * ahí el siguiente de cada grupo simplemente está fuera.
+   */
+  const plazas = Math.max(0, repesca);
+  bote.forEach(({ grupo, fila }, indice) => {
+    if (plazas === 0) return;
+    if (indice >= plazas) {
+      condiciones.set(fila.equipoId, "aspirante");
+      return;
+    }
     condiciones.set(fila.equipoId, "repesca");
     semillas.push({ equipoId: fila.equipoId, nombre: fila.nombre, grupoId: grupo.id, condicion: "repesca" });
   });
