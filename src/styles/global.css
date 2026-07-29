@@ -3872,6 +3872,23 @@ html.js .reveal.in-view {
     font-size: 0.84rem;
   }
 
+  /*
+   * El aire entre el chip y «Mi zona», y va SOLO aquí. El `1fr` de la rejilla
+   * está en los enlaces, así que toda la holgura de la cabecera se acumula a la
+   * izquierda del chip y sin este margen queda pegado a la pegatina —que además
+   * va girada y saca la esquina— con un claro enorme al otro lado.
+   *
+   * En móvil no: allí el vecino no es «Mi zona» sino el botón de menú, y a 360px
+   * la cabecera va tan justa que estos 24px le comen la palabra «Menú».
+   */
+  .header-directo-wrap {
+    margin-right: 24px;
+  }
+
+  .directo-aviso {
+    font-size: 0.79rem;
+  }
+
   .header-join {
     min-height: 38px;
     padding: 8px 15px 9px;
@@ -4901,7 +4918,20 @@ button.bracket-match {
 /*
  * El botón del directo. Apagado y encendido son dos elementos distintos: un <a>
  * deshabilitado no existe en HTML y seguiría siendo enfocable con teclado.
+ *
+ * Van envueltos porque el aviso del apagado se cuelga debajo en absoluto y
+ * necesita a quién agarrarse; el envoltorio es además donde vive el aire que lo
+ * separa de «Mi zona», que va girada y saca la esquina hacia el chip.
  */
+.header-directo-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.directo-off {
+  position: relative;
+}
+
 .header-directo {
   align-items: center;
   border-radius: 999px;
@@ -4918,8 +4948,27 @@ button.bracket-match {
   background: rgba(16, 21, 22, 0.05);
   border: 1.5px solid var(--line);
   color: var(--muted);
-  cursor: default;
+  cursor: pointer;
+  list-style: none;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
   user-select: none;
+}
+
+.header-directo.is-apagado::-webkit-details-marker {
+  display: none;
+}
+
+/* Apagado no es un adorno: se pulsa. El chip se acerca a la tinta para decirlo,
+   pero el punto se queda gris, que es la verdad —no hay nada en juego—. */
+.header-directo.is-apagado:hover,
+.header-directo.is-apagado:focus-visible,
+.directo-off[open] .header-directo.is-apagado {
+  background: rgba(16, 21, 22, 0.09);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .directo-punto {
@@ -4965,6 +5014,83 @@ html.js .header-directo.is-vivo .directo-llama {
   }
   50% {
     scale: 1.12 1.18;
+  }
+}
+
+/*
+ * El aviso del chip apagado: el mismo bocadillo de «Pasos para apuntarse»
+ * —contorno de tinta, sombra dura y rabito— encogido a la cabecera. Es la única
+ * cosa del nav que no es un panel, y por eso va con rabito y algo torcida: es un
+ * recado, no un menú.
+ */
+.directo-aviso {
+  position: absolute;
+  top: calc(100% + 13px);
+  right: -2px;
+  z-index: 30;
+  width: max-content;
+  /*
+   * Cuelga del chip alineado a su borde derecho, así que crece hacia la
+   * izquierda: en móvil, donde el chip está a media pantalla, un bocadillo de
+   * 272px se sale por el lado izquierdo y `overflow-x: clip` del <html> le corta
+   * el contorno. El tope en vw es lo que lo impide sin depender del ancho del
+   * botón de menú que tiene al lado: más de media pantalla no coge.
+   */
+  max-width: min(272px, 54vw);
+  margin: 0;
+  padding: 11px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--foam);
+  box-shadow: 4px 5px 0 rgba(16, 21, 22, 0.16);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+  rotate: -1deg;
+}
+
+/* Rabito: triángulo de tinta con el relleno del bocadillo superpuesto encima,
+   para que del de tinta quede solo el contorno. */
+.directo-aviso::before,
+.directo-aviso::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.directo-aviso::before {
+  top: -15px;
+  right: 26px;
+  border-width: 0 11px 15px;
+  border-color: transparent transparent var(--ink);
+}
+
+.directo-aviso::after {
+  top: -11px;
+  right: 29px;
+  border-width: 0 8px 11px;
+  border-color: transparent transparent var(--foam);
+}
+
+/* Sale del rabito, que es de donde lo ha sacado quien lo ha pulsado. */
+html.js .directo-off[open] .directo-aviso {
+  animation: avisoPop 200ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: 88% 0;
+}
+
+@keyframes avisoPop {
+  from {
+    opacity: 0;
+    scale: 0.92;
+    translate: 0 -5px;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
   }
 }
 

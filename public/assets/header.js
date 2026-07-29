@@ -1,10 +1,12 @@
 /*
- * Comportamiento de la cabecera: cerrar el desplegable de «Torneo».
+ * Comportamiento de la cabecera: cerrar lo que se despliega en ella. Hoy son dos
+ * cosas, el desplegable de «Torneo» y el aviso del chip del directo apagado.
  *
- * El desplegable es un <details>, igual que el menú móvil, así que abre y cierra
- * sin JavaScript. Lo que falta sin JS es lo que un menú debe hacer y <details>
- * no hace solo: cerrarse al pulsar fuera y con Escape. Eso es todo lo que añade
- * este fichero — si no carga, el menú sigue funcionando.
+ * Los dos son <details>, igual que el menú móvil, así que abren y cierran sin
+ * JavaScript. Lo que falta sin JS es lo que <details> no hace solo: cerrarse al
+ * pulsar fuera y con Escape. Eso es todo lo que añade este fichero — si no carga,
+ * siguen funcionando. Por eso basta con marcar con `data-nav-drop` cualquier
+ * cosa nueva que se despliegue en la cabecera.
  */
 (() => {
   const desplegables = () => Array.from(document.querySelectorAll("[data-nav-drop]"));
