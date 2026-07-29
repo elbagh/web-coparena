@@ -39,15 +39,8 @@
   // Lo que se corona en el ranking. Ni partidos (no es mérito) ni errores.
   const RANKING = ["puntos", "remates", "bloqueos", "aces", "defensas"];
 
-  // Debe coincidir con ATRIBUTOS en functions/_lib/perfil.ts.
-  const ATRIBUTOS = [
-    { key: "saque", label: "Saque" },
-    { key: "remate", label: "Remate" },
-    { key: "bloqueo", label: "Bloqueo" },
-    { key: "defensa", label: "Defensa" },
-    { key: "recepcion", label: "Recepción" },
-    { key: "colocacion", label: "Colocación" }
-  ];
+  // La lista de atributos no se repite aquí: se le pasa a CopaCromo el objeto
+  // crudo de la API y es el cromo quien sabe sus etiquetas y abreviaturas.
 
   let jugadores = [];
   let edicion = null;
@@ -82,10 +75,20 @@
     );
   }
 
+  /**
+   * El mini-cromo de la rejilla: metal, remate, nota y retrato.
+   *
+   * **Los seis atributos no entran aquí y no es un olvido.** En un móvil la
+   * rejilla son dos columnas de unos 173px: dos columnas de `80 SAQ` dentro de
+   * ese ancho dejan unos 70px por celda, ilegibles. La rejilla enseña el metal,
+   * la nota y la posición; el desglose está a un toque, en la ficha.
+   */
   function cromoMini(j) {
-    const enlace = el("a", "album-cromo");
+    const nivel = j.nivel || "bronce";
+    const enlace = el("a", `album-cromo album-cromo--${nivel}`);
     enlace.href = `/jugadores/?j=${j.id}`;
     enlace.dataset.jugador = String(j.id);
+    enlace.appendChild(window.CopaCromo.corona(nivel));
 
     const foto = el("span", "album-cromo-foto");
     if (j.tieneFoto) {
@@ -99,6 +102,14 @@
       foto.classList.add("album-cromo-foto--hueco");
       foto.appendChild(el("span", "album-cromo-inicial", iniciales(j.nombre, j.apellidos)));
       foto.appendChild(el("span", "album-cromo-pegar", "Sin cromo"));
+    }
+
+    // Sin nota no se pinta un cero: a esa persona no la han puntuado todavía.
+    if (j.media != null || j.posicion) {
+      const nota = el("span", "album-cromo-nota");
+      if (j.media != null) nota.appendChild(el("span", "album-cromo-nota-valor", String(j.media)));
+      if (j.posicion) nota.appendChild(el("span", "album-cromo-nota-pos", j.posicion));
+      foto.appendChild(nota);
     }
     if (j.dorsal != null) foto.appendChild(el("span", "album-cromo-dorsal", String(j.dorsal)));
     enlace.appendChild(foto);
@@ -189,8 +200,6 @@
     const j = datos.jugador;
     const pal = datos.palmares || {};
     const carrera = tilesEstadisticas(datos.carrera);
-    const valores = j.atributos || {};
-    const conAtributos = ATRIBUTOS.filter((a) => valores[a.key] != null);
 
     const volver = el("a", "album-volver", "← Volver al álbum");
     volver.href = "/jugadores/";
@@ -204,12 +213,18 @@
     fichaWrap.appendChild(
       window.CopaCromo.crear({
         edicion: datos.edicion ? `${datos.edicion.nombre} · ${estadoTexto(datos.edicion.estado)}` : "La Copa Arena",
+        nivel: j.nivel,
+        media: j.media,
         dorsal: j.dorsal,
         nombre: nombreCompleto(j),
         apodo: j.apodo,
         posicion: j.posicion,
+        equipo: j.equipoNombre,
+        mano: j.mano,
         lema: j.lema,
-        chips: [j.posicion, j.mano, j.equipoNombre, j.esSuplente ? "Suplente" : null],
+        atributos: j.atributos,
+        // Posición, equipo y mano ya tienen hueco propio en la carta.
+        chips: [j.esSuplente ? "Suplente" : null],
         fotoUrl: j.tieneFoto ? `/api/jugadores?foto=${j.id}` : null,
         iniciales: iniciales(j.nombre, j.apellidos),
         bloques: [
@@ -227,11 +242,6 @@
             label: "En pista",
             tiles: carrera,
             texto: carrera.length ? null : "Sin estadísticas todavía."
-          },
-          {
-            label: "Atributos",
-            atributos: conAtributos.map((a) => ({ label: a.label, valor: valores[a.key] })),
-            texto: conAtributos.length ? null : "La organización aún no ha puntuado su juego."
           }
         ]
       })

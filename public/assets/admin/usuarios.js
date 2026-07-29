@@ -18,18 +18,15 @@
   const dialogo = document.querySelector("[data-usuario-dialog]");
   const form = dialogo?.querySelector("[data-usuario-form]");
   const banner = dialogo?.querySelector("[data-usuario-banner]");
-  const cajaAtributos = dialogo?.querySelector("[data-usuario-atributos]");
   const cajaResumen = dialogo?.querySelector("[data-usuario-resumen]");
 
-  const ATRIBUTOS = [
-    ["saque", "Saque"],
-    ["remate", "Remate"],
-    ["bloqueo", "Bloqueo"],
-    ["defensa", "Defensa"],
-    ["recepcion", "Recepción"],
-    ["colocacion", "Colocación"]
-  ];
-  const CAMPOS_PERFIL = ["apodo", "dorsal", "posicion", "mano", "lema"];
+  /*
+   * Aquí ya no se edita ninguna ficha de jugador. Esta página pintaba apodo,
+   * dorsal, posición, mano, lema y seis inputs de atributos que el servidor
+   * tiraba a la basura sin decir nada: la ficha cuelga del jugador de una
+   * edición, no de la cuenta de Google. Se editan en /admin/jugadores/ y en
+   * /admin/estadisticas/.
+   */
 
   let usuarios = [];
   let roles = [];
@@ -143,7 +140,7 @@
 
   function limpiarErrores() {
     setBanner("");
-    ["nombre", "rolId", ...CAMPOS_PERFIL].forEach((n) => setErrorCampo(n, ""));
+    ["nombre", "rolId"].forEach((n) => setErrorCampo(n, ""));
   }
 
   /** Rellena el desplegable de rol. «Sin acceso al panel» ya está en el HTML. */
@@ -159,26 +156,6 @@
       select.append(option);
     });
     select.value = rolActual == null ? "" : String(rolActual);
-  }
-
-  function pintarAtributos(valores) {
-    clear(cajaAtributos);
-    ATRIBUTOS.forEach(([clave, etiquetaTexto]) => {
-      const caja = el("div", "admin-field");
-      const label = document.createElement("label");
-      label.textContent = etiquetaTexto;
-      label.htmlFor = `usuario-attr-${clave}`;
-      const input = document.createElement("input");
-      input.id = `usuario-attr-${clave}`;
-      input.className = "admin-input";
-      input.type = "number";
-      input.min = "1";
-      input.max = "5";
-      input.dataset.usuarioAtributo = clave;
-      input.value = valores[clave] != null ? String(valores[clave]) : "";
-      caja.append(label, input);
-      cajaAtributos.append(caja);
-    });
   }
 
   /** Contexto de solo lectura: en qué equipos ha estado y qué ha reservado. */
@@ -229,11 +206,6 @@
 
     campo("nombre").value = enEdicion.nombre || "";
     pintarRoles(enEdicion.rolId);
-    CAMPOS_PERFIL.forEach((n) => {
-      const input = campo(n);
-      if (input) input.value = enEdicion.perfil?.[n] ?? "";
-    });
-    pintarAtributos(enEdicion.perfil?.atributos || {});
     pintarResumen(enEdicion);
 
     dialogo.showModal();
@@ -242,22 +214,9 @@
   dialogo?.querySelector("[data-usuario-guardar]")?.addEventListener("click", async () => {
     limpiarErrores();
 
-    const atributos = {};
-    cajaAtributos.querySelectorAll("[data-usuario-atributo]").forEach((input) => {
-      if (input.value !== "") atributos[input.dataset.usuarioAtributo] = Number(input.value);
-    });
-
     const datos = {
       nombre: limpiar(campo("nombre").value),
-      rolId: campo("rolId").value === "" ? null : Number(campo("rolId").value),
-      perfil: {
-        apodo: limpiar(campo("apodo").value),
-        dorsal: campo("dorsal").value,
-        posicion: campo("posicion").value,
-        mano: campo("mano").value,
-        lema: limpiar(campo("lema").value),
-        atributos
-      }
+      rolId: campo("rolId").value === "" ? null : Number(campo("rolId").value)
     };
 
     const guardar = dialogo.querySelector("[data-usuario-guardar]");

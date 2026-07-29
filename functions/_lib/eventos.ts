@@ -483,12 +483,12 @@ export async function soltarAnotacion(db: D1Database, partidoId: string): Promis
 export async function leerAlineacion(db: D1Database, partidoId: string): Promise<AlineacionFila[]> {
   const { results } = await db
     .prepare(
-      `SELECT a.jugador_id, a.lado, j.nombre, j.apellidos, p.dorsal
+      // El dorsal es del jugador desde la 0022: ya no hay que cruzarlo por
+      // correo con la cuenta de Google, y quien nunca inició sesión también lo
+      // lleva si la organización se lo puso.
+      `SELECT a.jugador_id, a.lado, j.nombre, j.apellidos, j.dorsal
          FROM partido_alineacion a
          JOIN jugadores j ON j.id = a.jugador_id
-         LEFT JOIN perfiles p ON p.usuario_id = (
-           SELECT u.id FROM usuarios u WHERE lower(trim(u.email)) = j.email_normalizado LIMIT 1
-         )
         WHERE a.partido_id = ?1
         ORDER BY a.lado ASC, a.orden ASC`
     )

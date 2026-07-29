@@ -33,6 +33,20 @@ export default defineConfig({
     name: "integration",
     root: import.meta.dirname,
     include: ["**/*.test.ts"],
-    setupFiles: ["./setup.ts"]
+    setupFiles: ["./setup.ts"],
+    /*
+     * Los 5 s que trae Vitest de serie son de un test unitario, y aquí no lo
+     * son: cada uno arranca workerd, aplica migraciones y habla con un D1 de
+     * verdad. Los pesados de `anotacion` y `torneo-admin` —anotar un partido
+     * punto a punto, generar una liga entera— rondan los 7 s en aislado y pasan
+     * de 15 s cuando la suite corre en paralelo, así que fallaban o no según la
+     * carga de la máquina.
+     *
+     * Subirlo no debilita ninguna aserción: solo deja de convertir la lentitud
+     * en un fallo intermitente. Si un test llega a 20 s es que se ha roto algo
+     * de verdad y hay que mirarlo.
+     */
+    testTimeout: 20000,
+    hookTimeout: 20000
   }
 });

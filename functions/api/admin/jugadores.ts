@@ -9,6 +9,11 @@
 // A diferencia del editor de equipo, aquí se trabaja jugador a jugador: es lo
 // que permite mover a alguien de equipo sin tener que reconstruir la plantilla
 // entera por los dos lados.
+//
+// Es también donde la organización rellena la **identidad del cromo** (apodo,
+// dorsal, posición, mano y lema), que desde la 0022 son columnas del jugador.
+// La **valoración** (los seis atributos y el metal) se pone en
+// /admin/estadisticas/.
 
 import {
   requirePermiso,
@@ -21,6 +26,7 @@ import {
 } from "../../_lib/admin";
 import { limpiarFotos, subirFoto, type ExtensionFoto } from "../../_lib/fotos";
 import { capitalizarPropio } from "../../_lib/nombres";
+import { NIVEL_POR_DEFECTO, validarPerfil, type FichaJugador } from "../../_lib/perfil";
 import {
   MAX_BODY_BYTES,
   MENSAJE_CAPITAN_CONTACTO,
@@ -124,7 +130,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
   }
 
   // La fila es nueva: nunca puede ser la que ya manda en un equipo.
-  const validado = validarJugador(valores);
+  const validado = validarJugadorYFicha(valores);
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
   const duplicados = await buscarDuplicados(env.DB, validado.jugador, null, equipo.edicion_id);
@@ -149,15 +155,17 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
     // desde el editor de equipo.
     const fila = await env.DB
       .prepare(
+        // `nivel` no se menciona: nace en bronce por el DEFAULT de la 0022.
         `INSERT INTO jugadores (
            equipo_id, nombre, apellidos, nombre_completo_normalizado,
            telefono, telefono_normalizado, email, email_normalizado,
-           red_social, foto_key, es_suplente, orden, edicion_id
+           red_social, foto_key, es_suplente, orden, edicion_id,
+           apodo, dorsal, posicion, mano, lema
          ) VALUES (
            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
            CASE WHEN (SELECT COUNT(*) FROM jugadores WHERE equipo_id = ?1) >= 2 THEN 1 ELSE 0 END,
            (SELECT COALESCE(MAX(orden), 0) + 1 FROM jugadores WHERE equipo_id = ?1),
-           ?11
+           ?11, ?12, ?13, ?14, ?15, ?16
          )
          RETURNING id`
       )
@@ -172,7 +180,12 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
         validado.jugador.emailNormalizado,
         validado.jugador.redSocial,
         claveFoto,
-        equipo.edicion_id
+        equipo.edicion_id,
+        validado.ficha.apodo,
+        validado.ficha.dorsal,
+        validado.ficha.posicion,
+        validado.ficha.mano,
+        validado.ficha.lema
       )
       .first<{ id: number }>();
 
@@ -206,7 +219,7 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   const esCapitan = Boolean(
     await env.DB.prepare("SELECT 1 FROM equipos WHERE capitan_jugador_id = ?1").bind(jugadorId).first()
   );
-  const validado = validarJugador(valores, { esCapitan });
+  const validado = validarJugadorYFicha(valores, { esCapitan });
   if ("campos" in validado) return jsonAdmin({ error: "Revisa los campos marcados.", campos: validado.campos }, 400);
 
   // Cambio de equipo: el jugador hereda la edición del equipo de destino y se
@@ -272,6 +285,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     claveNueva = null;
   }
 
+  // `nivel` no está aquí: el metal se pone en /admin/estadisticas/, y editar la
+  // identidad de alguien no debe devolverlo a bronce.
   const sets = [
     "nombre = ?1",
     "apellidos = ?2",
@@ -280,7 +295,12 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     "telefono_normalizado = ?5",
     "email = ?6",
     "email_normalizado = ?7",
-    "red_social = ?8"
+    "red_social = ?8",
+    "apodo = ?9",
+    "dorsal = ?10",
+    "posicion = ?11",
+    "mano = ?12",
+    "lema = ?13"
   ];
   const binds: (string | number | null)[] = [
     validado.jugador.nombre,
@@ -290,7 +310,12 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
     validado.jugador.telefonoNormalizado,
     validado.jugador.email,
     validado.jugador.emailNormalizado,
-    validado.jugador.redSocial
+    validado.jugador.redSocial,
+    validado.ficha.apodo,
+    validado.ficha.dorsal,
+    validado.ficha.posicion,
+    validado.ficha.mano,
+    validado.ficha.lema
   ];
   if (claveNueva !== undefined) {
     sets.push(`foto_key = ?${binds.length + 1}`);
@@ -369,6 +394,7 @@ async function cargarJugador(db: D1Database, id: number) {
     .prepare(
       `SELECT j.id, j.equipo_id, j.nombre, j.apellidos, j.telefono, j.email, j.red_social,
               j.foto_key, j.es_suplente, j.orden,
+              j.apodo, j.dorsal, j.posicion, j.mano, j.lema, j.nivel,
               e.nombre AS equipo_nombre, ed.anio AS edicion_anio
        FROM jugadores j
        LEFT JOIN equipos e ON e.id = j.equipo_id
@@ -376,15 +402,32 @@ async function cargarJugador(db: D1Database, id: number) {
        WHERE j.id = ?1`
     )
     .bind(id)
-    .first<JugadorRow & { equipo_nombre: string | null; edicion_anio: number | null }>();
+    .first<JugadorRow & FichaRow & { equipo_nombre: string | null; edicion_anio: number | null }>();
   if (!fila) return null;
 
+  // La ficha va aparte de `mapJugador`: esa la comparten /api/admin/equipos y
+  // /api/mi-equipo, y no hace falta engordar dos respuestas más.
   return {
     ...mapJugador(fila),
     equipoId: fila.equipo_id,
     equipoNombre: fila.equipo_nombre,
-    edicionAnio: fila.edicion_anio
+    edicionAnio: fila.edicion_anio,
+    apodo: fila.apodo,
+    dorsal: fila.dorsal,
+    posicion: fila.posicion,
+    mano: fila.mano,
+    lema: fila.lema,
+    nivel: fila.nivel ?? NIVEL_POR_DEFECTO
   };
+}
+
+interface FichaRow {
+  apodo: string | null;
+  dorsal: number | null;
+  posicion: string | null;
+  mano: string | null;
+  lema: string | null;
+  nivel: string | null;
 }
 
 interface FormularioJugador {
@@ -408,7 +451,21 @@ async function leerFormulario(request: Request): Promise<FormularioJugador | Res
   }
 
   const campos: Record<string, string | undefined> = {};
-  ["equipoId", "nombre", "apellidos", "telefono", "email", "redSocial"].forEach((clave) => {
+  [
+    "equipoId",
+    "nombre",
+    "apellidos",
+    "telefono",
+    "email",
+    "redSocial",
+    // Ficha del cromo. Llegan como texto del multipart; `validarPerfil` ya
+    // trata el dorsal como cadena y el vacío como «sin dato».
+    "apodo",
+    "dorsal",
+    "posicion",
+    "mano",
+    "lema"
+  ].forEach((clave) => {
     const valor = formData.get(clave);
     if (typeof valor === "string") campos[clave] = valor;
   });
@@ -436,6 +493,30 @@ interface JugadorSaneado {
   email: string | null;
   emailNormalizado: string | null;
   redSocial: string | null;
+}
+
+/**
+ * Contacto y ficha del cromo a la vez, **fundiendo los dos mapas de error**
+ * antes de responder: validados por separado, un apodo demasiado largo y un
+ * móvil mal escrito obligarían a guardar dos veces para enterarse de los dos.
+ */
+function validarJugadorYFicha(
+  valores: Record<string, string | undefined>,
+  opciones: { esCapitan?: boolean } = {}
+): { jugador: JugadorSaneado; ficha: FichaJugador } | { campos: Record<string, string> } {
+  const contacto = validarJugador(valores, opciones);
+  const ficha = validarPerfil(valores);
+
+  const campos = {
+    ...("campos" in contacto ? contacto.campos : {}),
+    ...("campos" in ficha ? ficha.campos : {})
+  };
+  if (Object.keys(campos).length > 0) return { campos };
+
+  return {
+    jugador: (contacto as { jugador: JugadorSaneado }).jugador,
+    ficha: (ficha as { perfil: FichaJugador }).perfil
+  };
 }
 
 /**

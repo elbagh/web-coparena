@@ -42,9 +42,20 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
           </div>
 
           <div class="admin-field">
-            <span class="admin-label">Atributos (1 a 5)</span>
-            <p class="admin-field-hint">Déjalo en blanco para no puntuar ese apartado.</p>
+            <span class="admin-label">Atributos (1 a 99)</span>
+            <p class="admin-field-hint">
+              Déjalo en blanco para no puntuar ese apartado. La nota del cromo es
+              la media de lo puntuado: <strong data-stats-media>—</strong>
+            </p>
             <div class="admin-form-grid" data-stats-atributos></div>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-label" for="stats-nivel">Nivel del cromo</label>
+            <p class="admin-field-hint">
+              Bronce por defecto. El nivel cambia la forma y el color de la carta.
+            </p>
+            <select class="admin-input" id="stats-nivel" data-stats-nivel></select>
           </div>
 
           <div class="admin-field">

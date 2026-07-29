@@ -143,15 +143,21 @@ describe("paridad entre team-form.js y validacion.ts", () => {
 });
 
 /*
- * Lo mismo con el álbum: players-list.js repite a mano la lista de métricas y la
- * de atributos porque tampoco puede importar del servidor. Si una crece y la
- * otra no, la ficha pública deja de pintar lo que la API devuelve.
+ * Lo mismo con el álbum: players-list.js repite a mano la lista de métricas
+ * porque tampoco puede importar del servidor. Si una crece y la otra no, la
+ * ficha pública deja de pintar lo que la API devuelve.
+ *
+ * La lista de **atributos** ya solo está en dos sitios: _lib/perfil.ts y
+ * cromo.js, que es quien pinta la rejilla 2×3. Antes estaba copiada cuatro
+ * veces en cliente; players-list.js y perfil.js le pasan ahora el objeto crudo
+ * de la API y no vuelven a declararla, y eso también se comprueba aquí.
  */
 
 const estadisticasTs = readFileSync(path.join(raiz, "functions/_lib/estadisticas.ts"), "utf8");
 const perfilTs = readFileSync(path.join(raiz, "functions/_lib/perfil.ts"), "utf8");
 const album = readFileSync(path.join(raiz, "public/assets/players-list.js"), "utf8");
 const miZona = readFileSync(path.join(raiz, "public/assets/perfil.js"), "utf8");
+const cromo = readFileSync(path.join(raiz, "public/assets/cromo.js"), "utf8");
 
 /** Claves de un array de objetos literales: `{ clave: "puntos", ... }`. */
 const claves = (fuente: string, patron: RegExp, campo: string): string[] => {
@@ -170,15 +176,51 @@ describe("paridad entre players-list.js y el servidor", () => {
     );
   });
 
-  it("comparte las claves de los atributos", () => {
-    const enServidor = extraer(perfilTs, /ATRIBUTOS = \[([^\]]+)\]/)
-      ?.split(",")
-      .map((s) => s.trim().replace(/"/g, ""));
-    const enAlbum = claves(album, /ATRIBUTOS = \[([\s\S]*?)\];/, "key");
-    const enMiZona = claves(miZona, /ATRIBUTOS = \[([\s\S]*?)\];/, "key");
+});
 
-    expect(enServidor).not.toBeNull();
-    expect(enAlbum, "players-list.js ha derivado de perfil.ts: los atributos ya no coinciden.").toEqual(enServidor);
-    expect(enMiZona, "perfil.js ha derivado de perfil.ts: los atributos ya no coinciden.").toEqual(enServidor);
+describe("paridad entre cromo.js y el servidor", () => {
+  const PATRON_SERVIDOR = /ATRIBUTOS: Atributo\[\] = \[([\s\S]*?)\];/;
+  const PATRON_CROMO = /ATRIBUTOS = \[([\s\S]*?)\];/;
+  const AVISO_ATRIBUTOS = "cromo.js ha derivado de perfil.ts: los atributos ya no coinciden.";
+
+  it("comparte las claves de los atributos, en el mismo orden", () => {
+    // El orden importa: es el que decide qué cae en cada hueco de la rejilla
+    // 2×3 del cromo.
+    const enServidor = claves(perfilTs, PATRON_SERVIDOR, "clave");
+    const enCromo = claves(cromo, PATRON_CROMO, "clave");
+
+    expect(enServidor.length).toBe(6);
+    expect(enCromo, AVISO_ATRIBUTOS).toEqual(enServidor);
+  });
+
+  it("comparte las etiquetas y las abreviaturas", () => {
+    // Las abreviaturas solo las pinta el cromo, pero el panel enseña las
+    // etiquetas que manda el servidor: si divergen, el mismo atributo se llama
+    // de dos formas según dónde se mire.
+    expect(claves(cromo, PATRON_CROMO, "etiqueta"), AVISO_ATRIBUTOS).toEqual(
+      claves(perfilTs, PATRON_SERVIDOR, "etiqueta")
+    );
+    expect(claves(cromo, PATRON_CROMO, "abrev"), AVISO_ATRIBUTOS).toEqual(
+      claves(perfilTs, PATRON_SERVIDOR, "abrev")
+    );
+  });
+
+  it("comparte los niveles del cromo", () => {
+    const lista = (fuente: string) =>
+      extraer(fuente, /NIVELES = \[([^\]]+)\]/)
+        ?.split(",")
+        .map((s) => s.trim().replace(/"/g, ""));
+
+    expect(lista(perfilTs)).toEqual(["bronce", "plata", "oro"]);
+    expect(lista(cromo), "cromo.js y perfil.ts ya no coinciden en los niveles.").toEqual(lista(perfilTs));
+  });
+
+  it("las páginas ya no repiten la lista de atributos", () => {
+    // Estaba copiada cuatro veces en cliente. Si alguien la vuelve a declarar
+    // aquí, vuelve la deriva silenciosa que este fichero existe para evitar.
+    expect(album, "players-list.js no debe declarar ATRIBUTOS: se la pide a CopaCromo.").not.toMatch(
+      /ATRIBUTOS\s*=\s*\[/
+    );
+    expect(miZona, "perfil.js no debe declarar ATRIBUTOS: se la pide a CopaCromo.").not.toMatch(/ATRIBUTOS\s*=\s*\[/);
   });
 });
