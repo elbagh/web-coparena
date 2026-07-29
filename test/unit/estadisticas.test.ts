@@ -3,10 +3,10 @@ import {
   estadisticasVacias,
   hayEstadisticas,
   mapEstadisticas,
-  MAX_METRICA,
   METRICAS,
+  METRICAS_PARTIDO,
   sumarTotales,
-  validarEstadisticas
+  SUMA_METRICAS
 } from "../../functions/_lib/estadisticas";
 
 describe("estadisticasVacias / mapEstadisticas", () => {
@@ -52,28 +52,27 @@ describe("hayEstadisticas", () => {
   });
 });
 
-describe("validarEstadisticas", () => {
-  it("acepta enteros dentro de rango y rellena el resto a cero", () => {
-    const resultado = validarEstadisticas({ puntos: 12, aces: "3" });
-    expect(resultado).toEqual({ estadisticas: { ...estadisticasVacias(), puntos: 12, aces: 3 } });
+describe("métricas derivadas", () => {
+  it("los partidos jugados se cuentan, no se suman", () => {
+    expect(SUMA_METRICAS).toContain("COUNT(DISTINCT e.partido_id) AS partidos_jugados");
+    expect(SUMA_METRICAS).not.toContain("SUM(e.partidos_jugados)");
   });
 
-  it("ignora los campos vacíos en vez de tratarlos como error", () => {
-    const resultado = validarEstadisticas({ puntos: "", aces: null, bloqueos: undefined });
-    expect(resultado).toEqual({ estadisticas: estadisticasVacias() });
+  it("las métricas de partido son las que tienen columna propia", () => {
+    expect(METRICAS_PARTIDO.map((m) => m.clave)).toEqual([
+      "puntos",
+      "remates",
+      "bloqueos",
+      "aces",
+      "defensas",
+      "errores"
+    ]);
   });
 
-  it("rechaza negativos, decimales y pasados de tope", () => {
-    // La clave del campo lleva un punto, así que se pasa como ruta en array:
-    // "campos.estadisticas.puntos" haría a Vitest buscar tres niveles.
-    const ruta = ["campos", "estadisticas.puntos"];
-    expect(validarEstadisticas({ puntos: -1 })).toHaveProperty(ruta);
-    expect(validarEstadisticas({ puntos: 1.5 })).toHaveProperty(ruta);
-    expect(validarEstadisticas({ puntos: MAX_METRICA + 1 })).toHaveProperty(ruta);
-  });
-
-  it("no se cuela nada que no sea una métrica conocida", () => {
-    const resultado = validarEstadisticas({ puntos: 1, sobornos: 99 });
-    expect("estadisticas" in resultado && resultado.estadisticas).not.toHaveProperty("sobornos");
+  it("la derivada conserva su columna, que es el alias del COUNT", () => {
+    const partidos = METRICAS.find((m) => m.clave === "partidosJugados")!;
+    expect(partidos.derivada).toBe(true);
+    expect(partidos.columna).toBe("partidos_jugados");
+    expect(mapEstadisticas({ partidos_jugados: 3 }).partidosJugados).toBe(3);
   });
 });
