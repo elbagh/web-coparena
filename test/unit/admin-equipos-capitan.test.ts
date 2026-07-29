@@ -85,6 +85,28 @@ const EQUIPO = {
   jugadores: [jugador(1, "Ana"), jugador(2, "Luis")]
 };
 
+const EQUIPO_SIN_CAPITAN = {
+  id: 8,
+  nombre: "Sin Capitán",
+  tieneFoto: false,
+  jugadoresTotal: 2,
+  capitanJugadorId: null,
+  capitanEmail: null,
+  jugadores: [jugador(1, "Ana"), jugador(2, "Luis")]
+};
+
+// Tres jugadores: los dos primeros son titulares, el tercero es suplente
+// (MIN_JUGADORES = 2 en equipos.js). El capitán es el suplente.
+const EQUIPO_CAPITAN_SUPLENTE = {
+  id: 9,
+  nombre: "Suplente al mando",
+  tieneFoto: false,
+  jugadoresTotal: 3,
+  capitanJugadorId: 3,
+  capitanEmail: "jugador3@example.com",
+  jugadores: [jugador(1, "Ana"), jugador(2, "Luis"), jugador(3, "Eva")]
+};
+
 const api = vi.fn();
 const cargadores: (() => unknown)[] = [];
 
@@ -229,5 +251,70 @@ describe("capitán en el editor del panel", () => {
     const banner = document.querySelector<HTMLElement>("[data-team-edit-banner]")!;
     expect(banner.hidden).toBe(false);
     expect(banner.textContent).toContain("capitán");
+  });
+
+  it("desmarca al capitán si se queda sin su propio contacto", async () => {
+    await abrirEditor();
+    expect(radio(1).checked).toBe(true);
+
+    escribir(1, "telefono", "");
+
+    expect(radio(1).checked).toBe(false);
+  });
+
+  it("un equipo sin capitán no preselecciona ningún radio y bloquea la revisión", async () => {
+    montar(EQUIPO_SIN_CAPITAN);
+    await abrirEditor();
+    expect(radio(0).checked).toBe(false);
+    expect(radio(1).checked).toBe(false);
+
+    document.querySelector<HTMLButtonElement>("[data-team-edit-review]")!.click();
+
+    const banner = document.querySelector<HTMLElement>("[data-team-edit-banner]")!;
+    expect(banner.hidden).toBe(false);
+    expect(banner.textContent).toContain("capitán");
+  });
+
+  it("preselecciona al capitán aunque esté en un hueco de suplente", async () => {
+    montar(EQUIPO_CAPITAN_SUPLENTE);
+    await abrirEditor();
+    expect(radio(0).checked).toBe(false);
+    expect(radio(1).checked).toBe(false);
+    expect(radio(2).checked).toBe(true);
+  });
+
+  it("bloquea la revisión si se quita la tarjeta del capitán", async () => {
+    montar(EQUIPO_CAPITAN_SUPLENTE);
+    await abrirEditor();
+    expect(radio(2).checked).toBe(true);
+
+    filas()[2]!.querySelector<HTMLButtonElement>("[data-remove]")!.click();
+
+    document.querySelector<HTMLButtonElement>("[data-team-edit-review]")!.click();
+
+    const banner = document.querySelector<HTMLElement>("[data-team-edit-banner]")!;
+    expect(banner.hidden).toBe(false);
+    expect(banner.textContent).toContain("capitán");
+  });
+
+  it("mantiene el capitán en el mismo jugador tras reordenar", async () => {
+    await abrirEditor();
+    radio(0).checked = true;
+    radio(0).dispatchEvent(new Event("change"));
+
+    filas()[0]!.querySelector<HTMLButtonElement>("[data-move-down]")!.click();
+    // Tras bajar a Ana (id 1), el orden es [Luis, Ana]: el radio marcado
+    // viaja con el nodo, así que ahora debe ser el de la segunda fila.
+    expect(radio(0).checked).toBe(false);
+    expect(radio(1).checked).toBe(true);
+
+    document.querySelector<HTMLButtonElement>("[data-team-edit-review]")!.click();
+    document.querySelector<HTMLButtonElement>("[data-team-edit-confirm]")!.click();
+
+    await vi.waitFor(() => expect(api).toHaveBeenCalled());
+    const [, opciones] = api.mock.calls.at(-1)!;
+    const payload = JSON.parse(String((opciones.body as FormData).get("payload")));
+    expect(payload.capitan).toBe(1);
+    expect(payload.jugadores[payload.capitan].id).toBe(1);
   });
 });
