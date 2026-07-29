@@ -177,6 +177,8 @@ export interface OpcionesPartido {
   ronda?: string;
   equipoA?: EquipoSembrado;
   equipoB?: EquipoSembrado;
+  /** Por defecto, la edición actual. Se pasa para sembrar histórico. */
+  edicionId?: number;
 }
 
 /**
@@ -187,7 +189,9 @@ export interface OpcionesPartido {
 export async function crearPartido(opciones: OpcionesPartido = {}): Promise<string> {
   const id = crypto.randomUUID();
   const edicionId =
-    (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())?.id ?? null;
+    opciones.edicionId ??
+    (await env.DB.prepare("SELECT id FROM ediciones WHERE es_actual = 1").first<{ id: number }>())?.id ??
+    null;
 
   await env.DB.prepare(
     `INSERT INTO partidos (

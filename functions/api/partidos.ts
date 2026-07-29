@@ -15,6 +15,16 @@ type Env = AdminEnv;
 
 const ESTADOS: PartidoEstado[] = ["scheduled", "live", "finished"];
 
+/**
+ * El cuadro es siempre el de la edición que se está jugando. Este fragmento va
+ * en todo lo que lista, sortea o borra en bloque: sin él, rehacer el cuadro de
+ * un año arrasaba con los partidos de todos los anteriores y, por el
+ * ON DELETE CASCADE de estadisticas.partido_id, con el histórico estadístico de
+ * quien ya había jugado. El alta ya escribía la edición; lo que faltaba era
+ * leerla.
+ */
+const EDICION_ACTUAL = "(SELECT id FROM ediciones WHERE es_actual = 1)";
+
 type PartidoEstado = "scheduled" | "live" | "finished";
 type Lado = "A" | "B";
 
@@ -218,7 +228,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
   try {
     if (url.searchParams.get("todos") === "1") {
-      await env.DB.prepare("DELETE FROM partidos").run();
+      await env.DB.prepare(`DELETE FROM partidos WHERE edicion_id = ${EDICION_ACTUAL}`).run();
       return jsonAdmin({ ok: true, partidos: [] });
     }
 
@@ -281,6 +291,7 @@ async function listarPartidos(db: D1Database) {
   const { results } = await db
     .prepare(
       `SELECT * FROM partidos
+       WHERE edicion_id = ${EDICION_ACTUAL}
        ORDER BY COALESCE(scheduled_at, '9999-12-31T23:59'), sort_order ASC, created_at ASC`
     )
     .all<PartidoRow>();
@@ -294,7 +305,11 @@ async function obtenerPartido(db: D1Database, id: string) {
 
 async function sortearDesdeDb(db: D1Database) {
   const { results } = await db
-    .prepare("SELECT id, nombre FROM equipos ORDER BY created_at ASC, id ASC")
+    .prepare(
+      `SELECT id, nombre FROM equipos
+       WHERE edicion_id = ${EDICION_ACTUAL}
+       ORDER BY created_at ASC, id ASC`
+    )
     .all<EquipoRow>();
   return crearEmparejamientos(results.map((equipo) => ({ id: equipo.id, name: equipo.nombre })));
 }
@@ -302,7 +317,7 @@ async function sortearDesdeDb(db: D1Database) {
 async function reemplazarPartidos(db: D1Database, partidos: ReturnType<typeof crearEmparejamientos>) {
   const now = new Date().toISOString();
   const statements = [
-    db.prepare("DELETE FROM partidos"),
+    db.prepare(`DELETE FROM partidos WHERE edicion_id = ${EDICION_ACTUAL}`),
     ...partidos.map((partido, index) =>
       db
         .prepare(

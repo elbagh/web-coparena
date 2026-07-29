@@ -7,7 +7,16 @@ import {
   onRequestPost
 } from "../../functions/api/partidos";
 import { ctx } from "../helpers/ctx";
-import { cookieSesion, crearAdmin, crearUsuario, peticion } from "../helpers/db";
+import {
+  cookieSesion,
+  crearAdmin,
+  crearEdicion,
+  crearEquipo,
+  crearEstadistica,
+  crearPartido as sembrarPartido,
+  crearUsuario,
+  peticion
+} from "../helpers/db";
 import type { UsuarioSesion } from "../../functions/_lib/auth";
 
 /*
@@ -161,6 +170,105 @@ describe("alta y borrado de partidos como admin", () => {
     const request = await peticion(`/api/partidos?id=${partido!.id}`, { method: "DELETE", user: admin });
     expect((await onRequestDelete(ctx(request, env))).status).toBe(200);
     expect(await listar()).toHaveLength(0);
+  });
+});
+
+/*
+ * El cuadro es de la edición que se está jugando. Antes no lo era: el listado,
+ * el sorteo y los dos borrados iban a por la tabla entera, así que rehacer el
+ * cuadro de un año borraba los partidos de todos los anteriores y, por el
+ * ON DELETE CASCADE de estadisticas.partido_id, se llevaba por delante el
+ * histórico estadístico de quien ya había jugado.
+ */
+describe("el cuadro está acotado a la edición actual", () => {
+  /**
+   * Una edición pasada completa: dos equipos, su partido y las estadísticas
+   * colgando de él. Son **dos** equipos a propósito: con uno solo, un sorteo sin
+   * filtrar vería tres equipos y descartaría uno al azar, así que el test pasaría
+   * o fallaría según la moneda. Con dos, sin filtrar salen dos cruces y con
+   * filtro sale exactamente uno.
+   */
+  async function sembrarHistorico() {
+    const edicion = await crearEdicion({ anio: 2025 });
+    const equipos = [
+      await crearEquipo({ nombre: "Veteranos 2025", edicionId: edicion.id }),
+      await crearEquipo({ nombre: "Nostálgicos 2025", edicionId: edicion.id })
+    ];
+    const partidoId = await sembrarPartido({ ronda: "Final 2025", edicionId: edicion.id });
+    await crearEstadistica(equipos[0]!.jugadores[0]!.id, partidoId, { puntos: 12, aces: 3 });
+    return { edicion, equipos, partidoId };
+  }
+
+  const cuantosPartidos = async () =>
+    (await env.DB.prepare("SELECT COUNT(*) AS n FROM partidos").first<{ n: number }>())!.n;
+  const cuantasEstadisticas = async () =>
+    (await env.DB.prepare("SELECT COUNT(*) AS n FROM estadisticas").first<{ n: number }>())!.n;
+
+  it("el listado público no mezcla ediciones", async () => {
+    await sembrarHistorico();
+    const admin = await crearAdmin();
+    await crearPartido(admin);
+
+    const partidos = await listar();
+    expect(partidos).toHaveLength(1);
+    expect(partidos[0]!.teams.A.name).toBe("Delfines");
+  });
+
+  it("vaciar el cuadro no toca los partidos de otra edición ni sus estadísticas", async () => {
+    const { partidoId } = await sembrarHistorico();
+    const admin = await crearAdmin();
+    await crearPartido(admin);
+    expect(await cuantosPartidos()).toBe(2);
+
+    const request = await peticion("/api/partidos?todos=1", { method: "DELETE", user: admin });
+    expect((await onRequestDelete(ctx(request, env))).status).toBe(200);
+
+    expect(await listar()).toHaveLength(0);
+    expect(await cuantosPartidos()).toBe(1);
+    expect(await cuantasEstadisticas()).toBe(1);
+    const superviviente = await env.DB
+      .prepare("SELECT id FROM partidos")
+      .first<{ id: string }>();
+    expect(superviviente!.id).toBe(partidoId);
+  });
+
+  it("el sorteo no arrasa con las ediciones anteriores", async () => {
+    const { partidoId } = await sembrarHistorico();
+    const admin = await crearAdmin();
+    await crearEquipo({ nombre: "Delfines" });
+    await crearEquipo({ nombre: "Gaviotas" });
+
+    const request = await peticion("/api/partidos", {
+      method: "POST",
+      user: admin,
+      json: { action: "draw" }
+    });
+    expect((await onRequestPost(ctx(request, env))).status).toBe(201);
+
+    expect(await cuantasEstadisticas()).toBe(1);
+    const ids = await env.DB.prepare("SELECT id FROM partidos").all<{ id: string }>();
+    expect(ids.results.map((fila) => fila.id)).toContain(partidoId);
+  });
+
+  it("el sorteo desde la base solo empareja equipos de la edición actual", async () => {
+    // El histórico aporta un equipo más: si el sorteo lo cogiera, saldrían dos
+    // cruces en vez de uno, y uno de ellos con gente que ya no juega.
+    await sembrarHistorico();
+    const admin = await crearAdmin();
+    await crearEquipo({ nombre: "Delfines" });
+    await crearEquipo({ nombre: "Gaviotas" });
+
+    const request = await peticion("/api/partidos", {
+      method: "POST",
+      user: admin,
+      json: { action: "draw" }
+    });
+    await onRequestPost(ctx(request, env));
+
+    const partidos = await listar();
+    expect(partidos).toHaveLength(1);
+    const nombres = [partidos[0]!.teams.A.name, partidos[0]!.teams.B.name].sort();
+    expect(nombres).toEqual(["Delfines", "Gaviotas"]);
   });
 });
 
