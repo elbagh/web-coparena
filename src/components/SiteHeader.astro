@@ -1,13 +1,44 @@
 ---
 import LogoMark from "./LogoMark.astro";
 
-const navItems = [
+/*
+ * «Torneo» es un desplegable porque debajo cuelgan dos cosas distintas: lo que
+ * pasa (el cuadro, que cambia cada partido) y lo que está pactado (premios y
+ * reglas, que no cambia). Meterlas como dos entradas sueltas dejaría el nav en
+ * seis enlaces y no diría que son la misma cosa.
+ */
+interface Enlace {
+  href: string;
+  label: string;
+  /** Solo dentro de un desplegable, donde hay sitio para explicarse. */
+  pista?: string;
+}
+
+interface Desplegable {
+  label: string;
+  hijos: Enlace[];
+}
+
+type Entrada = Enlace | Desplegable;
+
+const esDesplegable = (item: Entrada): item is Desplegable => "hijos" in item;
+
+const navItems: Entrada[] = [
   { href: "/donde-estamos/", label: "Dónde estamos" },
-  { href: "/competicion/", label: "Competición" },
+  {
+    label: "Torneo",
+    hijos: [
+      { href: "/torneo/", label: "El cuadro", pista: "Calendario, resultados y clasificación" },
+      { href: "/torneo/premios/", label: "Premios y reglas", pista: "El reparto del bote y cómo se juega" }
+    ]
+  },
   { href: "/equipos/", label: "Equipos" },
   { href: "/jugadores/", label: "Jugadores" },
   { href: "/camisetas/", label: "Camisetas" }
 ];
+
+/** Aplanado para el menú móvil, donde un desplegable dentro de otro no aporta nada. */
+const navPlanos: Enlace[] = navItems.flatMap((item) => (esDesplegable(item) ? item.hijos : [item]));
 ---
 
 <div class="header-backdrop" aria-hidden="true"></div>
@@ -28,8 +59,56 @@ const navItems = [
   </a>
 
   <nav class="nav-links" aria-label="Navegación principal">
-    {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
+    {
+      navItems.map((item) =>
+        esDesplegable(item) ? (
+          <details class="nav-drop" data-nav-drop>
+            <summary>
+              {item.label}
+              <svg class="nav-drop-flecha" viewBox="0 0 12 8" aria-hidden="true">
+                <path d="M1 1.5 L6 6.5 L11 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </summary>
+            <div class="nav-drop-panel">
+              {item.hijos.map((hijo) => (
+                <a href={hijo.href}>
+                  <strong>{hijo.label}</strong>
+                  <span>{hijo.pista}</span>
+                </a>
+              ))}
+            </div>
+          </details>
+        ) : (
+          <a href={item.href}>{item.label}</a>
+        )
+      )
+    }
   </nav>
+
+  {/*
+    El botón del directo son DOS elementos, no uno deshabilitado: un <a>
+    deshabilitado no existe en HTML y seguiría siendo enfocable y clicable con
+    teclado. Apagado es un <span> inerte; encendido es un enlace de verdad.
+
+    Y cuando está encendido enseña el marcador, no la palabra «directo»: el
+    marcador es lo que uno quiere saber, así que la información hace de efecto en
+    vez de llevar uno pegado.
+  */}
+  <span class="header-directo is-apagado" data-directo-apagado>
+    <span class="directo-punto" aria-hidden="true"></span>
+    <span>Sin partido</span>
+  </span>
+
+  <a class="header-directo is-vivo" href="/torneo/#directo" data-directo-vivo hidden aria-live="polite">
+    <svg class="directo-llama" viewBox="0 0 16 20" aria-hidden="true">
+      <path
+        d="M8 0.6c.6 3.2-1.3 4.4-2.9 6C3.2 8.5 2 10.2 2 12.6 2 16.4 4.7 19.4 8 19.4s6-3 6-6.8c0-2.9-1.6-4.6-3.1-6.4-.5.9-1.2 1.5-2 1.8.6-2.7.2-5.4-.9-7.4Z"
+        fill="currentColor"
+      />
+      <path d="M8 19.4c-1.8 0-3.2-1.6-3.2-3.6 0-1.9 1.5-2.8 2.3-4.3.8 1.3 2.1 2.2 2.1 3.6 0 1.4-.6 2.3-1.2 2.9Z" fill="var(--sun)" />
+    </svg>
+    <span class="directo-texto" data-directo-texto>En directo</span>
+  </a>
 
   <div class="header-join-wrap">
     <a class="header-join" href="/mi-equipo/">
@@ -67,7 +146,7 @@ const navItems = [
       <span>Menú</span>
     </summary>
     <nav class="mobile-menu-panel" aria-label="Navegación móvil">
-      {navItems.map((item) => <a href={item.href}>{item.label}</a>)}
+      {navPlanos.map((item) => <a href={item.href}>{item.label}</a>)}
       <a class="mobile-menu-join" href="/mi-equipo/">Mi zona</a>
       <p class="mobile-menu-session" data-auth-logged-in hidden>
         Sesión iniciada como <strong data-auth-user-name></strong>

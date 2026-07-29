@@ -2,7 +2,7 @@ export const event = {
   name: "La Copa Arena",
   claim: "El mejor campeonato de volley playa de O Pozo. Hecho para el disfrute del público.",
   // Fuente única de las fechas del torneo: las dos fases. Todo lo demás
-  // (Hero, /competicion/, copy de la portada, JSON-LD SportsEvent) deriva de
+  // (Hero, /torneo/premios/, copy de la portada, JSON-LD SportsEvent) deriva de
   // aquí para no duplicar. `startISO`/`endISO` alimentan los datos estructurados.
   phases: [
     { label: "Fase de grupos", dates: "31 Jul - 2 Ago", startISO: "2026-07-31", endISO: "2026-08-02" },

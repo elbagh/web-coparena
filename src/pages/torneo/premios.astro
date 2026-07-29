@@ -1,20 +1,20 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
-import SiteHeader from "../components/SiteHeader.astro";
-import SiteFooter from "../components/SiteFooter.astro";
-import SectionHeading from "../components/SectionHeading.astro";
-import SceneForest from "../components/SceneForest.astro";
-import SceneHorizon from "../components/SceneHorizon.astro";
-import Trofeo from "../components/Trofeo.astro";
-import Podio from "../components/Podio.astro";
-import { premiosSecundarios, competicion, inscripcion } from "../data/event";
-import { breadcrumb } from "../data/seo";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import SiteFooter from "../../components/SiteFooter.astro";
+import SectionHeading from "../../components/SectionHeading.astro";
+import SceneForest from "../../components/SceneForest.astro";
+import SceneHorizon from "../../components/SceneHorizon.astro";
+import Trofeo from "../../components/Trofeo.astro";
+import Podio from "../../components/Podio.astro";
+import { premiosSecundarios, competicion, inscripcion } from "../../data/event";
+import { breadcrumb } from "../../data/seo";
 
-const structuredData = [breadcrumb([{ name: "Premios y Competición", path: "/competicion/" }])];
+const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }, { name: "Premios y reglas", path: "/torneo/premios/" }])];
 ---
 
 <BaseLayout
-  title="Premios y Competición | La Copa Arena"
+  title="Premios y reglas | La Copa Arena"
   description="El 100% de lo recaudado se reparte en premios. Reparto del bote, premios secundarios y formato del torneo: fase de grupos y fase final de La Copa Arena."
   structuredData={structuredData}
 >
@@ -22,8 +22,8 @@ const structuredData = [breadcrumb([{ name: "Premios y Competición", path: "/co
 
   <main class="legal-page premios-page">
     <section class="legal-hero">
-      <p class="eyebrow reveal">Premios y Competición</p>
-      <h1 class="reveal" style="--reveal-delay: 90ms">Premios y Competición</h1>
+      <p class="eyebrow reveal">Torneo</p>
+      <h1 class="reveal" style="--reveal-delay: 90ms">Premios y reglas</h1>
       <p class="reveal" style="--reveal-delay: 180ms">
         Aquí juegas por algo de verdad: el bote entero vuelve a la arena. Esto es qué se gana y
         cómo funciona el torneo.
@@ -122,7 +122,7 @@ const structuredData = [breadcrumb([{ name: "Premios y Competición", path: "/co
       </p>
       <div class="hero-actions cta-actions reveal" style="--reveal-delay: 270ms">
         <a class="button button-primary" href={inscripcion.url}>Inscribir equipo</a>
-        <a class="button button-secondary" href="/equipos/">Ver equipos</a>
+        <a class="button button-secondary" href="/torneo/">Ver el cuadro</a>
       </div>
     </div>
   </section>

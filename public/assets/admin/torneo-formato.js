@@ -165,13 +165,13 @@
       caja.append(el("p", "admin-hint", resumenDeReglas(grupo.reglas, "eliminatoria", 0)));
     }
 
-    caja.append(chipsDeEquipos(fase, grupo), selectorDeEquipo(fase, grupo));
+    caja.append(chipsDeEquipos(grupo), selectorDeEquipo(fase, grupo));
     if (grupo.equipos.length > 0) caja.append(tablaClasificacion(grupo));
 
     return caja;
   }
 
-  function chipsDeEquipos(fase, grupo) {
+  function chipsDeEquipos(grupo) {
     const lista = el("ul", "torneo-chips");
     if (grupo.equipos.length === 0) {
       lista.append(el("li", "admin-hint", "Sin equipos todavía."));

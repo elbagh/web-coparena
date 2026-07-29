@@ -159,7 +159,9 @@ html.ver-como body {
   left: 50%;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* marca | enlaces | directo | Mi zona. El botón del directo es una columna
+     propia: metido en la del CTA, «Mi zona» se caía a una segunda línea. */
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   width: min(1120px, calc(100% - 32px));
   min-height: 64px;
@@ -3681,6 +3683,20 @@ html.js .reveal.in-view {
     font-size: 0.84rem;
   }
 
+  .nav-drop > summary {
+    font-size: 0.87rem;
+    padding: 6px 10px;
+  }
+
+  .header-directo {
+    font-size: 0.78rem;
+    padding: 5px 11px;
+  }
+
+  .header-directo.is-vivo {
+    font-size: 0.84rem;
+  }
+
   .header-join {
     min-height: 38px;
     padding: 8px 15px 9px;
@@ -4082,7 +4098,9 @@ html.js .reveal.in-view {
 
 @media (max-width: 900px) {
   .site-header {
-    grid-template-columns: 1fr auto;
+    /* Los enlaces y el CTA se van al menú, pero el directo se queda: es lo
+       primero que se mira desde la playa. */
+    grid-template-columns: 1fr auto auto;
   }
 
   .nav-links {
@@ -4620,6 +4638,368 @@ button.bracket-match {
 
 }
 
+
+
+/* ------------------------- torneo: nav y directo -------------------------- */
+
+/*
+ * «Torneo» despliega porque debajo cuelgan dos cosas distintas: lo que pasa (el
+ * cuadro) y lo que está pactado (premios y reglas). Es un <details>, igual que
+ * el menú móvil: sin JS abre y cierra, y el script solo añade cerrarlo al
+ * pulsar fuera o con Escape.
+ */
+.nav-drop {
+  position: relative;
+}
+
+.nav-drop > summary {
+  align-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 5px;
+  list-style: none;
+  padding: 7px 13px;
+  white-space: nowrap;
+}
+
+.nav-drop > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-drop > summary:hover,
+.nav-drop[open] > summary {
+  background: rgba(28, 143, 148, 0.12);
+  color: var(--deep);
+}
+
+.nav-drop-flecha {
+  height: 7px;
+  transition: rotate 0.18s ease;
+  width: 10px;
+}
+
+.nav-drop[open] .nav-drop-flecha {
+  rotate: 180deg;
+}
+
+.nav-drop-panel {
+  background: var(--foam);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 4px 5px 0 rgba(16, 21, 22, 0.16);
+  display: grid;
+  gap: 2px;
+  left: 0;
+  margin-top: 10px;
+  min-width: 250px;
+  padding: 7px;
+  position: absolute;
+  top: 100%;
+  z-index: 30;
+}
+
+.nav-drop-panel a {
+  border-radius: 9px;
+  display: grid;
+  gap: 1px;
+  padding: 8px 11px;
+}
+
+.nav-drop-panel a:hover,
+.nav-drop-panel a:focus-visible {
+  background: var(--dune);
+}
+
+.nav-drop-panel strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.nav-drop-panel span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+/*
+ * El botón del directo. Apagado y encendido son dos elementos distintos: un <a>
+ * deshabilitado no existe en HTML y seguiría siendo enfocable con teclado.
+ */
+.header-directo {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 6px;
+  letter-spacing: 0.01em;
+  padding: 6px 13px;
+  white-space: nowrap;
+}
+
+.header-directo.is-apagado {
+  background: rgba(16, 21, 22, 0.05);
+  border: 1.5px solid var(--line);
+  color: var(--muted);
+  cursor: default;
+  user-select: none;
+}
+
+.directo-punto {
+  background: var(--muted);
+  border-radius: 50%;
+  height: 7px;
+  opacity: 0.6;
+  width: 7px;
+}
+
+.header-directo.is-vivo {
+  background: linear-gradient(115deg, var(--coral) 0%, #ff9138 100%);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  padding: 5px 13px;
+}
+
+.header-directo.is-vivo:hover,
+.header-directo.is-vivo:focus-visible {
+  box-shadow: 5px 6px 0 var(--ink);
+  translate: 0 -2px;
+}
+
+.directo-llama {
+  height: 17px;
+  width: 14px;
+}
+
+/* La llama respira; el botón entero no. Un botón que late es difícil de leer. */
+html.js .header-directo.is-vivo .directo-llama {
+  animation: llama 1.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+@keyframes llama {
+  0%,
+  100% {
+    scale: 1 1;
+  }
+  50% {
+    scale: 1.12 1.18;
+  }
+}
+
+/* -------------------------- torneo: la página ----------------------------- */
+
+.torneo-page {
+  padding-bottom: 40px;
+}
+
+/*
+ * El directo manda mientras hay alguien en pista, y se encoge a una línea
+ * cuando no. Nada de reservar un hueco grande para un mensaje de «no hay nada».
+ */
+.directo-panel {
+  background: var(--dusk);
+  border-radius: 20px;
+  color: var(--foam);
+  margin: 0 auto 26px;
+  max-width: 760px;
+  padding: 18px 20px;
+  text-align: center;
+}
+
+.directo-vacio {
+  color: rgba(255, 248, 233, 0.72);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.directo-marcador + .directo-marcador {
+  border-top: 1px solid rgba(255, 248, 233, 0.16);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.directo-ronda {
+  color: var(--aqua);
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.directo-cruce {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto auto auto 1fr;
+}
+
+.directo-equipo {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.directo-puntos {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 11vw, 3.6rem);
+  line-height: 1;
+}
+
+.directo-separador {
+  color: rgba(255, 248, 233, 0.4);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+}
+
+.directo-detalle,
+.directo-sets {
+  color: rgba(255, 248, 233, 0.66);
+  font-size: 0.8rem;
+  margin: 6px 0 0;
+}
+
+.directo-refrescar {
+  margin-top: 12px;
+}
+
+.torneo-seccion {
+  margin: 0 auto 32px;
+  max-width: 900px;
+}
+
+.torneo-seccion h2 {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  margin: 0 0 4px;
+}
+
+.torneo-seccion h3 {
+  font-size: 1.05rem;
+  margin: 22px 0 8px;
+}
+
+.torneo-nota {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 6px 0 0;
+}
+
+.torneo-tabla-scroll {
+  overflow-x: auto;
+}
+
+.torneo-tabla {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 380px;
+  width: 100%;
+}
+
+.torneo-tabla th,
+.torneo-tabla td {
+  border-bottom: 1px solid var(--line);
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.torneo-tabla thead th {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.torneo-tabla .is-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.torneo-tabla td:nth-child(2) {
+  width: 100%;
+}
+
+/* Quién pasa de ronda es la lectura principal de una clasificación. */
+.torneo-tabla tbody tr.is-clasificado {
+  background: rgba(183, 230, 91, 0.18);
+}
+
+.torneo-tabla tbody tr.is-clasificado td:first-child {
+  box-shadow: inset 3px 0 0 var(--sea);
+  font-weight: 800;
+}
+
+.torneo-partidos {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.torneo-partido {
+  background: var(--foam);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 13px;
+}
+
+.torneo-partido.is-live {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 2px rgba(255, 107, 74, 0.18);
+}
+
+.torneo-partido-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  gap: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.torneo-partido-cruce {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto 1fr;
+  margin-top: 4px;
+}
+
+.torneo-partido-equipo {
+  font-weight: 600;
+}
+
+.torneo-partido-equipo:last-child {
+  text-align: right;
+}
+
+.torneo-partido-equipo.is-ganador {
+  color: var(--deep);
+  font-weight: 800;
+}
+
+.torneo-partido-marcador {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.torneo-partido-sets {
+  color: var(--muted);
+  font-size: 0.76rem;
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.torneo-cuadro {
+  margin-top: 14px;
+  overflow-x: auto;
+}
 
 /* ----------------------------- reduced motion ------------------------------ */
 
