@@ -90,6 +90,10 @@
     enlace.dataset.jugador = String(j.id);
     enlace.appendChild(window.CopaCromo.corona(nivel));
 
+    // Mismo despiece que la carta grande: remate, cuerpo y punta. El cuerpo es
+    // el que lleva los bordes laterales; los otros dos traen el suyo en el SVG.
+    const cuerpo = el("span", "album-cromo-cuerpo");
+
     const foto = el("span", "album-cromo-foto");
     if (j.tieneFoto) {
       const img = el("img");
@@ -112,13 +116,16 @@
       foto.appendChild(nota);
     }
     if (j.dorsal != null) foto.appendChild(el("span", "album-cromo-dorsal", String(j.dorsal)));
-    enlace.appendChild(foto);
+    cuerpo.appendChild(foto);
 
     const pie = el("span", "album-cromo-pie");
     pie.appendChild(el("span", "album-cromo-nombre", nombreCompleto(j)));
     pie.appendChild(el("span", "album-cromo-equipo", j.equipoNombre));
     if (j.apodo) pie.appendChild(el("span", "album-cromo-apodo", `«${j.apodo}»`));
-    enlace.appendChild(pie);
+    cuerpo.appendChild(pie);
+
+    enlace.appendChild(cuerpo);
+    enlace.appendChild(window.CopaCromo.punta());
 
     return enlace;
   }

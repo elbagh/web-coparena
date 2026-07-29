@@ -60,39 +60,103 @@
 
   const NIVELES = ["bronce", "plata", "oro"];
 
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
   /*
-   * El remate superior de la carta, distinto por nivel. No es la muesca de FIFA
-   * calcada: son las siluetas del sitio, que suben con el metal — la duna de la
-   * playa, el perfil de Monte Louro (el mismo ángulo que el logo y que
-   * SceneHorizon) y Monte Louro con su cima. Así el nivel se reconoce por la
-   * forma además de por el color.
+   * La carta no es un rectángulo: lleva arriba los dos cuernos de una carta
+   * coleccionable y termina abajo en punta. Eso son dos SVG, uno en cada
+   * extremo, con el cuerpo — el único tramo que crece con el contenido — entre
+   * medias. Partirlo en tres franjas es lo que permite que una ficha con
+   * palmarés y otra sin él midan distinto sin deformar ni el arco ni la punta.
    *
-   * Las verticales van en x=1.5 y x=298.5 para que el trazo de 3px caiga justo
-   * encima de los 3px de borde lateral de la carta, en vez de salirse del
-   * viewBox y desaparecer. El fondo del path baja hasta y=64, por debajo del
-   * viewBox (54), para que el recorte se coma el cierre y no quede costura.
+   * **No hay `clip-path` ni `mask` en ninguna parte, y es a propósito**: los dos
+   * recortan el filo de tinta y la sombra dura desplazada, que son la casa. Aquí
+   * el filo es un trazo dentro del propio SVG, y la sombra la da un
+   * `drop-shadow` sobre la carta entera, que sí sigue el contorno real.
+   *
+   * Cada relleno se sale del viewBox por el lado que hace de costura (el remate
+   * baja hasta y=80 sobre un viewBox de 80; la punta arranca en y=-6) para que
+   * el recorte se coma el cierre del path y no quede junta con el cuerpo. El
+   * filo se traza aparte, y solo por donde se ve.
    */
-  const CORONAS = {
-    bronce:
-      "M1.5,64 L1.5,42 Q3,27 22,26 C62,17 108,22 133,35 Q150,43 167,35 C192,22 238,17 278,26 Q297,27 298.5,42 L298.5,64 Z",
-    plata: "M1.5,64 L1.5,38 L22,20 L86,6 L150,48 L214,6 L278,20 L298.5,38 L298.5,64 Z",
-    oro: "M1.5,64 L1.5,38 L22,20 L86,4 L126,42 L150,10 L174,42 L214,4 L278,20 L298.5,38 L298.5,64 Z"
+  const REMATE_FONDO =
+    "M0,80 L0,15 Q0,3 12,3 L26,3 Q38,3 38,15 L38,30 Q38,41 52,44 " +
+    "C104,33 196,33 248,44 Q262,41 262,30 L262,15 Q262,3 274,3 L288,3 " +
+    "Q300,3 300,15 L300,80 Z";
+
+  /*
+   * Las verticales van en x=1.5 y x=298.5 para que el trazo de 3px caiga justo
+   * encima de los 3px de borde lateral del cuerpo, en vez de salirse del
+   * viewBox y desaparecer.
+   */
+  const REMATE_FILO =
+    "M1.5,80 L1.5,15 Q1.5,4.5 12,4.5 L26,4.5 Q36.5,4.5 36.5,15 L36.5,30 Q36.5,40 52,43 " +
+    "C104,32 196,32 248,43 Q263.5,40 263.5,30 L263.5,15 Q263.5,4.5 274,4.5 L288,4.5 " +
+    "Q298.5,4.5 298.5,15 L298.5,80";
+
+  const PUNTA_FONDO = "M0,-6 L0,14 L150,56 L300,14 L300,-6 Z";
+  const PUNTA_FILO = "M1.5,-6 L1.5,13 L150,54.5 L298.5,13 L298.5,-6";
+
+  /*
+   * El nivel se reconoce por la forma además de por el color, y eso importa:
+   * bronce y oro son los dos cálidos y hay quien no los distingue. La silueta
+   * exterior es la misma en los tres metales, así que el que cambia es este
+   * relieve dentro del arco — las siluetas del sitio, que suben con el metal:
+   * la duna de la playa, el perfil de Monte Louro (el mismo ángulo que el logo
+   * y que SceneHorizon) y Monte Louro con su cima.
+   */
+  const SKYLINE = {
+    bronce: "M52,72 C96,58 128,62 150,68 C176,62 210,58 248,72 Z",
+    plata: "M46,72 L104,50 L150,68 L196,50 L254,72 Z",
+    oro: "M46,72 L96,46 L126,64 L150,38 L174,64 L204,46 L254,72 Z"
   };
 
   const nivelValido = (nivel) => (NIVELES.indexOf(nivel) >= 0 ? nivel : "bronce");
 
+  /*
+   * Un `<linearGradient>` se referencia por id, así que dos cartas en la misma
+   * página no pueden compartirlo: en la rejilla del álbum hay decenas. El
+   * contador es lo que evita que la segunda se pinte con el metal de la primera.
+   */
+  let secuencia = 0;
+
+  function nodo(tag, atributos) {
+    const n = document.createElementNS(SVG_NS, tag);
+    Object.keys(atributos).forEach((k) => n.setAttribute(k, atributos[k]));
+    return n;
+  }
+
+  function degradado(id) {
+    const defs = nodo("defs", {});
+    const grad = nodo("linearGradient", { id, x1: "0", y1: "0", x2: ".35", y2: "1" });
+    [
+      ["0", "var(--nivel-medio)"],
+      [".42", "var(--nivel-alto)"],
+      ["1", "var(--nivel-bajo)"]
+    ].forEach(([offset, color]) => grad.appendChild(nodo("stop", { offset, "stop-color": color })));
+    defs.appendChild(grad);
+    return defs;
+  }
+
+  function placa(clase, viewBox, fondo, filo, relieve) {
+    const id = `cromo-metal-${++secuencia}`;
+    const svg = nodo("svg", { class: clase, viewBox, "aria-hidden": "true", focusable: "false" });
+    svg.appendChild(degradado(id));
+    svg.appendChild(nodo("path", { class: "cromo-placa", d: fondo, fill: `url(#${id})` }));
+    if (relieve) svg.appendChild(relieve);
+    svg.appendChild(nodo("path", { class: "cromo-filo", d: filo }));
+    return svg;
+  }
+
   /** El remate de la carta. Lo usan el cromo grande y el mini de la rejilla. */
   function corona(nivel) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "cromo-corona");
-    svg.setAttribute("viewBox", "0 0 300 54");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("focusable", "false");
+    const skyline = nodo("path", { class: "cromo-skyline", d: SKYLINE[nivelValido(nivel)] });
+    return placa("cromo-corona", "0 0 300 80", REMATE_FONDO, REMATE_FILO, skyline);
+  }
 
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", CORONAS[nivelValido(nivel)]);
-    svg.appendChild(path);
-    return svg;
+  /** La punta inferior. Va siempre en pareja con `corona`. */
+  function punta() {
+    return placa("cromo-punta", "0 0 300 56", PUNTA_FONDO, PUNTA_FILO, null);
   }
 
   function statTile(valor, etiqueta, variante) {
@@ -154,6 +218,11 @@
     // no ve ninguna de las dos cosas.
     card.appendChild(el("span", "sr-only", `Cromo de nivel ${nivel}`));
 
+    // Todo lo que crece con el contenido va en el cuerpo, que es el único de los
+    // tres tramos con bordes laterales: remate y punta traen el suyo dentro del
+    // SVG.
+    const cuerpo = el("div", "cromo-cuerpo");
+
     // ---- cabecera: nota, posición, edición y dorsal ----
     const top = el("header", "cromo-top");
 
@@ -169,7 +238,7 @@
       marca.appendChild(el("span", "cromo-dorsal", String(datos.dorsal)));
     }
     top.appendChild(marca);
-    card.appendChild(top);
+    cuerpo.appendChild(top);
 
     // ---- retrato ----
     const retrato = el("div", "cromo-retrato");
@@ -183,7 +252,7 @@
       retrato.appendChild(el("span", "cromo-inicial", datos.iniciales || "?"));
     }
     retrato.appendChild(el("span", "cromo-sheen"));
-    card.appendChild(retrato);
+    cuerpo.appendChild(retrato);
 
     // ---- identidad ----
     const identidad = el("div", "cromo-identidad");
@@ -195,19 +264,22 @@
       if (texto) meta.appendChild(el("span", "cromo-chip", texto));
     });
     if (meta.childElementCount) identidad.appendChild(meta);
-    card.appendChild(identidad);
+    cuerpo.appendChild(identidad);
 
     // ---- atributos ----
-    card.appendChild(rejillaAtributos(datos.atributos));
+    cuerpo.appendChild(rejillaAtributos(datos.atributos));
 
     // ---- lo que es de la Copa Arena y no de una carta cualquiera ----
     const extra = el("div", "cromo-extra");
     if (datos.lema) extra.appendChild(el("p", "cromo-lema", `“${datos.lema}”`));
     (datos.bloques || []).forEach((b) => extra.appendChild(bloque(b)));
-    if (extra.childElementCount) card.appendChild(extra);
+    if (extra.childElementCount) cuerpo.appendChild(extra);
+
+    card.appendChild(cuerpo);
+    card.appendChild(punta());
 
     return card;
   }
 
-  window.CopaCromo = { crear, corona, el, iniciales, statTile, ATRIBUTOS, NIVELES };
+  window.CopaCromo = { crear, corona, punta, el, iniciales, statTile, ATRIBUTOS, NIVELES };
 })();
