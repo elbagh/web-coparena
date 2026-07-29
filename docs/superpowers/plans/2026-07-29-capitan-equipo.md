@@ -2009,8 +2009,8 @@ Portar de `team-form.js` (Tarea 5) las cuatro constantes de aviso, `valorDe`, `t
     card.querySelector("[data-make-capitan]").addEventListener("click", () => {
       if (soloLectura || !tieneContacto(card)) return;
       cartaCapitan = card;
-      actualizarCapitan();
       reindex();
+      actualizarCapitan();
     });
     ["telefono", "email"].forEach((campo) => {
       card.querySelector(`[data-field="${campo}"]`).addEventListener("input", actualizarCapitan);
@@ -2035,7 +2035,12 @@ Portar de `team-form.js` (Tarea 5) las cuatro constantes de aviso, `valorDe`, `t
 
 con `let capitanOriginalId = null;` junto a `let soloLectura = false;`.
 
-En `reindex`, `card.querySelector("[data-remove]").hidden = soloLectura || index < MIN_JUGADORES || card === cartaCapitan;`.
+En `reindex`, `card.querySelector("[data-remove]").hidden = soloLectura || index < MIN_JUGADORES;` — **sin** la parte del capitán. Ocultar «Quitar» al capitán va dentro de `actualizarCapitan()`, igual que en `team-form.js`: `reindex()` corre durante `renderTeam` mientras `cartaCapitan` todavía vale `null`, así que un capitán suplente conservaría su botón de quitar y se le podría sacar del equipo de un clic.
+
+```js
+      // Al capitán no se le quita de la plantilla: primero se cede el mando.
+      if (esCapitan) card.querySelector("[data-remove]").hidden = true;
+```
 
 `payload()` añade el índice:
 
