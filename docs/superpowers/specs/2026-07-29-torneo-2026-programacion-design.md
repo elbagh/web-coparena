@@ -177,6 +177,7 @@ Aleatorio, con restricciones de disponibilidad:
 | Free Copa Arena | solo sábado | A |
 | Showtime | solo lunes | C |
 | Dosilva | solo lunes | C |
+| Kylian dictador | al lunes, a petición (no consta que sea disponibilidad) | C |
 | Limens | sábado o domingo | A o B |
 
 Quedan 8 huecos libres (A:1, B:4, C:3) para Limens más los 7 equipos sin
@@ -188,6 +189,29 @@ a ojo», Limens se coloca con probabilidad proporcional a los huecos libres (1/5
 A, 4/5 a B) y el resto se baraja sobre los huecos restantes.
 
 El resultado del sorteo se presenta para validación **antes** de escribir nada.
+
+### Resultado
+
+Sorteado con `randomInt` de `node:crypto` sobre los 13 equipos reales leídos de
+producción, con las restricciones aplicadas y verificadas (tamaños, sin
+duplicados, cada equipo atado en su grupo):
+
+| Grupo A · Sáb 01/08 | Grupo B · Dom 02/08 | Grupo C · Lun 03/08 |
+|---|---|---|
+| Calvos de Orion 🔒 | Limens | Showtime 🔒 |
+| Bye Bye Bye 🔒 | Los Julais | Dosilva 🔒 |
+| Free Copa Arena 🔒 | Segarro | Kylian dictador 🔒 |
+| Croquetillas de Arena | Deportivo A Silva | ONDA BRAVA |
+| | | Alejo Mouris |
+
+🔒 = plaza forzada por disponibilidad. Limens salió a B. Kylian dictador se movió
+a C a petición expresa después del primer sorteo, intercambiándose con
+Croquetillas de Arena (elegida al azar entre los tres equipos de C sin atar).
+
+Los nombres son los de producción, tal como los escribieron sus capitanes:
+«Calvos de Orion» va sin tilde y «ONDA BRAVA» en mayúsculas. Son datos de
+usuario, no copy del sitio, así que la convención de acentos de CLAUDE.md no
+aplica y no se tocan.
 
 ## Fuera de alcance
 
