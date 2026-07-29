@@ -11,7 +11,8 @@
      */
     acceso: null,
     googleClientId: "",
-    loading: true
+    loading: true,
+    inscripcionesAbiertas: true
   };
 
   /** ¿El usuario efectivo tiene este permiso? El rol admin los tiene todos. */
@@ -46,13 +47,17 @@
   function renderAuthState() {
     const loggedIn = Boolean(state.user);
     const hasTeam = Boolean(state.team);
+    const cerradas = !state.inscripcionesAbiertas;
 
     setHidden("[data-auth-loading]", !state.loading);
-    setHidden("[data-auth-logged-out]", state.loading || loggedIn);
+    setHidden("[data-auth-logged-out]", state.loading || loggedIn || cerradas);
     setHidden("[data-auth-logged-in]", state.loading || !loggedIn);
-    setHidden("[data-auth-no-team]", state.loading || !loggedIn || hasTeam);
+    setHidden("[data-auth-no-team]", state.loading || !loggedIn || hasTeam || cerradas);
     setHidden("[data-auth-team]", state.loading || !loggedIn || !hasTeam);
-    setHidden("[data-auth-requires-no-team]", state.loading || !loggedIn || hasTeam);
+    setHidden("[data-auth-requires-no-team]", state.loading || !loggedIn || hasTeam || cerradas);
+    // Solo se enseña a quien todavía no tiene equipo: quien ya está inscrito
+    // sigue viendo su flujo normal para gestionarlo, cerradas o no.
+    setHidden("[data-auth-cerradas]", state.loading || !cerradas || hasTeam);
 
     setText("[data-auth-user-name]", state.user?.nombre || state.user?.email || "");
     setText("[data-auth-user-email]", state.user?.email || "");
@@ -92,6 +97,7 @@
       state.team = data.team || null;
       state.verComo = data.verComo || null;
       state.acceso = data.acceso || null;
+      state.inscripcionesAbiertas = data.inscripcionesAbiertas !== false;
     } catch {
       state.user = null;
       state.team = null;
