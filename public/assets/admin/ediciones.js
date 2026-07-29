@@ -119,6 +119,16 @@
       estadoSelect.addEventListener("change", () => cambiarEstado(ed, estadoSelect));
       acciones.append(estadoSelect);
 
+      const abiertasLabel = document.createElement("label");
+      abiertasLabel.className = "edicion-toggle";
+      const abiertasInput = document.createElement("input");
+      abiertasInput.type = "checkbox";
+      abiertasInput.checked = ed.inscripcionesAbiertas;
+      abiertasInput.setAttribute("aria-label", `Inscripciones abiertas de ${ed.nombre}`);
+      abiertasInput.addEventListener("change", () => cambiarAbiertas(ed, abiertasInput));
+      abiertasLabel.append(abiertasInput, document.createTextNode("Inscripciones abiertas"));
+      acciones.append(abiertasLabel);
+
       if (!ed.esActual) {
         const actualBtn = document.createElement("button");
         actualBtn.type = "button";
@@ -243,6 +253,22 @@
       setError("");
     } catch (err) {
       select.value = ed.estado;
+      setError(err.message);
+    }
+  }
+
+  async function cambiarAbiertas(ed, checkbox) {
+    const inscripcionesAbiertas = checkbox.checked;
+    try {
+      aplicar(
+        await apiJson(`/api/admin/ediciones?id=${encodeURIComponent(ed.id)}`, "PATCH", { inscripcionesAbiertas })
+      );
+      setError("");
+      // Solo importa de verdad en la actual, pero es barato y evita que
+      // /inscripcion/ se quede con el estado viejo si es la que se tocó.
+      await window.CopaAuth?.refresh?.();
+    } catch (err) {
+      checkbox.checked = ed.inscripcionesAbiertas;
       setError(err.message);
     }
   }

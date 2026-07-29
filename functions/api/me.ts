@@ -1,4 +1,5 @@
 import { getAuthContext, publicUser } from "../_lib/auth";
+import { edicionActual } from "../_lib/ediciones";
 import { equipoDeUsuario } from "../_lib/equipos";
 import { json } from "../_lib/http";
 import { permisosDeUsuario, permisosPublicos } from "../_lib/permisos";
@@ -11,8 +12,18 @@ interface Env {
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const { user, realUser, impersonando } = await getAuthContext(request, env);
+    // Lo consume /inscripcion/ para pintar el aviso de cierre incluso antes de
+    // iniciar sesión: sin esto, a quien no ha entrado se le seguiría ofreciendo
+    // un flujo de alta que el POST rechazaría en el último paso.
+    const edicion = await edicionActual(env.DB);
+    const inscripcionesAbiertas = edicion?.inscripcionesAbiertas ?? true;
+
     if (!user) {
-      return json({ user: null, team: null, verComo: null, acceso: null }, 200, { "Cache-Control": "no-store" });
+      return json(
+        { user: null, team: null, verComo: null, acceso: null, inscripcionesAbiertas },
+        200,
+        { "Cache-Control": "no-store" }
+      );
     }
 
     /*
@@ -53,7 +64,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         user: publicUser(user),
         team: team ? { id: team.id, nombre: team.nombre, jugadores: team.jugadores } : null,
         verComo,
-        acceso
+        acceso,
+        inscripcionesAbiertas
       },
       200,
       { "Cache-Control": "no-store" }

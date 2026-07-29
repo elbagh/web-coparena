@@ -136,6 +136,7 @@ export interface OpcionesEdicion {
   anio?: number;
   nombre?: string;
   estado?: "proxima" | "en_juego" | "finalizada";
+  inscripcionesAbiertas?: boolean;
 }
 
 /**
@@ -145,11 +146,22 @@ export interface OpcionesEdicion {
 export async function crearEdicion(opciones: OpcionesEdicion = {}): Promise<{ id: number; anio: number }> {
   const anio = opciones.anio ?? 2000 + siguiente();
   const fila = await env.DB.prepare(
-    `INSERT INTO ediciones (anio, nombre, estado, es_actual) VALUES (?1, ?2, ?3, 0) RETURNING id`
+    `INSERT INTO ediciones (anio, nombre, estado, es_actual, inscripciones_abiertas)
+     VALUES (?1, ?2, ?3, 0, ?4) RETURNING id`
   )
-    .bind(anio, opciones.nombre ?? `Copa Arena ${anio}`, opciones.estado ?? "finalizada")
+    .bind(
+      anio,
+      opciones.nombre ?? `Copa Arena ${anio}`,
+      opciones.estado ?? "finalizada",
+      opciones.inscripcionesAbiertas === false ? 0 : 1
+    )
     .first<{ id: number }>();
   return { id: fila!.id, anio };
+}
+
+/** Cierra las inscripciones de la edición actual, la que siembra el setup. */
+export async function cerrarInscripcionesEdicionActual(): Promise<void> {
+  await env.DB.prepare("UPDATE ediciones SET inscripciones_abiertas = 0 WHERE es_actual = 1").run();
 }
 
 /**
