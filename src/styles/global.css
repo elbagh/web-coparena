@@ -3186,7 +3186,11 @@ html.js .reveal.in-view {
   color: var(--sea);
 }
 
-.cromo-hint {
+/* La línea que explica un bloque cuando la cifra sola no basta («todavía sin
+   podios»). La comparten el cromo de Mi zona y el bocadillo de la ficha
+   pública: mismo papel, así que mismo aspecto. */
+.cromo-hint,
+.ficha-datos-nota {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
@@ -3402,9 +3406,13 @@ html.js .reveal.in-view {
 
 /*
  * El ancho de la carta ya está limitado en la regla base, así que aquí solo
- * queda el ajuste de tipografía. No se pasa `.album-ficha` ni `.perfil-shell` a
- * dos columnas a propósito: cambiaría el layout de /mi-equipo/, que es la
- * página con más cosas alrededor, a cambio de muy poco.
+ * queda el ajuste de tipografía.
+ *
+ * `.perfil-shell` (/mi-equipo/) sigue en una columna a propósito: debajo del
+ * cromo lleva las pestañas con el editor de la plantilla, y meterlo en media
+ * página estruja la página con más formulario del sitio a cambio de poco. Las
+ * dos columnas son de la ficha pública, y viven en `.ficha-columnas` en vez de
+ * en `.album-ficha`: el historial tiene que quedarse a todo el ancho.
  */
 @media (min-width: 901px) {
   .cromo-nombre {
@@ -3763,6 +3771,116 @@ html.js .reveal.in-view {
   gap: 22px;
 }
 
+/*
+ * Cromo a la izquierda, sus números a la derecha. Base móvil: apilado, y el
+ * cromo primero — antes de cuánto suma, de quién es la ficha. El hueco no baja
+ * de 34px porque la sombra dura de la carta se sale 10px de su caja y el rabito
+ * del bocadillo sube 17px: por debajo de eso se tocan.
+ */
+.ficha-columnas {
+  display: grid;
+  gap: 34px;
+  align-items: start;
+}
+
+/* La columna derecha: el bocadillo y, debajo, el historial. */
+.ficha-lado {
+  display: grid;
+  gap: 26px;
+  align-content: start;
+  min-width: 0;
+}
+
+/*
+ * El bocadillo de los números: palmarés y carrera, que antes iban dentro de la
+ * carta. Misma superficie que `.teams-panel`, así que se lee como hermano del
+ * historial que va debajo — pero opaco, no al 90%, porque el relleno del rabito
+ * tiene que tapar el triángulo de tinta que lleva detrás.
+ */
+.ficha-datos {
+  --ficha-datos-bg: var(--foam);
+
+  position: relative;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding: clamp(20px, 3.4vw, 30px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--ficha-datos-bg);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+/* Rabito: triángulo de tinta (::before) con el relleno del bocadillo encima
+   (::after) para dejar solo el contorno, igual que `.paso-bubble`. Apilado
+   apunta hacia arriba, al cromo que queda justo encima — y va centrado, no a
+   40px del canto, porque la carta se centra en cuanto sobra ancho y desde el
+   canto izquierdo señalaba al aire. */
+.ficha-datos::before,
+.ficha-datos::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.ficha-datos::before {
+  top: -17px;
+  left: calc(50% - 11px);
+  border-width: 0 22px 18px 0;
+  border-color: transparent transparent var(--ink) transparent;
+}
+
+.ficha-datos::after {
+  top: -10px;
+  left: calc(50% - 8px);
+  border-width: 0 15px 12px 0;
+  border-color: transparent transparent var(--ficha-datos-bg) transparent;
+}
+
+/* Dos secciones dentro de un mismo bocadillo, no dos tarjetas: la regla las
+   separa sin partirlo. Tinta rebajada, que a 2px de tinta plena el bocadillo
+   se ve cortado por la mitad. */
+.ficha-datos-bloque {
+  display: grid;
+  gap: 12px;
+}
+
+.ficha-datos-bloque + .ficha-datos-bloque {
+  padding-top: 18px;
+  border-top: 2px solid var(--line);
+}
+
+.ficha-datos-titulo {
+  margin: 0;
+  color: var(--deep);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+/*
+ * Cinco columnas fijas, no `auto-fit`. El palmarés son cinco casillas siempre, y
+ * con auto-fit el número de columnas depende del ancho: salía 4+1 y dejaba el
+ * «mejor puesto» solo, colgando del podio. Con cinco clavadas, el palmarés cabe
+ * entero en una fila a cualquier ancho y la carrera queda en 5+2.
+ *
+ * Por debajo de 561px manda la regla de 3 columnas del sitio: a 390px reales,
+ * cinco casillas son 60px y «MEJOR PUESTO» no entra.
+ */
+@media (min-width: 561px) {
+  .ficha-datos .stat-tiles {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Las redes no son un bloque de cifras, pero tampoco un pie de la carrera:
+   misma regla que separa los bloques para que no se lea pegado a ellas. */
+.ficha-datos .album-social {
+  padding-top: 18px;
+  border-top: 2px solid var(--line);
+}
+
 .album-volver {
   justify-self: start;
   padding: 9px 16px;
@@ -3808,6 +3926,38 @@ html.js .reveal.in-view {
 
   .album-ranking h2 {
     font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  }
+}
+
+/*
+ * Las dos columnas de la ficha, y su propio corte en 1020px en vez del 901px del
+ * resto del sitio. La cuenta que lo fija: la carta ocupa 400px y no se encoge,
+ * el rabito pide 40px de hueco, y el palmarés necesita cinco casillas de ~90px
+ * más el relleno del bocadillo. Por debajo de eso las columnas caben pero las
+ * cifras no, así que se apila.
+ */
+@media (min-width: 1020px) {
+  .ficha-columnas {
+    grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+    /* 40px: el rabito asoma 21px por la izquierda del bocadillo y la sombra dura
+       de la carta se sale 10px por la derecha. No pueden tocarse. */
+    gap: 40px;
+  }
+
+  /* De pie al lado de la carta el rabito ya no apunta hacia arriba: gira al
+     canto izquierdo, hacia el cromo. */
+  .ficha-datos::before {
+    top: 42px;
+    left: -21px;
+    border-width: 18px 22px 0 0;
+    border-color: transparent var(--ink) transparent transparent;
+  }
+
+  .ficha-datos::after {
+    top: 45px;
+    left: -13px;
+    border-width: 12px 15px 0 0;
+    border-color: transparent var(--ficha-datos-bg) transparent transparent;
   }
 }
 
