@@ -137,6 +137,11 @@ window.CopaDirecto = (() => {
    * El botón encendido enseña el marcador, no la palabra «directo»: es lo que
    * uno quiere saber. Apagado y encendido son dos elementos distintos porque un
    * <a> deshabilitado no existe en HTML y seguiría siendo enfocable.
+   *
+   * El apagado es un <details> con un aviso dentro, y de ahí que esto lo cierre
+   * al encenderse: quien lo hubiera dejado abierto se encontraría el recado
+   * flotando bajo un botón que ya no está, y volvería a aparecer abierto al
+   * terminar el partido.
    */
   function pintarBoton(datos) {
     const apagado = document.querySelector("[data-directo-apagado]");
@@ -148,9 +153,12 @@ window.CopaDirecto = (() => {
     vivo.hidden = !partido;
 
     if (!partido) {
-      apagado.querySelector("span:last-child").textContent = datos?.siguiente ? "Aún no ha empezado" : "Sin partido";
+      const etiqueta = apagado.querySelector("[data-directo-etiqueta]");
+      if (etiqueta) etiqueta.textContent = datos?.siguiente ? "Offline" : "Sin partido";
       return;
     }
+
+    apagado.open = false;
 
     const texto = vivo.querySelector("[data-directo-texto]");
     const marcador = `${partido.points.A}–${partido.points.B}`;
