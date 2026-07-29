@@ -149,7 +149,10 @@ export interface FaseRow {
   tipo: "grupos" | "eliminatoria";
   orden: number;
   reglas: string;
+  /** Plazas directas por grupo. Un grupo puede sobrescribirlo. */
   clasifican: number;
+  /** Plazas extra que se reparten comparando entre grupos. */
+  repesca: number;
 }
 
 export interface GrupoRow {
@@ -158,6 +161,10 @@ export interface GrupoRow {
   nombre: string;
   orden: number;
   reglas: string | null;
+  /** null = hereda el cupo de la fase, que no es lo mismo que 0. */
+  clasifican: number | null;
+  /** 0/1: si el siguiente de este grupo entra al bote de la repesca. */
+  en_repesca: number;
 }
 
 interface EquipoNombrado {
