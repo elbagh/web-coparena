@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// jsdom no implementa scrollIntoView (layout real no existe en el DOM
+// simulado). Los scripts de public/assets/ lo llaman al pintar un banner o
+// un error; sin este stub, cada test que ejercite ese camino deja una
+// "Unhandled Rejection" ruidosa en la salida aunque el test en sí pase.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 /**
  * Evalúa uno de los scripts de `public/assets/` dentro del entorno jsdom y
  * devuelve el objeto que publica en `window`.

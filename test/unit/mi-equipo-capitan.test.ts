@@ -162,4 +162,31 @@ describe("el capitán en Mi zona", () => {
       expect(card.querySelector("[data-make-capitan]")!.hasAttribute("hidden")).toBe(true);
     });
   });
+
+  it("no deja quitar al capitán aunque esté en un hueco de suplente", async () => {
+    await montar(
+      equipo({
+        capitanJugadorId: 3,
+        jugadores: [
+          jugador(1, "Ana", "ana@example.com"),
+          jugador(2, "Luis", "luis@example.com"),
+          jugador(3, "Bea", "capi@example.com")
+        ]
+      })
+    );
+    // El capitán es la tercera tarjeta (índice 2), un hueco de suplente: sin
+    // esta protección su botón «Quitar» quedaría visible, saltándose la regla
+    // de que primero hay que ceder el mando.
+    expect(cards()[2]!.querySelector("[data-remove]")!.hasAttribute("hidden")).toBe(true);
+  });
+
+  it("no avisa de una cesión falsa cuando el equipo aún no tiene capitán", async () => {
+    await montar(equipo({ capitanJugadorId: null }));
+    // Ni se toca la capitanía (no hay click en «Hacer capitán») ni el usuario
+    // cambia de tarjeta: guardar así no debe pedir confirmación de cesión.
+    guardar();
+    await esperar();
+
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
 });

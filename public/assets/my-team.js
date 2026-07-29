@@ -99,8 +99,8 @@
     card.querySelector("[data-make-capitan]").addEventListener("click", () => {
       if (soloLectura || !tieneContacto(card)) return;
       cartaCapitan = card;
-      actualizarCapitan();
       reindex();
+      actualizarCapitan();
     });
     ["telefono", "email"].forEach((campo) => {
       card.querySelector(`[data-field="${campo}"]`).addEventListener("input", actualizarCapitan);
@@ -115,7 +115,7 @@
       card.querySelector("[data-dorsal]").textContent = String(index + 1);
       card.querySelector("[data-role]").textContent = index < MIN_JUGADORES ? "Titular" : "Suplente";
       card.classList.toggle("is-suplente", index >= MIN_JUGADORES);
-      card.querySelector("[data-remove]").hidden = soloLectura || index < MIN_JUGADORES || card === cartaCapitan;
+      card.querySelector("[data-remove]").hidden = soloLectura || index < MIN_JUGADORES;
     });
     addPlayer.disabled = list.length >= MAX_JUGADORES;
     addPlayer.textContent = list.length >= MAX_JUGADORES ? `Máximo ${MAX_JUGADORES} personas por equipo` : "+ Añadir suplente";
@@ -159,6 +159,11 @@
 
       card.querySelector('[data-opt="telefono"]').hidden = esCapitan;
       card.querySelector('[data-opt="email"]').hidden = esCapitan;
+
+      // Al capitán no se le quita de la plantilla: primero se cede el mando.
+      // Esto va aquí y no en reindex() porque depende de quién manda, y
+      // `actualizarCapitan` siempre corre después de `reindex`.
+      if (esCapitan) card.querySelector("[data-remove]").hidden = true;
 
       actualizarAviso(card);
     });
@@ -274,7 +279,8 @@
 
     // Ceder es entregar el equipo entero: quien entre con ese correo pasa a
     // mandar y quien lo cede deja de poder guardar. Se pide a propósito.
-    const cede = Number(cartaCapitan?.dataset.playerId || 0) !== capitanOriginalId;
+    const cede =
+      capitanOriginalId !== null && Number(cartaCapitan?.dataset.playerId || 0) !== capitanOriginalId;
     if (cede) {
       const aviso =
         `Vas a nombrar capitán a ${capitan.nombre} ${capitan.apellidos}. ` +
