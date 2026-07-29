@@ -182,3 +182,79 @@ describe("la tabla de un grupo en /torneo/", () => {
     expect(nota).not.toContain("se decide");
   });
 });
+
+describe("los partidos de un grupo en /torneo/", () => {
+  const grupo = {
+    id: 1,
+    nombre: "Grupo A",
+    orden: 0,
+    clasifican: 2,
+    enRepesca: false,
+    equipos: [{ id: 10 }, { id: 20 }, { id: 30 }, { id: 40 }],
+    clasificacion: [
+      fila(1, "Calvos de Orion", "directo"),
+      fila(2, "Bye Bye Bye", "directo"),
+      fila(3, "Free Copa Arena", null),
+      fila(4, "Croquetillas de Arena", null)
+    ]
+  };
+
+  const partido = (equipoA: string, equipoB: string, scheduledAt: string | null) => ({
+    id: `${equipoA}-${equipoB}`,
+    ronda: "A · jornada",
+    grupoId: 1,
+    scheduledAt,
+    status: "scheduled",
+    winner: null,
+    history: [],
+    teams: { A: { name: equipoA }, B: { name: equipoB } }
+  });
+
+  // El orden llega tal y como quedó el sorteo (por jornada), que no tiene por
+  // qué coincidir con el orden cronológico tras cambiar una hora a mano.
+  it("pinta los partidos por hora, no por el orden en que llegan", async () => {
+    responder({
+      id: 1,
+      clave: "grupos",
+      nombre: "Fase de grupos",
+      tipo: "grupos",
+      orden: 0,
+      clasifican: 2,
+      repesca: 0,
+      grupos: [grupo],
+      partidos: [
+        partido("Calvos de Orion", "Bye Bye Bye", "2026-08-01T20:40"),
+        partido("Free Copa Arena", "Croquetillas de Arena", "2026-08-01T19:50")
+      ]
+    });
+    await pintado();
+
+    const cruces = [...document.querySelectorAll(".torneo-partido")].map((tarjeta) =>
+      [...tarjeta.querySelectorAll(".torneo-partido-equipo")].map((e) => e.textContent).join(" vs ")
+    );
+    expect(cruces).toEqual(["Free Copa Arena vs Croquetillas de Arena", "Calvos de Orion vs Bye Bye Bye"]);
+  });
+
+  it("deja los partidos sin hora al final, no al principio", async () => {
+    responder({
+      id: 1,
+      clave: "grupos",
+      nombre: "Fase de grupos",
+      tipo: "grupos",
+      orden: 0,
+      clasifican: 2,
+      repesca: 0,
+      grupos: [grupo],
+      partidos: [
+        partido("Calvos de Orion", "Bye Bye Bye", null),
+        partido("Free Copa Arena", "Croquetillas de Arena", "2026-08-01T19:50")
+      ]
+    });
+    await pintado();
+
+    const cruces = [...document.querySelectorAll(".torneo-partido")].map((tarjeta) =>
+      [...tarjeta.querySelectorAll(".torneo-partido-equipo")].map((e) => e.textContent).join(" vs ")
+    );
+    expect(cruces).toEqual(["Free Copa Arena vs Croquetillas de Arena", "Calvos de Orion vs Bye Bye Bye"]);
+  });
+});
