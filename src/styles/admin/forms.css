@@ -439,6 +439,24 @@
   letter-spacing: 0.07em;
 }
 
+/*
+ * El único radio marcado dice quién es capitán de la plantilla; el resto de
+ * la fila queda igual, sea titular o suplente. Se deshabilita mientras a esa
+ * fila le falten móvil o correo (ver refrescarRadio en equipos.js).
+ */
+.player-capitan-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--adm-ink);
+}
+
+.player-capitan-pick input:disabled + span {
+  opacity: 0.45;
+}
+
 .admin-dialog .admin-player-order {
   margin-left: auto;
 }

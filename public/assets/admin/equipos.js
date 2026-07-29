@@ -47,6 +47,7 @@
   const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
   const NOMBRE_RE = /^[\p{L}\p{M}'’. -]+$/u;
   const EMAIL_RE = /^\S+@\S+\.\S+$/;
+  const MENSAJE_CAPITAN_CONTACTO = "El capitán necesita móvil y correo para que podamos avisaros.";
   const HANDLE_RE = /^@?[a-zA-Z0-9._]{2,30}$/;
   const URL_SOCIAL_RE = /^https:\/\/\S{5,110}$/;
 
@@ -214,6 +215,21 @@
     setValor("email", jugador?.email);
     setValor("redSocial", jugador?.redSocial);
 
+    const radio = carta.querySelector("[data-capitan-radio]");
+    radio.checked = Boolean(jugador) && jugador.id === equipoEnEdicion?.capitanJugadorId;
+    const refrescarRadio = () => {
+      const completo =
+        Boolean(limpiar(carta.querySelector('[data-field="telefono"]').value)) &&
+        Boolean(limpiar(carta.querySelector('[data-field="email"]').value));
+      radio.disabled = !completo;
+      radio.title = completo ? "" : "Necesita móvil y correo para ser capitán.";
+      if (!completo) radio.checked = false;
+    };
+    ["telefono", "email"].forEach((campo) =>
+      carta.querySelector(`[data-field="${campo}"]`).addEventListener("input", refrescarRadio)
+    );
+    refrescarRadio();
+
     const preview = carta.querySelector("[data-photo-preview]");
     const vacia = carta.querySelector("[data-photo-empty]");
     if (jugador?.tieneFoto && jugador?.id) {
@@ -277,6 +293,7 @@
       id: equipo.id,
       nombre: equipo.nombre,
       tieneFoto: Boolean(equipo.tieneFoto),
+      capitanJugadorId: equipo.capitanJugadorId ?? null,
       jugadores: (equipo.jugadores || []).map((j) => ({ ...j }))
     };
     titulo.textContent = equipo.nombre;
@@ -421,13 +438,16 @@
         return v.length < 2 || v.length > 80 || !NOMBRE_RE.test(v)
           ? "Introduce los apellidos (solo letras, entre 2 y 80 caracteres)."
           : "";
-      case "telefono":
+      case "telefono": {
+        if (!v) return esFilaCapitana(input) ? MENSAJE_CAPITAN_CONTACTO : "";
         return !/^[67]\d{8}$/.test(v.replace(/\D/g, "").replace(/^34(?=\d{9}$)/, ""))
           ? "Introduce un móvil válido (empieza por 6 o 7 y tiene 9 dígitos)."
           : "";
-      case "email":
-        if (!v) return "El correo de cada jugador es obligatorio.";
+      }
+      case "email": {
+        if (!v) return esFilaCapitana(input) ? MENSAJE_CAPITAN_CONTACTO : "";
         return !EMAIL_RE.test(v) || v.length > 120 ? "Ese correo no parece válido." : "";
+      }
       case "redSocial":
         return v && (v.length > 120 || !(HANDLE_RE.test(v) || URL_SOCIAL_RE.test(v)))
           ? "Usa un usuario tipo @nombre o un enlace https://."
@@ -436,6 +456,9 @@
         return "";
     }
   }
+
+  const esFilaCapitana = (input) =>
+    input.closest("[data-team-edit-player]")?.querySelector("[data-capitan-radio]")?.checked === true;
 
   function validarCampo(input) {
     const carta = input.closest("[data-team-edit-player]");
@@ -462,6 +485,13 @@
         if (!validarCampo(input)) valido = false;
       });
     });
+
+    const hayCapitan = Array.from(listaJugadores.querySelectorAll("[data-capitan-radio]")).some((r) => r.checked);
+    if (!hayCapitan) {
+      mostrarBanner("Marca quién es el capitán del equipo.");
+      valido = false;
+    }
+
     return valido;
   }
 
@@ -544,13 +574,24 @@
       ordenActual.length !== ordenOriginal.length || ordenActual.some((id, i) => id !== ordenOriginal[i]);
     if (ordenCambiado) cambios.push("Cambia el orden de los jugadores (titulares/suplentes).");
 
+    const cartaCapitan = cartas.find((carta) => carta.querySelector("[data-capitan-radio]").checked);
+    const idCapitan = cartaCapitan?.dataset.playerId ? Number(cartaCapitan.dataset.playerId) : undefined;
+    if (idCapitan !== equipoEnEdicion.capitanJugadorId) {
+      const antes = equipoEnEdicion.jugadores.find((j) => j.id === equipoEnEdicion.capitanJugadorId);
+      cambios.push(
+        `Capitán: ${antes ? etiquetaJugador(antes) : "—"} → ${cartaCapitan ? etiquetaJugador(datosFila(cartaCapitan)) : "—"}.`
+      );
+    }
+
     return cambios;
   }
 
   btnRevisar?.addEventListener("click", () => {
     limpiarBanner();
     if (!validarFormulario()) {
-      mostrarBanner("Revisa los campos marcados.");
+      // validarFormulario ya deja un mensaje más concreto en el banner
+      // (por ejemplo, que falta marcar capitán); no lo pisamos.
+      if (banner.hidden) mostrarBanner("Revisa los campos marcados.");
       return;
     }
     const cambios = calcularDiff();
@@ -600,24 +641,25 @@
     const cartas = Array.from(listaJugadores.querySelectorAll("[data-team-edit-player]"));
     const jugadores = cartas.map((carta) => {
       const datos = datosFila(carta);
-      const jugador = {
-        nombre: datos.nombre,
-        apellidos: datos.apellidos,
-        telefono: datos.telefono,
-        eliminarFoto: datos.eliminarFoto
-      };
+      const jugador = { nombre: datos.nombre, apellidos: datos.apellidos, eliminarFoto: datos.eliminarFoto };
       if (datos.id !== undefined) jugador.id = datos.id;
+      if (datos.telefono) jugador.telefono = datos.telefono;
       if (datos.email) jugador.email = datos.email;
       if (datos.redSocial) jugador.redSocial = datos.redSocial;
       return jugador;
     });
+    const indiceCapitan = cartas.findIndex((carta) => carta.querySelector("[data-capitan-radio]").checked);
 
     const envio = new FormData();
     // La clave es `equipo`, no `nombre`: es la que lee validarRegistro() en
     // functions/_lib/validacion.ts, igual que hacen /inscripcion/ y /mi-equipo/.
     envio.append(
       "payload",
-      JSON.stringify({ equipo: limpiar(form.querySelector('[data-team-edit-field="equipo"]').value), jugadores })
+      JSON.stringify({
+        equipo: limpiar(form.querySelector('[data-team-edit-field="equipo"]').value),
+        capitan: indiceCapitan,
+        jugadores
+      })
     );
     cartas.forEach((carta, i) => {
       const fotoInput = carta.querySelector('[data-field="foto"]');
