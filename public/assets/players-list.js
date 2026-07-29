@@ -6,6 +6,10 @@
  * que el enlace se puede compartir y el botón «atrás» del navegador vuelve al
  * álbum.
  *
+ * La ficha son tres piezas: el cromo, el bocadillo con el palmarés y la carrera
+ * a su lado, y el historial a todo el ancho debajo. El palmarés estaba dentro
+ * del cromo y lo alargaba hasta que la carta dejaba de parecer una carta.
+ *
  * Todo lo que se pinta viene de GET /api/jugadores, que nunca devuelve teléfono
  * ni correo. Aquí no se escribe nada: no hay formularios ni acciones.
  */
@@ -204,9 +208,6 @@
 
   function renderFicha(datos) {
     fichaWrap.textContent = "";
-    const j = datos.jugador;
-    const pal = datos.palmares || {};
-    const carrera = tilesEstadisticas(datos.carrera);
 
     const volver = el("a", "album-volver", "← Volver al álbum");
     volver.href = "/jugadores/";
@@ -217,51 +218,111 @@
     });
     fichaWrap.appendChild(volver);
 
-    fichaWrap.appendChild(
-      window.CopaCromo.crear({
-        edicion: datos.edicion ? `${datos.edicion.nombre} · ${estadoTexto(datos.edicion.estado)}` : "La Copa Arena",
-        nivel: j.nivel,
-        media: j.media,
-        dorsal: j.dorsal,
-        nombre: nombreCompleto(j),
-        apodo: j.apodo,
-        posicion: j.posicion,
-        equipo: j.equipoNombre,
-        mano: j.mano,
-        lema: j.lema,
-        atributos: j.atributos,
-        // Posición, equipo y mano ya tienen hueco propio en la carta.
-        chips: [j.esSuplente ? "Suplente" : null],
-        fotoUrl: j.tieneFoto ? `/api/jugadores?foto=${j.id}` : null,
-        iniciales: iniciales(j.nombre, j.apellidos),
-        bloques: [
-          {
-            label: "Palmarés",
-            tiles: [
-              { valor: String(pal.edicionesJugadas ?? 0), etiqueta: "Ediciones" },
-              { valor: String(pal.podios?.oro ?? 0), etiqueta: "Oro", variante: "oro" },
-              { valor: String(pal.podios?.plata ?? 0), etiqueta: "Plata", variante: "plata" },
-              { valor: String(pal.podios?.bronce ?? 0), etiqueta: "Bronce", variante: "bronce" },
-              { valor: pal.mejorPuesto != null ? `${pal.mejorPuesto}º` : "—", etiqueta: "Mejor puesto" }
-            ]
-          },
-          {
-            label: "En pista",
-            tiles: carrera,
-            texto: carrera.length ? null : "Sin estadísticas todavía."
-          }
-        ]
-      })
-    );
+    // El cromo a la izquierda y todo lo demás a la derecha. Apilado el cromo va
+    // primero: antes de cuánto suma, de quién es la ficha.
+    const columnas = el("div", "ficha-columnas");
+    columnas.appendChild(cromo(datos));
 
-    if (j.instagram) {
+    // El bocadillo y el historial comparten la columna derecha en vez de ser dos
+    // filas de la rejilla: una carta mide el doble que el bocadillo, y con el
+    // historial a todo el ancho quedaba media página de crema vacía al lado del
+    // cromo.
+    const lado = el("div", "ficha-lado");
+    lado.appendChild(numeros(datos));
+    lado.appendChild(historial(datos.historial || []));
+    columnas.appendChild(lado);
+
+    fichaWrap.appendChild(columnas);
+  }
+
+  /**
+   * La carta, y solo la carta: nivel, nota, retrato, identidad, los seis
+   * atributos y el lema.
+   *
+   * **Sin `bloques`, y eso es el cambio**: el palmarés y la carrera vivían
+   * dentro del cromo y lo estiraban hacia abajo hasta que dejaba de parecer una
+   * carta, además de pelearse con los atributos por la misma mirada. Ahora están
+   * al lado, en su bocadillo.
+   */
+  function cromo(datos) {
+    const j = datos.jugador;
+    return window.CopaCromo.crear({
+      edicion: datos.edicion ? `${datos.edicion.nombre} · ${estadoTexto(datos.edicion.estado)}` : "La Copa Arena",
+      nivel: j.nivel,
+      media: j.media,
+      dorsal: j.dorsal,
+      nombre: nombreCompleto(j),
+      apodo: j.apodo,
+      posicion: j.posicion,
+      equipo: j.equipoNombre,
+      mano: j.mano,
+      lema: j.lema,
+      atributos: j.atributos,
+      // Posición, equipo y mano ya tienen hueco propio en la carta.
+      chips: [j.esSuplente ? "Suplente" : null],
+      fotoUrl: j.tieneFoto ? `/api/jugadores?foto=${j.id}` : null,
+      iniciales: iniciales(j.nombre, j.apellidos)
+    });
+  }
+
+  /**
+   * El bocadillo de la derecha: palmarés, carrera y redes.
+   *
+   * El rabito apunta al cromo — es el mismo de los pasos de la portada, y aquí
+   * dice algo: estos números son de esa persona, no de la página.
+   */
+  function numeros(datos) {
+    const panel = el("aside", "ficha-datos");
+    const pal = datos.palmares || {};
+    const podios = pal.podios || {};
+
+    const palmares = bloqueDatos("Palmarés");
+    palmares.appendChild(
+      filaTiles([
+        { valor: String(pal.edicionesJugadas ?? 0), etiqueta: "Ediciones" },
+        { valor: String(podios.oro ?? 0), etiqueta: "Oro", variante: "oro" },
+        { valor: String(podios.plata ?? 0), etiqueta: "Plata", variante: "plata" },
+        { valor: String(podios.bronce ?? 0), etiqueta: "Bronce", variante: "bronce" },
+        { valor: pal.mejorPuesto != null ? `${pal.mejorPuesto}º` : "—", etiqueta: "Mejor puesto" }
+      ])
+    );
+    // Cinco ceros seguidos no dicen nada; esta línea sí.
+    if (!podios.oro && !podios.plata && !podios.bronce) {
+      palmares.appendChild(el("p", "ficha-datos-nota", "Todavía sin podios."));
+    }
+    panel.appendChild(palmares);
+
+    const carrera = tilesEstadisticas(datos.carrera);
+    const pista = bloqueDatos("En pista");
+    if (carrera.length) {
+      pista.appendChild(filaTiles(carrera));
+      // Lo que distingue este bloque de las cifras por edición del historial.
+      pista.appendChild(el("p", "ficha-datos-nota", "Suma de todas sus ediciones."));
+    } else {
+      pista.appendChild(el("p", "ficha-datos-nota", "Sin estadísticas todavía."));
+    }
+    panel.appendChild(pista);
+
+    if (datos.jugador.instagram) {
       const social = el("p", "album-social");
       social.appendChild(el("span", null, "En redes: "));
-      social.appendChild(el("strong", null, j.instagram));
-      fichaWrap.appendChild(social);
+      social.appendChild(el("strong", null, datos.jugador.instagram));
+      panel.appendChild(social);
     }
 
-    fichaWrap.appendChild(historial(datos.historial || []));
+    return panel;
+  }
+
+  function bloqueDatos(titulo) {
+    const bloque = el("section", "ficha-datos-bloque");
+    bloque.appendChild(el("h2", "ficha-datos-titulo", titulo));
+    return bloque;
+  }
+
+  function filaTiles(tiles) {
+    const fila = el("div", "stat-tiles");
+    tiles.forEach((t) => fila.appendChild(window.CopaCromo.statTile(t.valor, t.etiqueta, t.variante)));
+    return fila;
   }
 
   function historial(entradas) {
@@ -288,11 +349,7 @@
       item.appendChild(head);
 
       const tiles = tilesEstadisticas(h.estadisticas);
-      if (tiles.length) {
-        const fila = el("div", "stat-tiles");
-        tiles.forEach((t) => fila.appendChild(window.CopaCromo.statTile(t.valor, t.etiqueta)));
-        item.appendChild(fila);
-      }
+      if (tiles.length) item.appendChild(filaTiles(tiles));
 
       const companeros = h.companeros || [];
       if (companeros.length) {

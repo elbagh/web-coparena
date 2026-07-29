@@ -300,6 +300,89 @@ describe("ficha de un jugador", () => {
     expect(cromo.querySelector(".cromo-skyline")).not.toBeNull();
   });
 
+  /*
+   * El palmarés y la carrera salieron del cromo y viven en el bocadillo de al
+   * lado. Es fácil devolverlos a `bloques` de un descuido — la llamada a
+   * `crear()` los acepta y /mi-equipo/ los sigue usando —, y entonces la carta
+   * vuelve a estirarse y las cifras salen dos veces en la misma pantalla.
+   */
+  it("el palmarés y la carrera están fuera de la carta, en el bocadillo", async () => {
+    await montarFicha({ ...FICHA, carrera: estadisticas({ partidosJugados: 3, puntos: 12 }) });
+
+    const cromo = document.querySelector(".cromo") as HTMLElement;
+    expect(cromo.textContent).not.toContain("Palmarés");
+    expect(cromo.textContent).not.toContain("En pista");
+    expect(cromo.querySelector(".stat-tiles")).toBeNull();
+
+    const datos = document.querySelector(".ficha-datos") as HTMLElement;
+    const titulos = Array.from(datos.querySelectorAll(".ficha-datos-titulo")).map((n) => n.textContent);
+    expect(titulos).toEqual(["Palmarés", "En pista"]);
+
+    // Las medallas del palmarés y las cifras de carrera, cada una en su bloque.
+    const bloques = Array.from(datos.querySelectorAll(".ficha-datos-bloque"));
+    expect(Array.from(bloques[0]!.querySelectorAll(".stat-label")).map((n) => n.textContent)).toEqual([
+      "Ediciones",
+      "Oro",
+      "Plata",
+      "Bronce",
+      "Mejor puesto"
+    ]);
+    expect(Array.from(bloques[1]!.querySelectorAll(".stat-label")).map((n) => n.textContent)).toEqual([
+      "Partidos",
+      "Puntos"
+    ]);
+
+    // El lema sí se queda en la carta: es su voz, no una cifra.
+    expect(cromo.querySelector(".cromo-lema")!.textContent).toBe("“La red es mía”");
+  });
+
+  it("dos columnas: la carta a un lado, el bocadillo y el historial al otro", async () => {
+    await montarFicha(FICHA);
+
+    // El cromo primero: apilado en móvil, antes de cuánto suma se ve de quién es
+    // la ficha.
+    const columnas = document.querySelector(".ficha-columnas") as HTMLElement;
+    expect(Array.from(columnas.children).map((n) => n.className)).toEqual(["cromo cromo--plata", "ficha-lado"]);
+
+    // El historial comparte columna con el bocadillo, y va debajo. Suelto a todo
+    // el ancho dejaba media página vacía al lado de la carta, que mide el doble
+    // que el bocadillo.
+    const lado = columnas.querySelector(".ficha-lado") as HTMLElement;
+    expect(Array.from(lado.children).map((n) => n.className)).toEqual([
+      "ficha-datos",
+      "teams-panel album-historial"
+    ]);
+  });
+
+  it("sin podios y sin partidos, el bocadillo lo dice en vez de alinear ceros", async () => {
+    await montarFicha(FICHA);
+
+    const notas = Array.from(document.querySelectorAll(".ficha-datos-nota")).map((n) => n.textContent);
+    expect(notas).toEqual(["Todavía sin podios.", "Sin estadísticas todavía."]);
+  });
+
+  it("con podios y con partidos, las notas se cambian por las cifras", async () => {
+    await montarFicha({
+      ...FICHA,
+      palmares: { edicionesJugadas: 3, podios: { oro: 1, plata: 0, bronce: 2 }, mejorPuesto: 1 },
+      carrera: estadisticas({ partidosJugados: 9, puntos: 40 })
+    });
+
+    const notas = Array.from(document.querySelectorAll(".ficha-datos-nota")).map((n) => n.textContent);
+    expect(notas).toEqual(["Suma de todas sus ediciones."]);
+
+    const valores = Array.from(document.querySelectorAll(".ficha-datos .stat-value")).map((n) => n.textContent);
+    expect(valores).toEqual(["3", "1", "0", "2", "1º", "9", "40"]);
+  });
+
+  it("las redes van dentro del bocadillo, no suelto bajo la carta", async () => {
+    await montarFicha({ ...FICHA, jugador: { ...FICHA.jugador, instagram: "@lamuralla" } });
+
+    const social = document.querySelector(".album-social") as HTMLElement;
+    expect(social.textContent).toBe("En redes: @lamuralla");
+    expect(social.closest(".ficha-datos")).not.toBeNull();
+  });
+
   it("la carta se arma en tres tramos, y el cuerpo es el único que crece", async () => {
     await montarFicha(FICHA);
 
