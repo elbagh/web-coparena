@@ -32,8 +32,9 @@
     }
 
     status.hidden = true;
-    matchesApi.renderBracket(bracket, matches, showDetails);
-    bracket.hidden = false;
+    // El cuadro solo se enseña si hay partidos de eliminatoria: una fase de
+    // grupos no forma árbol, y antes se dibujaba uno igualmente.
+    bracket.hidden = !matchesApi.renderBracket(bracket, matches, showDetails);
     matches.forEach((match) => list.appendChild(card(match)));
     list.hidden = false;
   }

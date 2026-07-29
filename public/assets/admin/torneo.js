@@ -118,8 +118,8 @@
       bracket.hidden = true;
       return;
     }
-    matchesApi.renderBracket(bracket, visibleMatches, (match) => openMatch(match.id));
-    bracket.hidden = false;
+    // Devuelve false cuando no hay partidos de cuadro (una liga no forma árbol).
+    bracket.hidden = !matchesApi.renderBracket(bracket, visibleMatches, (match) => openMatch(match.id));
     visibleMatches.forEach((match) => matchList.append(matchCard(match)));
   }
 

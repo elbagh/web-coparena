@@ -5,15 +5,24 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 <AdminLayout
   titulo="Torneo"
   seccion="torneo"
-  lede="Sorteo del cuadro, horarios y marcador en vivo. El sorteo se previsualiza antes de guardarse."
+  lede="El formato del torneo —fases, grupos y reglas—, el cuadro y el marcador en vivo."
 >
   <div class="admin-actions" slot="acciones">
+    <button class="admin-btn admin-btn--primary" type="button" data-fase-nueva>+ Fase</button>
     <button class="admin-btn" type="button" data-load-teams>Actualizar equipos</button>
     <button class="admin-btn" type="button" data-partido-nuevo>+ Partido suelto</button>
     <button class="admin-btn admin-btn--danger" type="button" data-vaciar-partidos>Vaciar cuadro</button>
     <button class="admin-btn admin-btn--primary" type="button" data-draw>Sortear emparejamientos</button>
     <button class="admin-btn admin-btn--primary" type="button" data-confirm-draw hidden>Confirmar sorteo</button>
   </div>
+
+  <section class="admin-card" data-torneo-formato>
+    <div class="admin-card-head">
+      <h2 class="admin-card-title">Formato</h2>
+      <p class="admin-hint" data-formato-status>Cargando el formato…</p>
+    </div>
+    <div data-formato-fases></div>
+  </section>
 
   <section class="admin-card" data-admin-matches>
     <div class="admin-card-head">
@@ -130,10 +139,187 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
         </div>
       </div>
     </dialog>
+
+    <dialog class="admin-dialog admin-dialog--wide" data-fase-dialog>
+      <div class="admin-dialog-shell">
+        <div class="admin-dialog-head">
+          <div>
+            <h2 class="admin-dialog-title" data-fase-titulo>Fase</h2>
+            <p class="admin-dialog-sub">Las reglas de la fase valen para todos sus grupos, salvo que un grupo diga otra cosa.</p>
+          </div>
+          <button type="button" class="admin-dialog-close" data-fase-cerrar aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="admin-dialog-body">
+          <form class="admin-form" data-fase-form novalidate>
+            <div class="admin-form-grid">
+              <div class="admin-field">
+                <label for="fase-nombre">Nombre</label>
+                <input id="fase-nombre" class="admin-input" type="text" maxlength="60" data-fase-field="nombre" />
+                <p class="admin-field-error" data-fase-error="nombre" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-clave">Clave</label>
+                <input id="fase-clave" class="admin-input" type="text" maxlength="40" data-fase-field="clave" />
+                <p class="admin-hint">Minúsculas y guiones. No se puede cambiar después.</p>
+                <p class="admin-field-error" data-fase-error="clave" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-tipo">Tipo</label>
+                <select id="fase-tipo" class="admin-select" data-fase-field="tipo">
+                  <option value="grupos">Fase de grupos</option>
+                  <option value="eliminatoria">Eliminatoria</option>
+                </select>
+                <p class="admin-field-error" data-fase-error="tipo" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-orden">Orden</label>
+                <input id="fase-orden" class="admin-input" type="number" min="0" max="99" data-fase-field="orden" />
+              </div>
+              <div class="admin-field" data-fase-solo-grupos>
+                <label for="fase-clasifican">Clasifican por grupo</label>
+                <input id="fase-clasifican" class="admin-input" type="number" min="0" max="8" data-fase-field="clasifican" />
+                <p class="admin-field-error" data-fase-error="clasifican" hidden></p>
+              </div>
+            </div>
+
+            <hr class="admin-separador" />
+
+            <p class="admin-label">Cómo se juega cada partido</p>
+            <div class="admin-form-grid">
+              <div class="admin-field">
+                <label for="fase-sets">Sets para ganar</label>
+                <input id="fase-sets" class="admin-input" type="number" min="1" max="5" data-fase-field="sets" />
+                <p class="admin-hint" data-fase-sets-pista></p>
+                <p class="admin-field-error" data-fase-error="reglas.sets" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-puntos">Puntos por set</label>
+                <input id="fase-puntos" class="admin-input" type="number" min="5" max="99" data-fase-field="puntosPorSet" />
+                <p class="admin-field-error" data-fase-error="reglas.puntosPorSet" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-decisivo">Puntos del set decisivo</label>
+                <input id="fase-decisivo" class="admin-input" type="number" min="5" max="99" data-fase-field="puntosSetDecisivo" />
+                <p class="admin-field-error" data-fase-error="reglas.puntosSetDecisivo" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="fase-diferencia">Ventaja mínima</label>
+                <input id="fase-diferencia" class="admin-input" type="number" min="1" max="10" data-fase-field="diferencia" />
+                <p class="admin-field-error" data-fase-error="reglas.diferencia" hidden></p>
+              </div>
+            </div>
+
+            <div data-fase-solo-grupos>
+              <p class="admin-label">Cómo puntúa cada resultado</p>
+              <div class="admin-form-grid">
+                <div class="admin-field">
+                  <label for="fase-pv">Victoria</label>
+                  <input id="fase-pv" class="admin-input" type="number" min="0" max="10" data-fase-field="puntosVictoria" />
+                </div>
+                <div class="admin-field">
+                  <label for="fase-pva">Victoria en el set decisivo</label>
+                  <input id="fase-pva" class="admin-input" type="number" min="0" max="10" data-fase-field="puntosVictoriaAjustada" />
+                </div>
+                <div class="admin-field">
+                  <label for="fase-pd">Derrota</label>
+                  <input id="fase-pd" class="admin-input" type="number" min="0" max="10" data-fase-field="puntosDerrota" />
+                </div>
+                <div class="admin-field">
+                  <label for="fase-pda">Derrota en el set decisivo</label>
+                  <input id="fase-pda" class="admin-input" type="number" min="0" max="10" data-fase-field="puntosDerrotaAjustada" />
+                </div>
+              </div>
+
+              <div class="admin-field">
+                <span class="admin-label">Desempates, en este orden</span>
+                <p class="admin-hint">
+                  Se aplican de arriba abajo: el primero reparte posiciones y los siguientes deshacen los empates que
+                  queden.
+                </p>
+                <div class="torneo-desempates" data-fase-desempates></div>
+                <p class="admin-field-error" data-fase-error="reglas.desempates" hidden></p>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-dialog-foot">
+          <p class="admin-alert" role="alert" data-fase-banner hidden></p>
+          <button type="button" class="admin-btn" data-fase-cancelar>Cancelar</button>
+          <button type="button" class="admin-btn admin-btn--primary" data-fase-guardar>Guardar fase</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="admin-dialog" data-grupo-dialog>
+      <div class="admin-dialog-shell">
+        <div class="admin-dialog-head">
+          <div>
+            <h2 class="admin-dialog-title" data-grupo-titulo>Grupo</h2>
+            <p class="admin-dialog-sub" data-grupo-sub></p>
+          </div>
+          <button type="button" class="admin-dialog-close" data-grupo-cerrar aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="admin-dialog-body">
+          <form class="admin-form" data-grupo-form novalidate>
+            <div class="admin-form-grid">
+              <div class="admin-field">
+                <label for="grupo-nombre">Nombre</label>
+                <input id="grupo-nombre" class="admin-input" type="text" maxlength="40" data-grupo-field="nombre" />
+                <p class="admin-field-error" data-grupo-error="nombre" hidden></p>
+              </div>
+              <div class="admin-field">
+                <label for="grupo-orden">Orden</label>
+                <input id="grupo-orden" class="admin-input" type="number" min="0" max="99" data-grupo-field="orden" />
+              </div>
+            </div>
+
+            <hr class="admin-separador" />
+
+            <label class="admin-check">
+              <input type="checkbox" data-grupo-field="propias" />
+              Este grupo juega con reglas distintas a las de su fase
+            </label>
+            <p class="admin-hint">
+              Útil cuando los grupos no salen del mismo tamaño: uno de tres puede jugar a un set y uno de cinco al
+              mejor de tres.
+            </p>
+
+            <div class="admin-form-grid" data-grupo-reglas hidden>
+              <div class="admin-field">
+                <label for="grupo-sets">Sets para ganar</label>
+                <input id="grupo-sets" class="admin-input" type="number" min="1" max="5" data-grupo-field="sets" />
+              </div>
+              <div class="admin-field">
+                <label for="grupo-puntos">Puntos por set</label>
+                <input id="grupo-puntos" class="admin-input" type="number" min="5" max="99" data-grupo-field="puntosPorSet" />
+              </div>
+              <div class="admin-field">
+                <label for="grupo-decisivo">Puntos del set decisivo</label>
+                <input id="grupo-decisivo" class="admin-input" type="number" min="5" max="99" data-grupo-field="puntosSetDecisivo" />
+              </div>
+              <div class="admin-field">
+                <label for="grupo-diferencia">Ventaja mínima</label>
+                <input id="grupo-diferencia" class="admin-input" type="number" min="1" max="10" data-grupo-field="diferencia" />
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-dialog-foot">
+          <p class="admin-alert" role="alert" data-grupo-banner hidden></p>
+          <button type="button" class="admin-btn" data-grupo-cancelar>Cancelar</button>
+          <button type="button" class="admin-btn admin-btn--primary" data-grupo-guardar>Guardar grupo</button>
+        </div>
+      </div>
+    </dialog>
   </Fragment>
 
   <Fragment slot="scripts">
     <script is:inline src="/assets/match-utils.js" defer></script>
+    <script is:inline src="/assets/admin/torneo-formato.js" defer></script>
     <script is:inline src="/assets/admin/torneo.js" defer></script>
   </Fragment>
 </AdminLayout>
