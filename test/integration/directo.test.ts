@@ -235,7 +235,7 @@ describe("el versus y el historial", () => {
     orden: number,
     jugadorId: number,
     lado: string,
-    tipo = "remate",
+    tipo = "punto",
     setNumero = 1
   ) => {
     await env.DB
@@ -243,7 +243,16 @@ describe("el versus y el historial", () => {
         `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
       )
-      .bind(partidoId, orden, setNumero, tipo, lado, jugadorId, tipo === "error" ? (lado === "A" ? "B" : "A") : lado)
+      .bind(
+        partidoId,
+        orden,
+        setNumero,
+        tipo,
+        lado,
+        jugadorId,
+        // El saque fallado es el único cuyo punto cruza la red.
+        tipo === "saque_fallado" ? (lado === "A" ? "B" : "A") : lado
+      )
       .run();
     await env.DB.prepare("UPDATE partidos SET log_version = log_version + 1 WHERE id = ?1").bind(partidoId).run();
   };
@@ -268,13 +277,13 @@ describe("el versus y el historial", () => {
   it("el historial trae los puntos, sin un solo nombre", async () => {
     const { id, a } = await enJuegoConGente();
     await anotarEvento(id, 0, a.jugadores[0]!.id, "A");
-    await anotarEvento(id, 1, a.jugadores[1]!.id, "A", "error");
+    await anotarEvento(id, 1, a.jugadores[1]!.id, "A", "saque_fallado");
 
     const { estado } = await leer();
     expect(estado.feed).toHaveLength(2);
-    expect(estado.feed[0]).toMatchObject({ o: 0, t: "remate", j: a.jugadores[0]!.id, l: "A", s: 1 });
-    // El error cruza la red: quien lo hace es de A y el punto es de B.
-    expect(estado.feed[1]).toMatchObject({ o: 1, t: "error", l: "A" });
+    expect(estado.feed[0]).toMatchObject({ o: 0, t: "punto", j: a.jugadores[0]!.id, l: "A", s: 1 });
+    // El saque fallado cruza la red: quien lo hace es de A y el punto es de B.
+    expect(estado.feed[1]).toMatchObject({ o: 1, t: "saque_fallado", l: "A" });
     expect(JSON.stringify(estado.feed)).not.toContain("Ana");
   });
 
@@ -304,7 +313,7 @@ describe("el versus y el historial", () => {
     await anotarEvento(id, 1, a.jugadores[1]!.id, "A");
 
     const { estado } = await leer();
-    expect(estado.feed.map((linea) => linea.t)).toEqual(["remate", "cambio", "remate"]);
+    expect(estado.feed.map((linea) => linea.t)).toEqual(["punto", "cambio", "punto"]);
     expect(estado.feed[1]).toMatchObject({ o: 0, t: "cambio", j: a.jugadores[1]!.id, x: a.jugadores[0]!.id });
   });
 });
@@ -352,7 +361,7 @@ describe("el ETag cubre lo que no es el marcador", () => {
   });
 
   /*
-   * La defensa no puntúa, así que el marcador sumado no se mueve; antes solo la
+   * Un bloqueo que no ganó el rally no mueve el marcador sumado; antes solo la
    * salvaba `updated_at`, y dos escrituras en el mismo milisegundo dan la misma
    * marca.
    */
@@ -365,7 +374,7 @@ describe("el ETag cubre lo que no es el marcador", () => {
     await env.DB
       .prepare(
         `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
-         VALUES (?1, 0, 1, 'defensa', 'A', ?2, NULL)`
+         VALUES (?1, 0, 1, 'bloqueo', 'A', ?2, NULL)`
       )
       .bind(id, a.jugadores[0]!.id)
       .run();

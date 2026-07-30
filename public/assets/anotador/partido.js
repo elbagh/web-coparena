@@ -363,14 +363,17 @@
   /**
    * Predice el marcador con las reglas del partido para que el número se mueva
    * al instante. No duplica lógica: `applyPoint` es el mismo que usa el panel, y
-   * quién se lleva el punto sale de `tipos`, que el servidor construye desde
-   * `PUNTUA` y `ladoDelPunto`. Aquí estaba escrito a mano («todo menos defensa
-   * puntúa»), que es una copia esperando a quedarse vieja.
+   * quién se lleva el punto sale de `tipos`, que lo trae del catálogo del
+   * servidor. Aquí estaba escrito a mano («todo menos defensa puntúa»), que es
+   * una copia esperando a quedarse vieja.
+   *
+   * Con los tipos que preguntan no hay nada que predecir mientras no haya
+   * respuesta: adivinar aquí sería pintar un punto que puede no existir.
    */
   function predecir(tipo) {
     const meta = datos.tipos.find((t) => t.clave === tipo);
-    if (!meta || !meta.puntua) return null;
-    const ladoPunto = meta.alRival ? otroLado(elegido.lado) : elegido.lado;
+    if (!meta || meta.punto === "pregunta") return null;
+    const ladoPunto = meta.aRival ? otroLado(elegido.lado) : elegido.lado;
 
     const fingido = {
       status: "live",

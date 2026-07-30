@@ -22,8 +22,9 @@ import {
  * escritura. Aquí se comprueba justamente eso, y los dos invariantes que
  * sostienen el diseño:
  *
- *   - Un error da el punto al RIVAL y suma a los errores de quien lo comete, sin
- *     regalar puntos a nadie.
+ *   - El saque fallado da el punto al RIVAL y suma a los saques fallados de quien
+ *     lo comete, sin regalar puntos a nadie. Es la única acción cuyo punto cruza
+ *     la red, y por eso la fila guarda los dos lados.
  *   - Mientras un anotador lleva el partido, el panel no puede tocar el
  *     marcador: si pudieran los dos, uno perdería en silencio.
  */
@@ -51,7 +52,7 @@ const leer = async (user: UsuarioSesion, partidoId: string): Promise<Respuesta> 
 
 const estadisticasDe = async (jugadorId: number) =>
   await env.DB
-    .prepare("SELECT puntos, remates, bloqueos, aces, defensas, errores FROM estadisticas WHERE jugador_id = ?1")
+    .prepare("SELECT puntos, bloqueos, chilenas, aces, saques_fallados FROM estadisticas WHERE jugador_id = ?1")
     .bind(jugadorId)
     .first<Record<string, number>>();
 
@@ -92,15 +93,27 @@ async function montarPartido(
   return { partidoId, local, visitante };
 }
 
-/** Manda un punto y devuelve la respuesta, leyendo antes el orden esperado. */
+/**
+ * Manda una acción y devuelve la respuesta, leyendo antes el orden esperado.
+ *
+ * `gano` sólo viaja con los tipos que preguntan (bloqueo y chilena): mandarlo
+ * siempre sería decidir por el servidor, y omitirlo con ellos es un 400.
+ */
 async function punto(
   user: UsuarioSesion,
   partidoId: string,
   jugadorId: number,
-  tipo = "remate"
+  tipo = "punto",
+  gano?: boolean
 ): Promise<Response> {
   const { siguienteOrden } = await leer(user, partidoId);
-  return anotar(user, partidoId, { accion: "evento", tipo, jugadorId, ordenEsperado: siguienteOrden });
+  return anotar(user, partidoId, {
+    accion: "evento",
+    tipo,
+    jugadorId,
+    ordenEsperado: siguienteOrden,
+    ...(gano === undefined ? {} : { punto: gano })
+  });
 }
 
 describe("permisos", () => {
@@ -140,11 +153,17 @@ describe("anotar un punto", () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
 
-    expect((await punto(admin, partidoId, local.jugadores[0]!.id, "remate")).status).toBe(201);
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id, "punto")).status).toBe(201);
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.puntos).toEqual({ A: 1, B: 0 });
-    expect(await estadisticasDe(local.jugadores[0]!.id)).toMatchObject({ puntos: 1, remates: 1 });
+    expect(await estadisticasDe(local.jugadores[0]!.id)).toMatchObject({
+      puntos: 1,
+      aces: 0,
+      bloqueos: 0,
+      chilenas: 0,
+      saques_fallados: 0
+    });
   });
 
   it("cada tipo suma a su métrica", async () => {
@@ -152,16 +171,22 @@ describe("anotar un punto", () => {
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    for (const tipo of ["remate", "ace", "bloqueo", "defensa"]) await punto(admin, partidoId, ana, tipo);
+    await punto(admin, partidoId, ana, "punto");
+    await punto(admin, partidoId, ana, "ace");
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    await punto(admin, partidoId, ana, "chilena", false);
 
     expect(await estadisticasDe(ana)).toMatchObject({
       puntos: 3,
-      remates: 1,
       aces: 1,
       bloqueos: 1,
-      defensas: 1
+      chilenas: 1
     });
-    // La defensa no puntúa: el rally sigue.
+    /*
+     * Cuatro acciones y tres puntos: la chilena que no ganó el rally cuenta en
+     * la ficha y no en el marcador. Es lo que ya no sabía decir un mapa fijo por
+     * tipo, y lo que dice `lado_punto` fila a fila.
+     */
     expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 3, B: 0 });
   });
 
@@ -170,16 +195,16 @@ describe("anotar un punto", () => {
    * tuerce, el marcador y las estadísticas quedan cruzados y no se ve hasta el
    * final del torneo.
    */
-  it("un error de A da el punto a B y suma a los errores de quien lo comete", async () => {
+  it("un saque fallado de A da el punto a B y no suma puntos a quien lo falla", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    await punto(admin, partidoId, ana, "error");
+    await punto(admin, partidoId, ana, "saque_fallado");
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.puntos).toEqual({ A: 0, B: 1 });
-    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, puntos: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ saques_fallados: 1, puntos: 0 });
   });
 
   it("cierra el set y el partido cuando toca", async () => {
@@ -204,7 +229,7 @@ describe("anotar un punto", () => {
 
     const respuesta = await anotar(admin, partidoId, {
       accion: "evento",
-      tipo: "remate",
+      tipo: "punto",
       jugadorId: equipo.jugadores[0]!.id,
       ordenEsperado: 0
     });
@@ -219,7 +244,7 @@ describe("anotar un punto", () => {
     const { siguienteOrden } = await leer(admin, partidoId);
     const respuesta = await anotar(admin, partidoId, {
       accion: "evento",
-      tipo: "remate",
+      tipo: "punto",
       jugadorId: fuera.jugadores[0]!.id,
       ordenEsperado: siguienteOrden
     });
@@ -252,7 +277,7 @@ describe("dos anotadores a la vez", () => {
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    const cuerpo = { accion: "evento", tipo: "remate", jugadorId: ana, ordenEsperado: 0 };
+    const cuerpo = { accion: "evento", tipo: "punto", jugadorId: ana, ordenEsperado: 0 };
     expect((await anotar(admin, partidoId, cuerpo)).status).toBe(201);
 
     const segunda = await anotar(admin, partidoId, cuerpo);
@@ -331,12 +356,12 @@ describe("corregir un evento antiguo", () => {
 
     expect((await leer(admin, partidoId)).estado.winner).toBe("A");
 
-    // Aquel primer punto no lo hizo Ana: fue un error suyo, y el punto era de B.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "error", jugadorId: ana });
+    // Aquel primer punto no lo ganó Ana: falló el saque, y el punto era de B.
+    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "saque_fallado", jugadorId: ana });
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.winner).toBe("B");
-    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, puntos: 4 });
+    expect(await estadisticasDe(ana)).toMatchObject({ saques_fallados: 1, puntos: 4 });
   });
 
   it("cambiar solo el autor mueve la estadística de sitio", async () => {
@@ -368,10 +393,22 @@ describe("el log es la fuente de verdad", () => {
     const admin = await crearAdmin();
     const { partidoId, local, visitante } = await montarPartido(admin);
     const jugadores = [...local.jugadores, ...visitante.jugadores].map((j) => j.id);
-    const tipos = ["remate", "ace", "bloqueo", "error", "defensa"];
+    /*
+     * Las cinco acciones, incluidas las dos que preguntan y una que dice que no:
+     * si el recálculo se saltara `lado_punto` y volviera a decidir por el tipo,
+     * la chilena de aquí abajo aparecería puntuando después del PATCH.
+     */
+    const acciones: { tipo: string; gano?: boolean }[] = [
+      { tipo: "punto" },
+      { tipo: "ace" },
+      { tipo: "bloqueo", gano: true },
+      { tipo: "saque_fallado" },
+      { tipo: "chilena", gano: false }
+    ];
 
     for (let i = 0; i < 24; i += 1) {
-      await punto(admin, partidoId, jugadores[i % jugadores.length]!, tipos[i % tipos.length]!);
+      const accion = acciones[i % acciones.length]!;
+      await punto(admin, partidoId, jugadores[i % jugadores.length]!, accion.tipo, accion.gano);
     }
 
     const anotando = await leer(admin, partidoId);
@@ -390,8 +427,8 @@ describe("el log es la fuente de verdad", () => {
     const { partidoId, local, visitante } = await montarPartido(admin);
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-    await punto(admin, partidoId, visitante.jugadores[0]!.id, "error");
-    await punto(admin, partidoId, local.jugadores[1]!.id, "bloqueo");
+    await punto(admin, partidoId, visitante.jugadores[0]!.id, "saque_fallado");
+    await punto(admin, partidoId, local.jugadores[1]!.id, "bloqueo", true);
 
     const { results } = await env.DB
       .prepare(

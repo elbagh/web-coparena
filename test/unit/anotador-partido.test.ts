@@ -367,7 +367,7 @@ describe("meter a un suplente", () => {
     await montar(
       respuesta({
         eventos: [
-          { orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+          { orden: 0, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
         ],
         siguienteOrden: 1,
         cambios: [{ id: 3, trasOrden: 0, lado: "A", entra: 4, sale: 2, setNumero: 1 }],
@@ -394,7 +394,7 @@ describe("la vibración", () => {
 
     await montar(respuesta());
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     const retrato = botones("[data-anot-mitad-a] .anot-jugador")[0]!.querySelector(".retrato")!;
@@ -464,9 +464,10 @@ describe("los dos toques", () => {
   /*
    * La predicción existe para que el número se mueva antes de que conteste el
    * servidor. Quién se lleva el punto sale de `tipos`, que lo trae el servidor:
-   * el error da el punto al RIVAL, y esa regla estaba escrita a mano aquí.
+   * el saque fallado es el único cuyo punto cruza la red, y esa regla estaba
+   * escrita a mano aquí.
    */
-  it("un error pinta el punto del rival sin esperar al servidor", async () => {
+  it("un saque fallado pinta el punto del rival sin esperar al servidor", async () => {
     await montar(respuesta());
 
     let resolver: ((valor: Response) => void) | null = null;
@@ -482,22 +483,27 @@ describe("los dos toques", () => {
     );
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--error")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--saque_fallado")[0]!.click();
     await respirar();
 
     // La petición está en el aire y el marcador ya se movió, del lado B.
     expect($("[data-anot-puntos-a]").textContent).toBe("0");
     expect($("[data-anot-puntos-b]").textContent).toBe("1");
-    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "error", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "saque_fallado", jugadorId: 1 });
 
     resolver!(new Response(JSON.stringify(respuesta({ estado: { setNumero: 1, puntos: { A: 0, B: 1 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null } })), { status: 200 }));
   });
 
-  it("una defensa no mueve el marcador", async () => {
+  /*
+   * Bloqueo y chilena no las decide el tipo, sino quien anota rally a rally.
+   * Mientras no haya respuesta no hay nada que predecir: adivinar aquí sería
+   * pintar un punto que el servidor puede no llegar a guardar.
+   */
+  it("un bloqueo no mueve el marcador mientras no se diga que fue punto", async () => {
     await montar(respuesta());
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--defensa")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--bloqueo")[0]!.click();
 
     expect($("[data-anot-puntos-a]").textContent).toBe("0");
     expect($("[data-anot-puntos-b]").textContent).toBe("0");
@@ -509,7 +515,7 @@ describe("corregir un punto", () => {
     respuesta({
       eventos: [
         { orden: 0, tipo: "ajuste", jugadorId: null, jugador: null, ladoJugador: null, ladoPunto: null, setNumero: 1 },
-        { orden: 1, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+        { orden: 1, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
       ],
       siguienteOrden: 2,
       estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
@@ -521,7 +527,7 @@ describe("corregir un punto", () => {
     const lineas = botones("[data-anot-historial] .anot-historial-linea");
     expect(lineas).toHaveLength(2);
     // Se pintan del más reciente al más antiguo.
-    expect(lineas[0]!.textContent).toBe("2. Remate de Marta Souto Lago");
+    expect(lineas[0]!.textContent).toBe("2. Punto de Marta Souto Lago");
     expect(lineas[0]!.disabled).toBe(false);
     expect(lineas[1]!.disabled).toBe(true);
   });
@@ -533,7 +539,7 @@ describe("corregir un punto", () => {
     expect($("[data-anot-corregir-titulo]").textContent).toBe("Corregir el punto 2");
 
     // Llega marcado lo que el evento tenía.
-    const tipoActual = botones("[data-anot-corregir-tipos] [data-tipo='remate']")[0]!;
+    const tipoActual = botones("[data-anot-corregir-tipos] [data-tipo='punto']")[0]!;
     expect(tipoActual.getAttribute("aria-pressed")).toBe("true");
 
     botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
@@ -582,7 +588,7 @@ describe("sin red", () => {
 
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-puntos-a]").textContent).toBe("4");
@@ -594,7 +600,7 @@ describe("sin red", () => {
     cortar();
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     const aviso = $("[data-anot-error]").textContent || "";
@@ -613,7 +619,7 @@ describe("sin red", () => {
 
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-offline]").hidden).toBe(false);
@@ -623,13 +629,13 @@ describe("sin red", () => {
     await montar(respuesta());
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
     expect($("[data-anot-offline]").hidden).toBe(false);
 
     responder = async () => new Response(JSON.stringify(respuesta()), { status: 200 });
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-offline]").hidden).toBe(true);
@@ -662,7 +668,7 @@ describe("botones que no se ofrecen si van a fallar", () => {
   it("pero sigue encendido con un punto normal detrás", async () => {
     await montar(
       respuesta({
-        eventos: [{ orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }],
+        eventos: [{ orden: 0, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }],
         siguienteOrden: 1
       })
     );
@@ -758,7 +764,7 @@ describe("volver a la pantalla", () => {
     let resolver: ((valor: Response) => void) | null = null;
     responder = () => new Promise<Response>((res) => { resolver = res; });
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
     const enVuelo = peticiones.length;
 
