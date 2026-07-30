@@ -72,6 +72,7 @@ const MARCADO = `
       <div data-anot-acciones hidden>
         <p><strong data-anot-elegido></strong></p>
         <div data-anot-tipos></div>
+        <div data-anot-tipos-extra></div>
         <button type="button" data-anot-cancelar>Cancelar</button>
       </div>
       <div data-anot-cambio hidden>
@@ -503,10 +504,32 @@ describe("los dos toques", () => {
     await montar(respuesta());
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--bloqueo")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
 
     expect($("[data-anot-puntos-a]").textContent).toBe("0");
     expect($("[data-anot-puntos-b]").textContent).toBe("0");
+  });
+
+  /*
+   * Quién va en cada grupo lo dice `tipos[].punto`, que manda el servidor: los
+   * que suman siempre (punto, ace, saque_fallado) en un lado, los que sólo
+   * cuentan estadística mientras no se confirme el punto (bloqueo, chilena) en
+   * el otro. No hay una lista de claves escrita aquí a propósito — sería una
+   * copia de la regla del servidor esperando a desincronizarse.
+   */
+  it("separa las acciones que suman punto de las que sólo cuentan", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    const suman = [...document.querySelectorAll("[data-anot-tipos] button")].map(
+      (b) => b.querySelector(".anot-tipo-nombre")!.textContent
+    );
+    const cuentan = [...document.querySelectorAll("[data-anot-tipos-extra] button")].map(
+      (b) => b.querySelector(".anot-tipo-nombre")!.textContent
+    );
+
+    expect(suman).toEqual(["Punto", "Ace", "Falló saque"]);
+    expect(cuentan).toEqual(["Bloqueo", "Chilena"]);
   });
 });
 

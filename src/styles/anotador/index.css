@@ -536,27 +536,42 @@ body.is-anotador {
 }
 
 /*
- * El error es el que cambia de dueño el punto: se marca distinto para no
- * confundirlo con los aciertos en un toque rápido.
- *
- * Ya no en rojo. Desde que los equipos son azul y rojo de equipación, un botón
- * rojo se lee como «el botón del equipo rojo», que es exactamente lo contrario
- * de lo que hace (dar el punto al rival, sea quien sea). Ahora lo distingue el
- * doble borde de tinta, y la flecha del ::after dice lo único que importa: que
- * el punto cruza la red.
+ * El saque fallado es el único que cambia de dueño el punto, así que ocupa la
+ * fila entera: el ancho lo dice antes de leer la etiqueta. Ya no en rojo —desde
+ * que los equipos son azul y rojo de equipación, un botón rojo se lee como «el
+ * botón del equipo rojo», que es lo contrario de lo que hace—. Lo distinguen el
+ * doble filo de tinta y la flecha, que dice lo único que importa: el punto cruza
+ * la red.
  */
-.anot-btn--error {
+.anot-btn--saque_fallado {
   border-color: var(--anot-tinta);
   box-shadow: inset 0 0 0 3px var(--anot-superficie), inset 0 0 0 6px var(--anot-tinta);
+  grid-column: 1 / -1;
 }
 
-.anot-btn--error .anot-tipo-nombre::after {
+.anot-btn--saque_fallado .anot-tipo-nombre::after {
   content: " ⇢";
   font-weight: 900;
 }
 
-.anot-btn--defensa {
+/*
+ * El borde discontinuo significa una sola cosa, y aparece en dos sitios: aquí y
+ * en «No fue punto» del tercer toque. En los dos quiere decir «esto no mueve el
+ * marcador».
+ *
+ * El grupo va más bajo que el de arriba (56 contra 68) para que se lea como
+ * secundario sin necesidad de un rótulo, que costaría el doble de alto. 56 es el
+ * suelo táctil de esta hoja y no se baja de ahí.
+ */
+.anot-tipos--extra {
+  border-top: 1px solid var(--anot-linea);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.anot-tipos--extra .anot-btn--tipo {
   border-style: dashed;
+  min-height: 56px;
 }
 
 .anot-btn--cancelar {

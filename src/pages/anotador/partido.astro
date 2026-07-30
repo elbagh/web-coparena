@@ -88,7 +88,15 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 
       <div class="anot-acciones" data-anot-acciones hidden>
         <p class="anot-pregunta"><strong data-anot-elegido></strong> · ¿qué hizo?</p>
+        {/*
+          Dos grupos y ningún rótulo. Dos encabezados costarían ~36px en la
+          pantalla cuyo presupuesto de alto ya está gastado; la separación la
+          llevan los propios botones — el filete, el borde discontinuo del
+          segundo grupo y el ancho completo de «Falló saque», que es la única
+          acción cuyo punto cruza la red.
+        */}
         <div class="anot-tipos" data-anot-tipos></div>
+        <div class="anot-tipos anot-tipos--extra" data-anot-tipos-extra></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cancelar>Cancelar</button>
       </div>
 

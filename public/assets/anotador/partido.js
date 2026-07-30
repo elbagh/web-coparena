@@ -278,16 +278,31 @@
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = false;
 
-    const caja = $("[data-anot-tipos]");
-    caja.textContent = "";
+    /*
+     * Quién va en cada grupo lo dice el servidor (`punto: "pregunta"`), no una
+     * lista escrita aquí: es la misma razón por la que la predicción lee
+     * `aRival` en vez de repetir la regla.
+     */
+    const cajas = {
+      siempre: $("[data-anot-tipos]"),
+      pregunta: $("[data-anot-tipos-extra]")
+    };
+    cajas.siempre.textContent = "";
+    cajas.pregunta.textContent = "";
+
     datos.tipos.forEach((tipo) => {
       const boton = el("button", `anot-btn anot-btn--tipo anot-btn--${tipo.clave}`);
       boton.type = "button";
       boton.append(el("span", "anot-tipo-nombre", tipo.etiqueta));
       boton.append(el("span", "anot-tipo-ayuda", tipo.ayuda));
-      boton.addEventListener("click", () => anotarPunto(tipo.clave));
-      caja.append(boton);
+      boton.addEventListener("click", () => elegirAccion(tipo));
+      cajas[tipo.punto].append(boton);
     });
+  }
+
+  /** Segundo toque. Los tipos que preguntan abren el tercero; el resto anotan. */
+  function elegirAccion(tipo) {
+    anotarPunto(tipo.clave);
   }
 
   function cancelar() {
