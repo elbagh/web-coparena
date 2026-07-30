@@ -1534,7 +1534,12 @@ Y actualizar el comentario equivalente en `src/styles/global.css:5603`.
 
 - [ ] **Step 2: Actualizar CLAUDE.md**
 
-En la sección «Anotación en directo», tres párrafos quedan diciendo cosas falsas. Reescribirlos (no retocarlos):
+Primero, en la sección **Backend**: «Metric names live once, in
+`_lib/estadisticas.ts`: `METRICAS` is the list that gets displayed (**seven**,
+`partidosJugados` flagged `derivada`)». Ahora son **seis**. Lo detectó el
+implementador de la Task 3 y lo dejó aquí a propósito.
+
+Y en la sección «Anotación en directo», tres párrafos quedan diciendo cosas falsas. Reescribirlos (no retocarlos):
 
 1. El de «An event carries two sides»: `tipo='error'` → `tipo='saque_fallado'`.
 2. El de «`TIPOS` carries `puntua` and `alRival`, built from `PUNTUA`»: sustituirlo por el modelo nuevo — `lado_punto` es lo único que dice si una acción puntuó, y el catálogo sólo dice si hay que preguntarlo.
