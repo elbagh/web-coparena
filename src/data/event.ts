@@ -4,9 +4,17 @@ export const event = {
   // Fuente única de las fechas del torneo: las dos fases. Todo lo demás
   // (Hero, /torneo/premios/, copy de la portada, JSON-LD SportsEvent) deriva de
   // aquí para no duplicar. `startISO`/`endISO` alimentan los datos estructurados.
+  //
+  // Estas fechas son copy: quien manda de verdad es el calendario de `partidos`
+  // en D1, que es lo que pinta /torneo/. Anunciaron «31 Jul - 2 Ago» y «7 Ago -
+  // 9 Ago» durante un tiempo en el que no había ningún partido programado ni el
+  // 31 ni el 7, así que la portada prometía un viernes que no existía. Al mover
+  // el calendario hay que volver aquí: no hay nada que las ate solas.
+  //   Grupos      A sáb 01/08 · B dom 02/08 · C lun 03/08
+  //   Fase final  cuartos sáb 08/08 · semis, 3.º y final dom 09/08
   phases: [
-    { label: "Fase de grupos", dates: "31 Jul - 2 Ago", startISO: "2026-07-31", endISO: "2026-08-02" },
-    { label: "Fase final", dates: "7 Ago - 9 Ago", startISO: "2026-08-07", endISO: "2026-08-09" }
+    { label: "Fase de grupos", dates: "1 Ago - 3 Ago", startISO: "2026-08-01", endISO: "2026-08-03" },
+    { label: "Fase final", dates: "8 Ago - 9 Ago", startISO: "2026-08-08", endISO: "2026-08-09" }
   ],
   location: "Playa O Pozo, Porto do Son",
   email: "copa.arena.2000@gmail.com",
