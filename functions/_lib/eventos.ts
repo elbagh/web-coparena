@@ -579,8 +579,18 @@ async function sentenciasSetNumero(
 ): Promise<D1PreparedStatement[]> {
   const reglas = normalizarReglas(partido.reglas).partido;
   const sentencias: D1PreparedStatement[] = [];
-  /** El set en el que cae cada `orden`, y en el que cae lo que venga detrás. */
-  const setTras = new Map<number, number>();
+  /**
+   * El set en el que queda el partido tras cada `orden`, en orden ascendente.
+   *
+   * Es una lista y no un mapa porque `partido_cambios.tras_orden` puede apuntar
+   * a un evento que ya no existe: no es clave ajena a propósito —el punto al que
+   * se ancló un cambio se puede deshacer, y el cambio siguió ocurriendo—. Con un
+   * mapa había que buscar ese orden exacto, y al no encontrarlo se caía a 1: un
+   * cambio hecho en el tercer set aparecía en el historial público como del
+   * primero. Lo que vale es el set del último evento que **sí** sobrevive antes
+   * de esa posición.
+   */
+  const tras: { orden: number; set: number }[] = [];
 
   /*
    * Una sola pasada. Replegar el log entero por cada evento —y aquí dos veces,
@@ -599,8 +609,18 @@ async function sentenciasSetNumero(
       );
     }
     estado = aplicarEvento(estado, evento, reglas);
-    setTras.set(evento.orden, estado.setNumero);
+    tras.push({ orden: evento.orden, set: estado.setNumero });
   }
+
+  /** El set vigente en esa posición del historial, exista o no ese evento. */
+  const setEnLaPosicion = (trasOrden: number): number => {
+    let set = 1;
+    for (const paso of tras) {
+      if (paso.orden > trasOrden) break;
+      set = paso.set;
+    }
+    return set;
+  };
 
   const { results: cambios } = await db
     .prepare("SELECT id, tras_orden, set_numero FROM partido_cambios WHERE partido_id = ?1")
@@ -608,7 +628,7 @@ async function sentenciasSetNumero(
     .all<{ id: number; tras_orden: number; set_numero: number }>();
 
   for (const cambio of cambios) {
-    const setAhora = setTras.get(cambio.tras_orden) ?? 1;
+    const setAhora = setEnLaPosicion(cambio.tras_orden);
     if (cambio.set_numero !== setAhora) {
       sentencias.push(
         db.prepare("UPDATE partido_cambios SET set_numero = ?1 WHERE id = ?2").bind(setAhora, cambio.id)
