@@ -22,6 +22,23 @@ export function contentTypePorClave(key: string): string {
   return contentTypePorExtension(ext);
 }
 
+/**
+ * El avatar de Mi zona que respalda a la foto de inscripción.
+ *
+ * Cualquier consulta que quiera saber si un jugador tiene cara que enseñar
+ * necesita mirar las dos: `jugadores.foto_key` primero y `perfiles.avatar_key`
+ * después. Se engancha por correo porque el jugador y la cuenta de Google son
+ * dos filas distintas, y va como subconsulta y no como JOIN porque
+ * `usuarios.email` no es único (lo único único es `google_sub`) y un JOIN
+ * duplicaría filas.
+ *
+ * Espera que la tabla `jugadores` esté aliasada como `j` y publica `p`.
+ */
+export const AVATAR_DEL_JUGADOR = `
+  LEFT JOIN perfiles p ON p.usuario_id = (
+    SELECT u.id FROM usuarios u WHERE LOWER(TRIM(u.email)) = j.email_normalizado ORDER BY u.id ASC LIMIT 1
+  )`;
+
 /** Sube un objeto fijando su Content-Type a partir de la extensión de la clave. */
 export async function subirFoto(
   bucket: R2Bucket,

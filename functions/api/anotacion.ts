@@ -15,18 +15,23 @@ import {
   MarcadorSinAdoptar,
   adoptarMarcador,
   corregirEvento,
+  deshacerCambio,
   deshacerUltimo,
   fijarAlineacion,
   hayMarcadorAMano,
   leerAlineacion,
+  leerCambios,
   leerEstado,
   marcadorPlano,
   recalcularPartido,
+  registrarCambio,
   registrarEvento,
   soltarAnotacion,
   validarEvento,
   type PartidoAnotable
 } from "../_lib/eventos";
+import { AVATAR_DEL_JUGADOR } from "../_lib/fotos";
+import { atributosPorJugador, mediaAtributos, NIVEL_POR_DEFECTO } from "../_lib/perfil";
 import { TIPOS, type TipoEvento } from "../_lib/marcador";
 import { normalizarReglas } from "../_lib/reglas";
 import { propagarResultado } from "../_lib/torneo";
@@ -42,7 +47,14 @@ async function cargarPartido(db: D1Database, id: string) {
   return await db.prepare(SELECT_PARTIDO).bind(id).first<PartidoAnotable>();
 }
 
-/** Los dos equipos con su nombre y su plantilla, para elegir quién sale a pista. */
+/**
+ * Los dos equipos con su nombre y su plantilla, para elegir quién sale a pista.
+ *
+ * Trae dorsal, metal y nota porque la pista del anotador pinta el retrato de
+ * cada uno, el mismo que ve el público. Aquí **no** se aplica `oculto_publico`:
+ * eso saca a alguien del álbum, no de la pantalla de quien tiene que atribuirle
+ * los puntos.
+ */
 async function plantillas(db: D1Database, partido: PartidoAnotable) {
   const vacio = { A: { nombre: "Equipo A", jugadores: [] }, B: { nombre: "Equipo B", jugadores: [] } };
   const ids = [partido.equipo_a_id, partido.equipo_b_id].filter((id): id is number => id !== null);
@@ -50,12 +62,27 @@ async function plantillas(db: D1Database, partido: PartidoAnotable) {
 
   const { results } = await db
     .prepare(
-      `SELECT id, equipo_id, nombre, apellidos, es_suplente
-         FROM jugadores WHERE equipo_id IN (${ids.map((_, i) => `?${i + 1}`).join(", ")})
-        ORDER BY es_suplente ASC, orden ASC, id ASC`
+      `SELECT j.id, j.equipo_id, j.nombre, j.apellidos, j.dorsal, j.nivel, j.es_suplente,
+              j.foto_key, p.avatar_key
+         FROM jugadores j
+         ${AVATAR_DEL_JUGADOR}
+        WHERE j.equipo_id IN (${ids.map((_, i) => `?${i + 1}`).join(", ")})
+        ORDER BY j.es_suplente ASC, j.orden ASC, j.id ASC`
     )
     .bind(...ids)
-    .all<{ id: number; equipo_id: number; nombre: string; apellidos: string; es_suplente: number }>();
+    .all<{
+      id: number;
+      equipo_id: number;
+      nombre: string;
+      apellidos: string;
+      dorsal: number | null;
+      nivel: string | null;
+      es_suplente: number;
+      foto_key: string | null;
+      avatar_key: string | null;
+    }>();
+
+  const atributos = await atributosPorJugador(db, results.map((jugador) => jugador.id));
 
   // El nombre congelado del partido es el que vale: es el que se ve en el cuadro.
   const fila = await db
@@ -75,7 +102,12 @@ async function plantillas(db: D1Database, partido: PartidoAnotable) {
             .filter((jugador) => jugador.equipo_id === equipoId)
             .map((jugador) => ({
               id: jugador.id,
-              nombre: `${jugador.nombre} ${jugador.apellidos}`.trim(),
+              nombre: jugador.nombre,
+              apellidos: jugador.apellidos,
+              dorsal: jugador.dorsal,
+              nivel: jugador.nivel ?? NIVEL_POR_DEFECTO,
+              media: mediaAtributos(atributos.get(jugador.id)),
+              tieneFoto: Boolean(jugador.foto_key || jugador.avatar_key),
               esSuplente: jugador.es_suplente === 1
             }))
   });
@@ -85,10 +117,11 @@ async function plantillas(db: D1Database, partido: PartidoAnotable) {
 
 async function respuesta(db: D1Database, partido: PartidoAnotable, status = 200): Promise<Response> {
   const fresco = (await cargarPartido(db, partido.id))!;
-  const [estado, alineacion, equipos] = await Promise.all([
+  const [estado, alineacion, equipos, cambios] = await Promise.all([
     leerEstado(db, fresco),
     leerAlineacion(db, fresco.id),
-    plantillas(db, fresco)
+    plantillas(db, fresco),
+    leerCambios(db, fresco.id)
   ]);
 
   return jsonAdmin(
@@ -112,6 +145,16 @@ async function respuesta(db: D1Database, partido: PartidoAnotable, status = 200)
       marcadorPanel: marcadorPlano(fresco),
       pendienteDeAdoptar: estado.eventos.length === 0 && hayMarcadorAMano(fresco),
       alineacion,
+      // Los cambios no son eventos del log: viajan aparte y el cliente los
+      // mezcla con los puntos por `trasOrden` para pintar el historial.
+      cambios: cambios.map((cambio) => ({
+        id: cambio.id,
+        trasOrden: cambio.tras_orden,
+        lado: cambio.lado,
+        entra: cambio.entra_jugador_id,
+        sale: cambio.sale_jugador_id,
+        setNumero: cambio.set_numero
+      })),
       equipos,
       tipos: TIPOS
     },
@@ -198,6 +241,11 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
         return await accionCorregir(env.DB, partido, body);
       case "alineacion":
         return await accionAlineacion(env.DB, partido, body);
+      case "cambio":
+        return await accionCambio(env.DB, partido, body, acceso.user.id);
+      case "cambio-deshacer":
+        await deshacerCambio(env.DB, partido);
+        return await respuesta(env.DB, partido);
       case "adoptar":
         return await accionAdoptar(env.DB, partido, acceso.user.id, body.desdeCero === true);
       case "soltar":
@@ -283,6 +331,62 @@ async function accionCorregir(
   return await respuesta(db, partido);
 }
 
+/**
+ * ¿Todos esos jugadores son de ese equipo?
+ *
+ * Se comprueba en el servidor y no solo en el cliente: atribuir puntos a alguien
+ * de otro equipo —o de otra edición— falsearía el álbum entero y no se notaría
+ * hasta mucho después. Lo usan la alineación y el cambio, para que no puedan
+ * divergir.
+ */
+async function sonDelEquipo(db: D1Database, equipoId: number, ids: readonly number[]): Promise<boolean> {
+  if (ids.length === 0) return true;
+  const { results } = await db
+    .prepare(
+      `SELECT id FROM jugadores
+        WHERE equipo_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(", ")})`
+    )
+    .bind(equipoId, ...ids)
+    .all<{ id: number }>();
+  return results.length === ids.length;
+}
+
+/**
+ * Un suplente entra por un titular.
+ *
+ * El lado no se acepta del cliente: sale de la alineación de quien está saliendo
+ * —misma regla que `lado_punto`—, y con él se comprueba que quien entra sea de
+ * ese mismo equipo.
+ */
+async function accionCambio(
+  db: D1Database,
+  partido: PartidoAnotable,
+  body: Record<string, unknown>,
+  usuarioId: number
+): Promise<Response> {
+  const entra = Number(body.entra);
+  const sale = Number(body.sale);
+  const campos: Record<string, string> = {};
+  if (!Number.isInteger(entra) || entra <= 0) campos.entra = "Elige quién entra.";
+  if (!Number.isInteger(sale) || sale <= 0) campos.sale = "Elige a quién sustituye.";
+  if (Object.keys(campos).length > 0) return jsonAdmin({ error: "Revisa el cambio.", campos }, 400);
+
+  const alineacion = await leerAlineacion(db, partido.id);
+  const saliente = alineacion.find((fila) => fila.jugador_id === sale);
+  if (!saliente) {
+    return jsonAdmin({ error: "Quien sale ya no está en pista. Vuelve a cargar el partido." }, 409);
+  }
+
+  const equipoId = saliente.lado === "A" ? partido.equipo_a_id : partido.equipo_b_id;
+  if (equipoId === null) return jsonAdmin({ error: "Ese lado del partido todavía no tiene equipo." }, 409);
+  if (!(await sonDelEquipo(db, equipoId, [entra]))) {
+    return jsonAdmin({ error: "Esa persona no juega en ese equipo.", campos: { entra: "No es de ese equipo." } }, 400);
+  }
+
+  await registrarCambio(db, partido, entra, sale, usuarioId);
+  return await respuesta(db, partido, 201);
+}
+
 async function accionAlineacion(
   db: D1Database,
   partido: PartidoAnotable,
@@ -295,22 +399,8 @@ async function accionAlineacion(
   const equipoId = lado === "A" ? partido.equipo_a_id : partido.equipo_b_id;
   if (equipoId === null) return jsonAdmin({ error: "Ese lado del partido todavía no tiene equipo." }, 409);
 
-  /*
-   * Que el jugador sea de ese equipo se comprueba aquí y no solo en el cliente:
-   * atribuir puntos a alguien de otro equipo —o de otra edición— falsearía el
-   * álbum entero y no se notaría hasta mucho después.
-   */
-  if (ids.length > 0) {
-    const { results } = await db
-      .prepare(
-        `SELECT id FROM jugadores
-          WHERE equipo_id = ?1 AND id IN (${ids.map((_, i) => `?${i + 2}`).join(", ")})`
-      )
-      .bind(equipoId, ...ids)
-      .all<{ id: number }>();
-    if (results.length !== ids.length) {
-      return jsonAdmin({ error: "Alguna de esas personas no juega en ese equipo." }, 400);
-    }
+  if (!(await sonDelEquipo(db, equipoId, ids))) {
+    return jsonAdmin({ error: "Alguna de esas personas no juega en ese equipo." }, 400);
   }
 
   await fijarAlineacion(db, partido.id, lado, ids);

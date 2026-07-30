@@ -17,11 +17,9 @@ const MARCADO = `
     <p data-torneo-status hidden></p>
     <button data-torneo-retry hidden>Reintentar</button>
     <p data-torneo-lede></p>
-    <div data-directo-panel hidden>
-      <p data-directo-panel-vacio></p>
-      <div data-directo-panel-partidos></div>
-      <button data-directo-refrescar></button>
-    </div>
+    <p data-torneo-directo hidden>
+      Se está jugando ahora: <a href="/directo/" data-torneo-directo-enlace>ver el directo</a>
+    </p>
     <div data-torneo-fases></div>
     <section data-torneo-sueltos hidden><div data-torneo-sueltos-lista></div></section>
   </div>
