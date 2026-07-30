@@ -1,0 +1,24 @@
+-- Migration number: 0027 	 el contador que hace que el ETag del directo no mienta
+-- Solo un ALTER, y por eso va suelto, igual que la 0021: ADD COLUMN no es
+-- idempotente y D1 reejecuta el fichero entero si algo falla a mitad.
+--
+-- `versionDirecto` calcula el ETag del directo con UNA fila agregada sobre
+-- `partidos`: cuenta, ultimo updated_at y marcador sumado. Eso bastaba cuando el
+-- payload era solo el marcador, pero ahora lleva tambien quien esta en pista y
+-- el historial de puntos y cambios, y hay tres escrituras que no mueven ninguna
+-- de esas tres cosas:
+--
+--   - fijar la alineacion, que no toca `partidos` en absoluto;
+--   - registrar un cambio de jugador, que vive en otra tabla;
+--   - un evento 'defensa', que no puntua (solo se salvaba por `updated_at`, y
+--     dos escrituras en el mismo milisegundo dan la misma marca).
+--
+-- Sin este contador, cualquiera de las tres deja al espectador con un 304 y el
+-- cuerpo viejo: el marcador congelado, sin error y sin nada que lo diga.
+--
+-- La alternativa era meter un COUNT(*) de partido_eventos en la consulta de
+-- version, y eso encarece justo el camino barato: D1 factura filas leidas, asi
+-- que cada 304 pasaria de leer una fila a leer el log entero. Un contador en la
+-- fila que ya se lee no cuesta nada.
+
+ALTER TABLE partidos ADD COLUMN log_version INTEGER NOT NULL DEFAULT 0;

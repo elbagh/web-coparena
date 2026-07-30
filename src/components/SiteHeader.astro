@@ -28,6 +28,7 @@ const navItems: Entrada[] = [
   {
     label: "Torneo",
     hijos: [
+      { href: "/directo/", label: "En directo", pista: "El marcador del partido que se está jugando" },
       { href: "/torneo/", label: "El cuadro", pista: "Calendario, resultados y clasificación" },
       { href: "/torneo/premios/", label: "Premios y reglas", pista: "El reparto del bote y cómo se juega" }
     ]
@@ -110,7 +111,7 @@ const navPlanos: Enlace[] = navItems.flatMap((item) => (esDesplegable(item) ? it
       <p class="directo-aviso">Cuando empiece un partido, este botón te lleva al marcador en directo.</p>
     </details>
 
-    <a class="header-directo is-vivo" href="/torneo/#directo" data-directo-vivo hidden aria-live="polite">
+    <a class="header-directo is-vivo" href="/directo/" data-directo-vivo hidden aria-live="polite">
       <svg class="directo-llama" viewBox="0 0 16 20" aria-hidden="true">
         <path
           d="M8 0.6c.6 3.2-1.3 4.4-2.9 6C3.2 8.5 2 10.2 2 12.6 2 16.4 4.7 19.4 8 19.4s6-3 6-6.8c0-2.9-1.6-4.6-3.1-6.4-.5.9-1.2 1.5-2 1.8.6-2.7.2-5.4-.9-7.4Z"

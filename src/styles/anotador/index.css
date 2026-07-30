@@ -23,9 +23,12 @@ body.is-anotador {
   --anot-superficie: #ffffff;
   --anot-linea: rgba(12, 17, 18, 0.22);
   /* Los dos equipos tienen color fijo en toda la pantalla: nunca hay que leer
-     cuál es cuál. */
-  --anot-a: var(--sea);
-  --anot-b: var(--coral);
+     cuál es cuál. Son los mismos azul y rojo de equipación que el directo
+     público (global.css), para que quien anota y quien mira vean al mismo
+     equipo del mismo color. Antes eran --sea y --coral, que sobre esta crema
+     daban 3,50:1 y 2,54:1 — el segundo, por debajo de AA. */
+  --anot-a: var(--equipo-azul);
+  --anot-b: var(--equipo-rojo);
   --anot-ok: #1c6b32;
   --anot-alerta: #a3200f;
   --anot-apagado: #5d6b68;
@@ -158,29 +161,6 @@ body.is-anotador {
   text-align: center;
 }
 
-.anot-marcador-equipos {
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.anot-equipo {
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1.15;
-  max-width: 45%;
-}
-
-.anot-equipo--a {
-  color: var(--anot-a);
-  text-align: left;
-}
-
-.anot-equipo--b {
-  color: var(--anot-b);
-  text-align: right;
-}
-
 .anot-tanteo {
   align-items: center;
   display: flex;
@@ -193,9 +173,15 @@ body.is-anotador {
  * Lo único en Titan One de toda la pantalla, y lo único que hay que poder leer
  * a un brazo de distancia con reflejos.
  */
+/*
+ * Sigue siendo lo único que hay que poder leer a un brazo de distancia con
+ * reflejos, pero un punto más bajo que antes: la pista pasó a ser un versus con
+ * banquillo, y en un móvil de 844px estos 25px eran los que dejaban la botonera
+ * por debajo del borde.
+ */
 .anot-puntos {
   font-family: var(--font-display);
-  font-size: clamp(3.4rem, 20vw, 5.4rem);
+  font-size: clamp(2.8rem, 16vw, 4.4rem);
   line-height: 0.95;
   min-width: 2ch;
 }
@@ -281,85 +267,162 @@ body.is-anotador {
  * La pantalla es una pista vista desde arriba. Se toca a quien hizo la acción
  * donde está, sin traducir «la de la izquierda del fondo» a una fila de lista.
  */
+/*
+ * Un versus: cada equipo en su lado, con su color de equipación, y la red en
+ * medio. Es la misma imagen que ve el público en /directo/, así que quien anota
+ * y quien mira tienen el mismo mapa en la cabeza.
+ */
 .anot-pista {
   display: grid;
-  gap: 0;
+  gap: 6px;
+  grid-template-columns: 1fr auto 1fr;
   margin: 12px 0;
 }
 
 .anot-mitad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+/* El nombre del equipo, en banda de su color: es lo que empareja este lado con
+   el mismo lado del directo público. */
+.anot-equipo-banda {
+  background: var(--anot-lado);
+  border-radius: 10px;
+  color: var(--anot-fondo);
+  font-size: 0.8rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.anot-mitad--a {
+  --anot-lado: var(--anot-a);
+}
+
+.anot-mitad--b {
+  --anot-lado: var(--anot-b);
+}
+
+.anot-enpista,
+.anot-banquillo {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  padding: 10px 0;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+
+.anot-banquillo {
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+}
+
+.anot-banquillo:not(:empty) {
+  border-top: 1px dashed var(--anot-linea);
+  padding-top: 8px;
 }
 
 /* La red. No es adorno: es lo que decide de quién es el punto — un error de
-   este lado se lo lleva el otro. */
+   este lado se lo lleva el otro. Vertical desde que la pista es un versus. */
 .anot-red {
   background: repeating-linear-gradient(
-    90deg,
+    180deg,
     var(--anot-tinta) 0 6px,
     transparent 6px 12px
   );
-  height: 3px;
+  width: 3px;
 }
 
-.anot-jugador {
+.anot-jugador,
+.anot-suplente {
   background: var(--anot-superficie);
   border: 3px solid var(--anot-tinta);
   border-radius: 14px;
   cursor: pointer;
+  display: flex;
   font: inherit;
   font-size: 1.05rem;
   font-weight: 800;
+  justify-content: center;
   min-height: 82px;
-  padding: 12px 10px;
+  padding: 10px 6px;
   text-align: center;
 }
 
-.anot-jugador--a {
+/*
+ * El banquillo es más pequeño porque no es donde se anota: se toca una vez cada
+ * muchos puntos, para hacer un cambio. Aun así mantiene los 56px de objetivo
+ * táctil — con arena en los dedos, un botón de 40px no se acierta.
+ */
+.anot-suplente {
+  border-width: 2px;
+  border-style: dashed;
+  min-height: 56px;
+  padding: 6px 4px;
+}
+
+.anot-jugador--a,
+.anot-suplente--a {
   border-color: var(--anot-a);
   color: var(--anot-a);
 }
 
-.anot-jugador--b {
+.anot-jugador--b,
+.anot-suplente--b {
   border-color: var(--anot-b);
   color: var(--anot-b);
 }
 
-.anot-jugador:active {
+.anot-jugador:active,
+.anot-suplente:active {
   transform: scale(0.97);
+}
+
+/* El retrato hereda el color del equipo, y a pleno sol el nombre se lee mejor
+   en tinta que en el color de la banda. */
+.anot-jugador .retrato-nombre,
+.anot-suplente .retrato-nombre {
+  color: var(--anot-tinta);
+}
+
+/*
+ * Aquí la cara puede ser más pequeña que en el directo: el objetivo táctil es el
+ * botón entero, no la foto, y lo que se gana en alto es lo que mantiene la
+ * botonera al alcance del pulgar.
+ */
+.anot-jugador .retrato-marco {
+  height: clamp(56px, 17vw, 72px);
+  width: clamp(56px, 17vw, 72px);
+}
+
+.anot-suplente .retrato-marco {
+  height: 42px;
+  width: 42px;
+}
+
+/* En el banquillo basta el nombre: solo se toca para hacer un cambio. */
+.anot-suplente .retrato-apellidos {
+  display: none;
 }
 
 /* Terminado el partido, la pista deja de responder y se ve que deja de
    responder: antes los botones seguían pareciendo vivos y no hacían nada. */
-.anot-jugador:disabled {
+.anot-jugador:disabled,
+.anot-suplente:disabled {
   border-color: var(--anot-linea);
   color: var(--anot-apagado);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.anot-jugador-nombre {
-  display: block;
-}
-
-/* El apellido y el dorsal son para desempatar dos nombres de pila iguales, así
-   que van pequeños: lo que se lee de un vistazo sigue siendo el nombre. */
-.anot-jugador-apellidos {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  opacity: 0.75;
-}
-
-.anot-jugador-dorsal {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
+/*
+ * El nombre, el apellido y el dorsal los pinta ahora el retrato de `cromo.js`
+ * (`.retrato-*` en global.css), que es la misma pieza que enseña el directo
+ * público. Aquí solo se retoca lo que cambia sobre la crema del anotador.
+ */
 
 .anot-sin-alineacion {
   color: var(--anot-apagado);
@@ -472,11 +535,24 @@ body.is-anotador {
   font-weight: 600;
 }
 
-/* El error es el que cambia de dueño el punto: se marca distinto para no
-   confundirlo con los aciertos en un toque rápido. */
+/*
+ * El error es el que cambia de dueño el punto: se marca distinto para no
+ * confundirlo con los aciertos en un toque rápido.
+ *
+ * Ya no en rojo. Desde que los equipos son azul y rojo de equipación, un botón
+ * rojo se lee como «el botón del equipo rojo», que es exactamente lo contrario
+ * de lo que hace (dar el punto al rival, sea quien sea). Ahora lo distingue el
+ * doble borde de tinta, y la flecha del ::after dice lo único que importa: que
+ * el punto cruza la red.
+ */
 .anot-btn--error {
-  border-color: var(--anot-alerta);
-  color: var(--anot-alerta);
+  border-color: var(--anot-tinta);
+  box-shadow: inset 0 0 0 3px var(--anot-superficie), inset 0 0 0 6px var(--anot-tinta);
+}
+
+.anot-btn--error .anot-tipo-nombre::after {
+  content: " ⇢";
+  font-weight: 900;
 }
 
 .anot-btn--defensa {
@@ -699,9 +775,11 @@ body.is-anotador {
  * vez de dejar botones que van a dar 403 o a perderse.
  */
 html.anot-sin-red .anot-jugador,
+html.anot-sin-red .anot-suplente,
 html.anot-sin-red .anot-btn--tipo,
 html.anot-sin-red .anot-btn--deshacer,
 html.anot-solo-lectura .anot-jugador,
+html.anot-solo-lectura .anot-suplente,
 html.anot-solo-lectura .anot-btn--tipo,
 html.anot-solo-lectura .anot-btn--deshacer {
   filter: grayscale(1);
@@ -716,7 +794,8 @@ html.anot-solo-lectura .anot-btn--deshacer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .anot-jugador:active {
+  .anot-jugador:active,
+  .anot-suplente:active {
     transform: none;
   }
 }

@@ -164,6 +164,110 @@
     return placa("cromo-punta", "0 0 300 56", PUNTA_FONDO, PUNTA_FILO, null);
   }
 
+  /**
+   * El retrato: la cara de un jugador con el metal de su cromo, para el versus
+   * del directo y para la pista del anotador.
+   *
+   * No es el cromo ni el mini del álbum, y esa es la decisión: una carta son dos
+   * SVG con su degradado cada uno, y en un versus hay dieciséis caras en
+   * pantalla que además se animan al puntuar. Esto es **una `<img>` y cero
+   * SVG** — el aro sale del `border`, con el metal en una variable por nivel—,
+   * así que tampoco hay ids de degradado que puedan colisionar.
+   *
+   * Devuelve un `<span>` sin nada interactivo dentro: el anotador lo mete en un
+   * `<button>` y el directo lo deja tal cual.
+   *
+   *   CopaCromo.retrato({
+   *     nivel: "oro", dorsal: 7, media: 63,
+   *     nombre: "Marta",           // null si la persona está oculta del álbum
+   *     fotoUrl: "/api/jugadores?foto=12",   // null → manda el dorsal
+   *     tamano: "grande" | "pequeno",
+   *     prioridad: "alta",         // titular en pantalla; el resto carga en diferido
+   *     etiqueta: "Marta Souto, dorsal 7"    // lo que oye un lector de pantalla
+   *   })
+   */
+  function retrato(datos) {
+    const nivel = nivelValido(datos.nivel);
+    const tamano = datos.tamano === "pequeno" ? "pequeno" : "grande";
+    const dorsal = datos.dorsal === 0 || datos.dorsal ? String(datos.dorsal) : "";
+
+    const raiz = el("span", `retrato retrato--${nivel} retrato--${tamano}`);
+    const marco = el("span", "retrato-marco");
+
+    if (datos.fotoUrl) {
+      const img = document.createElement("img");
+      img.className = "retrato-foto";
+      img.src = datos.fotoUrl;
+      // El nombre ya va en texto debajo, así que la foto no lo repite: el
+      // lector de pantalla lee la etiqueta de la raíz y no dos veces lo mismo.
+      img.alt = "";
+      // Por atributo y no por propiedad: `loading` y `decoding` no están
+      // reflejados en todos los motores (jsdom, sin ir más lejos) y el atributo
+      // es lo que de verdad lee el navegador.
+      img.setAttribute("decoding", "async");
+      // Medidas fijas para que la rejilla no salte mientras cargan.
+      const lado = tamano === "grande" ? 96 : 56;
+      img.setAttribute("width", String(lado));
+      img.setAttribute("height", String(lado));
+      img.setAttribute("loading", datos.prioridad === "alta" ? "eager" : "lazy");
+      if (datos.prioridad === "alta") img.setAttribute("fetchpriority", "high");
+      marco.appendChild(img);
+    } else {
+      /*
+       * Sin foto manda el dorsal, no las iniciales: dentro de un equipo de
+       * cuatro, dos iniciales identifican tanto como el nombre, y este mismo
+       * hueco es el de quien ha pedido no salir en el álbum.
+       */
+      marco.appendChild(el("span", "retrato-hueco", dorsal || "·"));
+    }
+    raiz.appendChild(marco);
+
+    if (dorsal && datos.fotoUrl) raiz.appendChild(el("span", "retrato-dorsal", dorsal));
+    if (typeof datos.media === "number") raiz.appendChild(el("span", "retrato-nota", String(datos.media)));
+    if (datos.nombre) raiz.appendChild(el("span", "retrato-nombre", datos.nombre));
+    /*
+     * El apellido, pequeño y debajo. Manda el nombre de pila —es lo que se grita
+     * en la pista— pero dos «Marta» en la misma mitad eran dos botones idénticos,
+     * y quien anota tiene que acertar a la primera.
+     */
+    if (datos.apellidos) raiz.appendChild(el("span", "retrato-apellidos", datos.apellidos));
+    if (datos.etiqueta) raiz.appendChild(el("span", "sr-only", datos.etiqueta));
+
+    return raiz;
+  }
+
+  /*
+   * La sacudida de un retrato al que acaban de anotarle un punto. Vive aquí y no
+   * en cada página porque las dos —el directo y el anotador— la hacen igual, y
+   * porque es del retrato.
+   *
+   * Solo `transform`: nada que obligue al navegador a recalcular la página. Sin
+   * `will-change` permanente (dieciséis capas de composición en un móvil de gama
+   * baja es peor que la animación) y sin forzar reflow para reiniciarla: se
+   * cancela la anterior, que es lo que hace falta cuando caen dos puntos
+   * seguidos. Con `prefers-reduced-motion` no se mueve nada: destella.
+   */
+  const VIBRA = [
+    { transform: "translate3d(0,0,0)" },
+    { transform: "translate3d(-2px,0,0) rotate(-2deg)", offset: 0.2 },
+    { transform: "translate3d(2px,0,0) rotate(2deg)", offset: 0.5 },
+    { transform: "translate3d(-1px,0,0)", offset: 0.78 },
+    { transform: "translate3d(0,0,0)" }
+  ];
+
+  function vibrar(nodo) {
+    if (!nodo || !nodo.isConnected) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !nodo.animate) {
+      nodo.classList.remove("is-anota");
+      requestAnimationFrame(() => nodo.classList.add("is-anota"));
+      setTimeout(() => nodo.classList.remove("is-anota"), 900);
+      return;
+    }
+    nodo.getAnimations().forEach((animacion) => animacion.cancel());
+    nodo.animate(VIBRA, { duration: 420, easing: "ease-out" });
+  }
+
   function statTile(valor, etiqueta, variante) {
     const tile = el("div", "stat-tile" + (variante ? " stat-tile--" + variante : ""));
     tile.appendChild(el("span", "stat-value", valor));
@@ -286,5 +390,5 @@
     return card;
   }
 
-  window.CopaCromo = { crear, corona, punta, el, iniciales, statTile, ATRIBUTOS, NIVELES };
+  window.CopaCromo = { crear, retrato, vibrar, corona, punta, el, iniciales, statTile, ATRIBUTOS, NIVELES };
 })();

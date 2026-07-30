@@ -44,9 +44,22 @@ export interface PartidoAnotable {
 export interface AlineacionFila {
   jugador_id: number;
   lado: Lado;
+  /** El hueco que ocupa en su mitad. Lo hereda quien entre en su lugar. */
+  orden: number;
   nombre: string;
   apellidos: string;
   dorsal: number | null;
+}
+
+/** Un cambio de jugador. Vive fuera del log de puntos: no pliega ni puntúa. */
+export interface CambioFila {
+  id: number;
+  tras_orden: number;
+  lado: Lado;
+  entra_jugador_id: number;
+  sale_jugador_id: number;
+  posicion: number;
+  set_numero: number;
 }
 
 export interface EventoNuevo {
@@ -200,13 +213,28 @@ export const hayMarcadorAMano = (partido: PartidoAnotable, segunElLog: EstadoMar
 async function leerEventos(db: D1Database, partidoId: string): Promise<EventoFila[]> {
   const { results } = await db
     .prepare(
-      `SELECT orden, tipo, lado_jugador, jugador_id, lado_punto, puntos_a, puntos_b, sets_a, sets_b
+      `SELECT orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto, puntos_a, puntos_b, sets_a, sets_b
          FROM partido_eventos WHERE partido_id = ?1 ORDER BY orden ASC`
     )
     .bind(partidoId)
     .all<EventoFila>();
   return results;
 }
+
+/**
+ * Sube el contador que hace que el ETag del directo no mienta.
+ *
+ * Va en la misma fila de `partidos` que `versionDirecto` ya lee, así que cubrir
+ * las escrituras que no tocan el marcador —la alineación, un cambio de jugador,
+ * una defensa— no encarece el camino barato (el 304). Devuelve la sentencia en
+ * vez de ejecutarla para que entre en el mismo `batch` que la provoca: un
+ * contador que no sube deja al espectador con el cuerpo viejo y sin saberlo.
+ */
+export const sentenciaLogVersion = (db: D1Database, partidoId: string): D1PreparedStatement =>
+  db.prepare("UPDATE partidos SET log_version = log_version + 1, updated_at = ?1 WHERE id = ?2").bind(
+    new Date().toISOString(),
+    partidoId
+  );
 
 /**
  * Reescribe marcador y estadísticas a partir del log. Devuelve las sentencias
@@ -233,7 +261,7 @@ function sentenciasDerivadas(
         `UPDATE partidos SET
            points_a = ?1, points_b = ?2, sets_a = ?3, sets_b = ?4, set_number = ?5,
            set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9,
-           origen_marcador = 'eventos', updated_at = ?10
+           origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?10
          WHERE id = ?11`
       )
       .bind(
@@ -485,8 +513,8 @@ export async function corregirEvento(
 
   const tipo = cambios.tipo ?? actual.tipo;
   const jugadorId = cambios.jugadorId ?? actual.jugador_id!;
-  const enPista = alineacion.find((fila) => fila.jugador_id === jugadorId);
-  if (!TIPOS_ANOTABLES.has(tipo) || !enPista) {
+  const lado = ladosDelPartido(eventos, alineacion).get(jugadorId);
+  if (!TIPOS_ANOTABLES.has(tipo) || !lado) {
     throw new ErrorDeAnotacion("Revisa la acción y a quién se le atribuye.");
   }
 
@@ -494,8 +522,8 @@ export async function corregirEvento(
     ...actual,
     tipo,
     jugador_id: jugadorId,
-    lado_jugador: enPista.lado,
-    lado_punto: ladoDelPunto(tipo, enPista.lado)
+    lado_jugador: lado,
+    lado_punto: ladoDelPunto(tipo, lado)
   };
   const nuevos = [...eventos];
   nuevos[indice] = corregido;
@@ -507,11 +535,88 @@ export async function corregirEvento(
         `UPDATE partido_eventos SET tipo = ?1, jugador_id = ?2, lado_jugador = ?3, lado_punto = ?4
           WHERE partido_id = ?5 AND orden = ?6`
       )
-      .bind(tipo, jugadorId, enPista.lado, corregido.lado_punto, partido.id, orden),
+      .bind(tipo, jugadorId, lado, corregido.lado_punto, partido.id, orden),
+    ...(await sentenciasSetNumero(db, partido, nuevos)),
     ...sentencias
   ]);
 
   return await leerEstado(db, partido);
+}
+
+/**
+ * A qué lado pertenece cada jugador que ha pisado este partido.
+ *
+ * La alineación **actual** manda, pero no basta: en cuanto hay un cambio, quien
+ * salió de pista dejaría de poder recibir correcciones — y corregir «ese remate
+ * fue de Ana, no de Nuria» es justo lo que hace falta después de un cambio. El
+ * log ya dice de qué lado jugaba cada uno, así que se completa con él.
+ */
+function ladosDelPartido(
+  eventos: readonly EventoFila[],
+  alineacion: readonly AlineacionFila[]
+): Map<number, Lado> {
+  const lados = new Map<number, Lado>();
+  for (const evento of eventos) {
+    if (evento.jugador_id !== null && evento.lado_jugador) lados.set(evento.jugador_id, evento.lado_jugador);
+  }
+  for (const fila of alineacion) lados.set(fila.jugador_id, fila.lado);
+  return lados;
+}
+
+/**
+ * Reescribe el `set_numero` de lo que haya cambiado de set al replegar.
+ *
+ * Corregir un evento antiguo puede mover una frontera de set (convertir una
+ * defensa en remate desplaza todo lo posterior), y la columna guardada es lo que
+ * lee el historial público: sin esto, el feed diría «Set 2» en líneas del set 1
+ * y sería un fallo invisible para cualquier test que solo mire el marcador.
+ * Los cambios de jugador se anclan a un evento, así que se recolocan igual.
+ */
+async function sentenciasSetNumero(
+  db: D1Database,
+  partido: PartidoAnotable,
+  eventos: readonly EventoFila[]
+): Promise<D1PreparedStatement[]> {
+  const reglas = normalizarReglas(partido.reglas).partido;
+  const sentencias: D1PreparedStatement[] = [];
+  /** El set en el que cae cada `orden`, y en el que cae lo que venga detrás. */
+  const setTras = new Map<number, number>();
+
+  /*
+   * Una sola pasada. Replegar el log entero por cada evento —y aquí dos veces,
+   * antes y después— es O(n²) en el camino que se recorre en cada punto: a 250
+   * eventos son ~62.000 pliegues por punto anotado, en un móvil, a pie de pista.
+   * `aplicarEvento` es ese mismo pliegue de uno en uno.
+   */
+  let estado = marcadorInicial();
+  for (const evento of eventos) {
+    const antes = estado.setNumero;
+    if (evento.set_numero !== undefined && evento.set_numero !== antes) {
+      sentencias.push(
+        db
+          .prepare("UPDATE partido_eventos SET set_numero = ?1 WHERE partido_id = ?2 AND orden = ?3")
+          .bind(antes, partido.id, evento.orden)
+      );
+    }
+    estado = aplicarEvento(estado, evento, reglas);
+    setTras.set(evento.orden, estado.setNumero);
+  }
+
+  const { results: cambios } = await db
+    .prepare("SELECT id, tras_orden, set_numero FROM partido_cambios WHERE partido_id = ?1")
+    .bind(partido.id)
+    .all<{ id: number; tras_orden: number; set_numero: number }>();
+
+  for (const cambio of cambios) {
+    const setAhora = setTras.get(cambio.tras_orden) ?? 1;
+    if (cambio.set_numero !== setAhora) {
+      sentencias.push(
+        db.prepare("UPDATE partido_cambios SET set_numero = ?1 WHERE id = ?2").bind(setAhora, cambio.id)
+      );
+    }
+  }
+
+  return sentencias;
 }
 
 /** Vuelve a derivar todo desde el log, sin tocarlo. Idempotente. */
@@ -531,12 +636,123 @@ export async function fijarAlineacion(
 ): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM partido_alineacion WHERE partido_id = ?1 AND lado = ?2").bind(partidoId, lado),
+    sentenciaLogVersion(db, partidoId),
     ...jugadorIds.map((jugadorId, indice) =>
       db
         .prepare("INSERT INTO partido_alineacion (partido_id, jugador_id, lado, orden) VALUES (?1, ?2, ?3, ?4)")
         .bind(partidoId, jugadorId, lado, indice)
     )
   ]);
+}
+
+/**
+ * Mete a un suplente y saca a un titular.
+ *
+ * No pasa por `fijarAlineacion` a propósito: aquella fija el lado entero y con
+ * ello reparte de nuevo los huecos, así que los retratos de la pista saltarían
+ * de sitio. Aquí quien entra hereda **el hueco exacto** del que sale.
+ *
+ * Y no es un evento del log: no pliega, no puntúa y no genera estadísticas. Lo
+ * único que comparte con los puntos es el sitio en el historial, que es lo que
+ * ancla `tras_orden`.
+ */
+export async function registrarCambio(
+  db: D1Database,
+  partido: PartidoAnotable,
+  entraId: number,
+  saleId: number,
+  usuarioId: number
+): Promise<void> {
+  if (entraId === saleId) throw new ErrorDeAnotacion("Elige a dos personas distintas.");
+
+  const alineacion = await leerAlineacion(db, partido.id);
+  const sale = alineacion.find((fila) => fila.jugador_id === saleId);
+  if (!sale) throw new ErrorDeAnotacion("Quien sale ya no está en pista. Vuelve a cargar el partido.");
+  if (alineacion.some((fila) => fila.jugador_id === entraId)) {
+    throw new ErrorDeAnotacion("Esa persona ya está en pista.");
+  }
+
+  const ultimo = await db
+    .prepare("SELECT COALESCE(MAX(orden), -1) AS orden FROM partido_eventos WHERE partido_id = ?1")
+    .bind(partido.id)
+    .first<{ orden: number }>();
+
+  /*
+   * Un cambio a medio aplicar deja el lado con un jugador de menos y el punto
+   * siguiente rebota en `validarEvento`: las tres escrituras van juntas.
+   */
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO partido_cambios
+           (partido_id, tras_orden, lado, entra_jugador_id, sale_jugador_id, posicion, set_numero, usuario_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+      )
+      .bind(
+        partido.id,
+        ultimo?.orden ?? -1,
+        sale.lado,
+        entraId,
+        saleId,
+        sale.orden,
+        // El set que se está jugando: los cerrados más uno, igual que el pliegue.
+        partido.sets_a + partido.sets_b + 1,
+        usuarioId
+      ),
+    db
+      .prepare("DELETE FROM partido_alineacion WHERE partido_id = ?1 AND jugador_id = ?2")
+      .bind(partido.id, saleId),
+    db
+      .prepare("INSERT INTO partido_alineacion (partido_id, jugador_id, lado, orden) VALUES (?1, ?2, ?3, ?4)")
+      .bind(partido.id, entraId, sale.lado, sale.orden),
+    sentenciaLogVersion(db, partido.id)
+  ]);
+}
+
+/**
+ * Deshace el último cambio. Solo el último, igual que con los puntos: deshacer
+ * el penúltimo dejaría la pista en una alineación que no existió nunca.
+ */
+export async function deshacerCambio(db: D1Database, partido: PartidoAnotable): Promise<void> {
+  const cambio = await db
+    .prepare(
+      `SELECT id, tras_orden, lado, entra_jugador_id, sale_jugador_id, posicion, set_numero
+         FROM partido_cambios WHERE partido_id = ?1 ORDER BY id DESC LIMIT 1`
+    )
+    .bind(partido.id)
+    .first<CambioFila>();
+  if (!cambio) throw new ErrorDeAnotacion("No hay ningún cambio que deshacer.");
+
+  const sigueEnPista = await db
+    .prepare("SELECT 1 AS hay FROM partido_alineacion WHERE partido_id = ?1 AND jugador_id = ?2")
+    .bind(partido.id, cambio.entra_jugador_id)
+    .first<{ hay: number }>();
+  if (!sigueEnPista) {
+    throw new ErrorDeAnotacion("Ese cambio ya no se puede deshacer: quien entró ha salido después.");
+  }
+
+  await db.batch([
+    db.prepare("DELETE FROM partido_cambios WHERE id = ?1").bind(cambio.id),
+    db
+      .prepare("DELETE FROM partido_alineacion WHERE partido_id = ?1 AND jugador_id = ?2")
+      .bind(partido.id, cambio.entra_jugador_id),
+    db
+      .prepare("INSERT INTO partido_alineacion (partido_id, jugador_id, lado, orden) VALUES (?1, ?2, ?3, ?4)")
+      .bind(partido.id, cambio.sale_jugador_id, cambio.lado, cambio.posicion),
+    sentenciaLogVersion(db, partido.id)
+  ]);
+}
+
+/** Los cambios de un partido, en el orden en que ocurrieron. */
+export async function leerCambios(db: D1Database, partidoId: string): Promise<CambioFila[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, tras_orden, lado, entra_jugador_id, sale_jugador_id, posicion, set_numero
+         FROM partido_cambios WHERE partido_id = ?1 ORDER BY tras_orden ASC, id ASC`
+    )
+    .bind(partidoId)
+    .all<CambioFila>();
+  return results;
 }
 
 /**
@@ -627,7 +843,9 @@ export async function adoptarMarcador(
  */
 export async function soltarAnotacion(db: D1Database, partidoId: string): Promise<void> {
   await db
-    .prepare("UPDATE partidos SET origen_marcador = 'manual', updated_at = ?1 WHERE id = ?2")
+    .prepare(
+      "UPDATE partidos SET origen_marcador = 'manual', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+    )
     .bind(new Date().toISOString(), partidoId)
     .run();
 }
@@ -639,7 +857,7 @@ export async function leerAlineacion(db: D1Database, partidoId: string): Promise
       // El dorsal es del jugador desde la 0023: ya no hay que cruzarlo por
       // correo con la cuenta de Google, y quien nunca inició sesión también lo
       // lleva si la organización se lo puso.
-      `SELECT a.jugador_id, a.lado, j.nombre, j.apellidos, j.dorsal
+      `SELECT a.jugador_id, a.lado, a.orden, j.nombre, j.apellidos, j.dorsal
          FROM partido_alineacion a
          JOIN jugadores j ON j.id = a.jugador_id
         WHERE a.partido_id = ?1

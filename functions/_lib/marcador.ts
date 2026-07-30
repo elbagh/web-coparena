@@ -87,6 +87,13 @@ export function ladoDelPunto(tipo: TipoEvento, ladoJugador: Lado): Lado | null {
 
 export interface EventoFila {
   orden: number;
+  /**
+   * El set en el que se guardó. Es un dato derivado que se conserva en la fila
+   * porque el historial público lee solo la cola del log y no puede replegar
+   * desde el principio para saberlo. Corregir un evento antiguo puede mover una
+   * frontera de set, y por eso `corregirEvento` lo reescribe.
+   */
+  set_numero?: number;
   tipo: TipoEvento;
   lado_jugador: Lado | null;
   jugador_id: number | null;

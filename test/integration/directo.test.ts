@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { onRequestGet } from "../../functions/api/directo";
 import { ctx } from "../helpers/ctx";
-import { crearEdicion, crearEquipo, crearPartido, peticion } from "../helpers/db";
+import { crearAdmin, crearEdicion, crearEquipo, crearPartido, peticion } from "../helpers/db";
 
 /*
  * /api/directo es el único endpoint que sondea todo el mundo a la vez, así que
@@ -15,6 +15,9 @@ import { crearEdicion, crearEquipo, crearPartido, peticion } from "../helpers/db
 interface Estado {
   hayDirecto: boolean;
   partidos: { id: string; ronda: string; points: { A: number; B: number }; teams: { A: { name: string } } }[];
+  enPista: { A: number[]; B: number[] } | null;
+  feed: { o: number; c?: number; t: string; j?: number | null; x?: number; l?: string | null; s: number }[];
+  feedTotal: number;
   siguiente: { ronda: string; equipos: [string, string] } | null;
   siguienteSondeoMs: number;
   modoAhorro: boolean;
@@ -194,5 +197,183 @@ describe("la cadencia la manda el servidor", () => {
     await ajustar("directo_sondeo_ms", "10");
 
     expect((await leer()).estado.siguienteSondeoMs).toBe(3000);
+  });
+});
+
+/*
+ * El versus y el historial.
+ *
+ * Lo que se blinda aquí es el fallo silencioso: si el payload crece y la versión
+ * no lo cubre, el espectador recibe un 304 con el cuerpo viejo — el marcador
+ * congelado, sin error y sin nada que lo diga. De ahí que haya un test por cada
+ * escritura que NO mueve el marcador.
+ */
+describe("el versus y el historial", () => {
+  /** Un partido en juego con dos jugadores por lado ya alineados. */
+  async function enJuegoConGente() {
+    const a = await crearEquipo({ nombre: "Delfines", jugadores: [{ nombre: "Ana" }, { nombre: "Berta" }] });
+    const b = await crearEquipo({ nombre: "Gaviotas", jugadores: [{ nombre: "Carla" }, { nombre: "Diana" }] });
+    const id = await crearPartido({ ronda: "Final", equipoA: a, equipoB: b });
+    await ponerEnJuego(id);
+
+    const alinear = (jugadores: { id: number }[], lado: string) =>
+      env.DB.batch(
+        jugadores.map((jugador, indice) =>
+          env.DB
+            .prepare("INSERT INTO partido_alineacion (partido_id, jugador_id, lado, orden) VALUES (?1, ?2, ?3, ?4)")
+            .bind(id, jugador.id, lado, indice)
+        )
+      );
+    await alinear(a.jugadores, "A");
+    await alinear(b.jugadores, "B");
+
+    return { id, a, b };
+  }
+
+  const anotarEvento = async (
+    partidoId: string,
+    orden: number,
+    jugadorId: number,
+    lado: string,
+    tipo = "remate",
+    setNumero = 1
+  ) => {
+    await env.DB
+      .prepare(
+        `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+      )
+      .bind(partidoId, orden, setNumero, tipo, lado, jugadorId, tipo === "error" ? (lado === "A" ? "B" : "A") : lado)
+      .run();
+    await env.DB.prepare("UPDATE partidos SET log_version = log_version + 1 WHERE id = ?1").bind(partidoId).run();
+  };
+
+  it("dice quién está en pista, por lado y en orden", async () => {
+    const { a, b } = await enJuegoConGente();
+
+    const { estado } = await leer();
+    expect(estado.enPista).toEqual({
+      A: a.jugadores.map((j) => j.id),
+      B: b.jugadores.map((j) => j.id)
+    });
+  });
+
+  it("sin nadie jugando no hay ni versus ni historial", async () => {
+    const { estado } = await leer();
+    expect(estado.enPista).toBe(null);
+    expect(estado.feed).toEqual([]);
+    expect(estado.feedTotal).toBe(0);
+  });
+
+  it("el historial trae los puntos, sin un solo nombre", async () => {
+    const { id, a } = await enJuegoConGente();
+    await anotarEvento(id, 0, a.jugadores[0]!.id, "A");
+    await anotarEvento(id, 1, a.jugadores[1]!.id, "A", "error");
+
+    const { estado } = await leer();
+    expect(estado.feed).toHaveLength(2);
+    expect(estado.feed[0]).toMatchObject({ o: 0, t: "remate", j: a.jugadores[0]!.id, l: "A", s: 1 });
+    // El error cruza la red: quien lo hace es de A y el punto es de B.
+    expect(estado.feed[1]).toMatchObject({ o: 1, t: "error", l: "A" });
+    expect(JSON.stringify(estado.feed)).not.toContain("Ana");
+  });
+
+  it("la ventana acota el historial pero dice cuántos hay en total", async () => {
+    const { id, a } = await enJuegoConGente();
+    for (let orden = 0; orden < 45; orden++) {
+      await anotarEvento(id, orden, a.jugadores[0]!.id, "A");
+    }
+
+    const { estado } = await leer();
+    expect(estado.feed).toHaveLength(30);
+    expect(estado.feed[0]!.o).toBe(15);
+    expect(estado.feedTotal).toBe(45);
+  });
+
+  it("un cambio de jugador sale anclado detrás de su punto", async () => {
+    const { id, a } = await enJuegoConGente();
+    await anotarEvento(id, 0, a.jugadores[0]!.id, "A");
+    await env.DB
+      .prepare(
+        `INSERT INTO partido_cambios
+           (partido_id, tras_orden, lado, entra_jugador_id, sale_jugador_id, posicion, set_numero)
+         VALUES (?1, 0, 'A', ?2, ?3, 0, 1)`
+      )
+      .bind(id, a.jugadores[1]!.id, a.jugadores[0]!.id)
+      .run();
+    await anotarEvento(id, 1, a.jugadores[1]!.id, "A");
+
+    const { estado } = await leer();
+    expect(estado.feed.map((linea) => linea.t)).toEqual(["remate", "cambio", "remate"]);
+    expect(estado.feed[1]).toMatchObject({ o: 0, t: "cambio", j: a.jugadores[1]!.id, x: a.jugadores[0]!.id });
+  });
+});
+
+/*
+ * Los tres agujeros del ETag. Cada uno es una escritura que no toca el marcador
+ * y que, antes de `partidos.log_version`, dejaba al espectador con el cuerpo
+ * viejo y un 304 encima.
+ */
+describe("el ETag cubre lo que no es el marcador", () => {
+  it("cambia al fijar la alineación", async () => {
+    const a = await crearEquipo({ nombre: "Delfines", jugadores: [{ nombre: "Ana" }] });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+    const { etag } = await leer();
+
+    const { fijarAlineacion } = await import("../../functions/_lib/eventos");
+    await fijarAlineacion(env.DB, id, "A", [a.jugadores[0]!.id]);
+
+    expect((await pedir(etag)).status).toBe(200);
+  });
+
+  it("cambia al registrar un cambio de jugador", async () => {
+    const a = await crearEquipo({ nombre: "Delfines", jugadores: [{ nombre: "Ana" }, { nombre: "Berta" }] });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+
+    const { fijarAlineacion, registrarCambio } = await import("../../functions/_lib/eventos");
+    await fijarAlineacion(env.DB, id, "A", [a.jugadores[0]!.id]);
+    const { etag } = await leer();
+
+    const partido = await env.DB
+      .prepare(
+        `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id, points_a, points_b,
+                sets_a, sets_b, reglas, started_at, elapsed_ms
+           FROM partidos WHERE id = ?1`
+      )
+      .bind(id)
+      .first<Parameters<typeof registrarCambio>[1]>();
+    // El cambio guarda quién lo hizo, así que hace falta un usuario de verdad.
+    const anotador = await crearAdmin();
+    await registrarCambio(env.DB, partido!, a.jugadores[1]!.id, a.jugadores[0]!.id, anotador.id);
+
+    expect((await pedir(etag)).status).toBe(200);
+  });
+
+  /*
+   * La defensa no puntúa, así que el marcador sumado no se mueve; antes solo la
+   * salvaba `updated_at`, y dos escrituras en el mismo milisegundo dan la misma
+   * marca.
+   */
+  it("cambia con un evento que no puntúa", async () => {
+    const a = await crearEquipo({ nombre: "Delfines", jugadores: [{ nombre: "Ana" }] });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+    const { etag } = await leer();
+
+    await env.DB
+      .prepare(
+        `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
+         VALUES (?1, 0, 1, 'defensa', 'A', ?2, NULL)`
+      )
+      .bind(id, a.jugadores[0]!.id)
+      .run();
+    await env.DB
+      .prepare("UPDATE partidos SET log_version = log_version + 1, updated_at = updated_at WHERE id = ?1")
+      .bind(id)
+      .run();
+
+    expect((await pedir(etag)).status).toBe(200);
   });
 });

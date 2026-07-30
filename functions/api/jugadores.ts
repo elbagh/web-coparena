@@ -18,7 +18,7 @@
 
 import { edicionActual } from "../_lib/ediciones";
 import { mapEstadisticas, sumarTotales, totalesPorJugador, type Estadisticas } from "../_lib/estadisticas";
-import { fotoNoEncontrada, servirFoto } from "../_lib/fotos";
+import { AVATAR_DEL_JUGADOR, fotoNoEncontrada, servirFoto } from "../_lib/fotos";
 import { json } from "../_lib/http";
 import { atributosPorJugador, mediaAtributos, NIVEL_POR_DEFECTO } from "../_lib/perfil";
 
@@ -34,16 +34,11 @@ const CACHE_PUBLICO = "public, max-age=300";
  * La ficha (apodo, dorsal, posición, mano, lema, nivel) ya es del jugador desde
  * la 0023, así que sale de `jugadores` sin cruzar nada. Lo único que sigue
  * colgando de la cuenta es el avatar de Mi zona, y de él dependen `tieneFoto` y
- * el respaldo de `?foto=N`: por eso este enlace por correo sigue aquí, reducido
- * a lo que de verdad hace falta.
+ * el respaldo de `?foto=N`.
  *
- * Va como subconsulta y no como JOIN porque `usuarios.email` no es único (lo
- * único único es `google_sub`) y un JOIN duplicaría filas del listado.
+ * El fragmento vive en `_lib/fotos.ts` desde que el directo también lo necesita
+ * para saber a quién puede pedirle retrato.
  */
-const AVATAR_DEL_JUGADOR = `
-  LEFT JOIN perfiles p ON p.usuario_id = (
-    SELECT u.id FROM usuarios u WHERE LOWER(TRIM(u.email)) = j.email_normalizado ORDER BY u.id ASC LIMIT 1
-  )`;
 
 interface FilaJugador {
   id: number;

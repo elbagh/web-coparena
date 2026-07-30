@@ -28,11 +28,8 @@
   const cajaSueltos = raiz.querySelector("[data-torneo-sueltos]");
   const listaSueltos = raiz.querySelector("[data-torneo-sueltos-lista]");
   const lede = raiz.querySelector("[data-torneo-lede]");
-
-  const panelDirecto = raiz.querySelector("[data-directo-panel]");
-  const panelVacio = raiz.querySelector("[data-directo-panel-vacio]");
-  const panelPartidos = raiz.querySelector("[data-directo-panel-partidos]");
-  const botonRefrescar = raiz.querySelector("[data-directo-refrescar]");
+  const avisoDirecto = raiz.querySelector("[data-torneo-directo]");
+  const avisoEnlace = raiz.querySelector("[data-torneo-directo-enlace]");
 
   const utils = window.CopaArenaMatches;
 
@@ -370,78 +367,37 @@
     return `${partido.sets.A}–${partido.sets.B}`;
   }
 
-  const irAlPartido = () => {
-    document.querySelector("#directo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  /*
+   * El cuadro lleva al directo, que desde el rediseño es su propia página. Solo
+   * si ese partido se está jugando: mandar a alguien a un marcador que no es el
+   * suyo es peor que no llevarle a ninguna parte.
+   */
+  const irAlPartido = (partido) => {
+    if (partido?.status === "live") location.href = "/directo/";
   };
 
   // --------------------------------------------------------------- directo ---
 
-  function pintarDirecto(datos, info) {
-    const partidos = datos?.partidos || [];
-    panelVacio.hidden = partidos.length > 0;
-    panelPartidos.hidden = partidos.length === 0;
-    botonRefrescar.hidden = !datos?.modoAhorro;
-
-    if (partidos.length === 0) {
-      panelVacio.textContent = datos?.siguiente
-        ? `Ahora mismo no se está jugando nada. El siguiente es ${datos.siguiente.equipos[0]} contra ${datos.siguiente.equipos[1]}.`
-        : "Ahora mismo no se está jugando nada.";
-    } else {
-      panelPartidos.textContent = "";
-      partidos.forEach((partido) => panelPartidos.append(marcadorEnVivo(partido)));
+  /*
+   * El marcador ya no vive aquí: /directo/ es su propia página. Lo que se queda
+   * es la suscripción, porque `cerroAlguno` es lo ÚNICO que puede cambiar una
+   * clasificación y por tanto lo único que justifica volver a pedir el endpoint
+   * pesado. Y se queda sin `mirandoDeCerca`: a esta página le basta con
+   * enterarse en un minuto de que un partido ha terminado.
+   */
+  function alDirecto(datos, info) {
+    if (avisoDirecto) {
+      const jugando = datos?.partidos?.[0] || null;
+      avisoDirecto.hidden = !jugando;
+      if (jugando) {
+        avisoEnlace.textContent = `${jugando.teams.A.name} ${jugando.points.A}–${jugando.points.B} ${jugando.teams.B.name}`;
+      }
     }
-
-    /*
-     * Un partido que termina es lo único que puede cambiar una clasificación, y
-     * por eso es lo único que justifica volver a pedir el endpoint pesado.
-     */
     if (info?.cerroAlguno) cargar();
   }
 
-  function marcadorEnVivo(partido) {
-    const caja = el("article", "directo-marcador");
-    caja.append(el("p", "directo-ronda", partido.ronda));
-
-    const cruce = el("div", "directo-cruce");
-    cruce.append(
-      el("span", "directo-equipo", partido.teams.A.name),
-      el("span", "directo-puntos", String(partido.points.A)),
-      el("span", "directo-separador", "–"),
-      el("span", "directo-puntos", String(partido.points.B)),
-      el("span", "directo-equipo", partido.teams.B.name)
-    );
-    caja.append(cruce);
-
-    const detalle = [`Set ${partido.setNumber}`, `Sets ${partido.sets.A}–${partido.sets.B}`];
-    if (partido.reglas) {
-      const objetivo = utils?.setTarget ? utils.setTarget(partido, partido.setNumber) : partido.reglas.puntosPorSet;
-      detalle.push(`a ${objetivo}`);
-    }
-    caja.append(el("p", "directo-detalle", detalle.join(" · ")));
-
-    if (partido.history?.length > 0) {
-      caja.append(el("p", "directo-sets", partido.history.map((set) => `${set.a}-${set.b}`).join(" · ")));
-    }
-    return caja;
-  }
-
-  botonRefrescar?.addEventListener("click", () => directo.refrescarAhora());
   reintentar?.addEventListener("click", cargar);
 
-  /*
-   * La cadencia rápida solo mientras el panel del directo está de verdad en
-   * pantalla. Quien está leyendo la clasificación abajo del todo no necesita el
-   * marcador al segundo, y cada sondeo suyo es uno menos para quien sí mira.
-   */
-  if (panelDirecto && "IntersectionObserver" in window) {
-    new IntersectionObserver(
-      (entradas) => directo.mirandoDeCerca(entradas.some((e) => e.isIntersecting)),
-      { rootMargin: "80px" }
-    ).observe(panelDirecto);
-  } else {
-    directo.mirandoDeCerca(true);
-  }
-
-  directo.suscribir(pintarDirecto);
+  directo.suscribir(alDirecto);
   cargar();
 })();
