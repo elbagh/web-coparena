@@ -472,7 +472,7 @@ describe("entradas hostiles", () => {
     expect(respuesta.status).toBe(400);
     // Y el mensaje es para una persona, no el del motor: el catch-all devolvía
     // «D1_ERROR: variable number must be between ?1 and ?100…» con un 409.
-    expect((await respuesta.json()).error).not.toContain("D1_ERROR");
+    expect(((await respuesta.json()) as { error: string }).error).not.toContain("D1_ERROR");
   });
 
   it("un partido que no existe da 404 en todas las acciones", async () => {
