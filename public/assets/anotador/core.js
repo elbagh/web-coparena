@@ -9,6 +9,23 @@
 window.CopaAnotador = (() => {
   const raizError = () => document.querySelector("[data-anot-error]");
 
+  /**
+   * Si la última petición se cayó.
+   *
+   * `navigator.onLine` dice que sí estando enganchado a un wifi sin salida —el
+   * chiringuito de la playa, exactamente—, así que por sí solo no vale para
+   * encender el aviso. La señal fiable de que no hay red es una petición que se
+   * cae, y la de que ha vuelto es una que llega.
+   */
+  let peticionCaida = false;
+
+  function pintarRed() {
+    const caido = navigator.onLine === false || peticionCaida;
+    const banda = document.querySelector("[data-anot-offline]");
+    if (banda) banda.hidden = !caido;
+    document.documentElement.classList.toggle("anot-sin-red", caido);
+  }
+
   function setError(mensaje) {
     const nodo = raizError();
     if (!nodo) return;
@@ -18,13 +35,32 @@ window.CopaAnotador = (() => {
 
   /** Llama a la API y propaga el mensaje del servidor tal cual viene. */
   async function api(ruta, method = "GET", cuerpo) {
-    const respuesta = await fetch(ruta, {
-      method,
-      cache: "no-store",
-      credentials: "include",
-      headers: { Accept: "application/json", ...(cuerpo ? { "Content-Type": "application/json" } : {}) },
-      body: cuerpo ? JSON.stringify(cuerpo) : undefined
-    });
+    let respuesta;
+    try {
+      respuesta = await fetch(ruta, {
+        method,
+        cache: "no-store",
+        credentials: "include",
+        headers: { Accept: "application/json", ...(cuerpo ? { "Content-Type": "application/json" } : {}) },
+        body: cuerpo ? JSON.stringify(cuerpo) : undefined
+      });
+    } catch {
+      /*
+       * Que `fetch` se caiga es lo único que significa «no hay red». Sin este
+       * catch salía el mensaje del navegador tal cual —«Failed to fetch»— en la
+       * banda de avisos: en inglés, y sin decir lo único que importa saber, que
+       * ese punto no se ha guardado.
+       */
+      peticionCaida = true;
+      pintarRed();
+      const error = new Error("Sin conexión: esto no se ha guardado. Repítelo cuando vuelva la cobertura.");
+      error.status = 0;
+      error.campos = {};
+      throw error;
+    }
+
+    peticionCaida = false;
+    pintarRed();
 
     const datos = await respuesta.json().catch(() => ({}));
     if (!respuesta.ok) {
@@ -43,15 +79,14 @@ window.CopaAnotador = (() => {
    * está es peor que uno que sabe que no puede anotar.
    */
   function vigilarConexion() {
-    const banda = document.querySelector("[data-anot-offline]");
-    const pintar = () => {
-      const caido = navigator.onLine === false;
-      if (banda) banda.hidden = !caido;
-      document.documentElement.classList.toggle("anot-sin-red", caido);
-    };
-    window.addEventListener("online", pintar);
-    window.addEventListener("offline", pintar);
-    pintar();
+    // Los eventos del navegador siguen valiendo para el caso claro (modo avión);
+    // el que de verdad pasa en la playa lo detecta `api` al caerse.
+    window.addEventListener("online", () => {
+      peticionCaida = false;
+      pintarRed();
+    });
+    window.addEventListener("offline", pintarRed);
+    pintarRed();
   }
 
   /** Suplantar es solo lectura: el middleware rechaza cualquier escritura. */

@@ -442,6 +442,30 @@ body.is-anotador {
 .anot-pulgar {
   margin-top: auto;
   min-height: 150px;
+  /* Ancla del aviso de abajo. */
+  position: relative;
+}
+
+/*
+ * El aviso de que algo no se ha guardado, pegado a la franja del pulgar.
+ *
+ * Arriba estaba a 472px de la mirada —medido: aviso en y 64–126, franja en
+ * 598–748— en una pantalla que solo se mira tres segundos entre punto y punto. Y
+ * desde que la pintada optimista se deshace sola cuando la petición falla, este
+ * aviso es lo único que distingue «no se ha guardado» de «he fallado el toque».
+ *
+ * `absolute` y no en el flujo: los 150px de la franja están reservados para que
+ * la botonera de acciones quepa sin empujar nada, así que en reposo sobran 94px
+ * bajo el botón. Aun así se saca del flujo, porque la regla de esta pantalla no
+ * es «casi nunca se mueven los botones».
+ */
+.anot-alerta--pulgar {
+  bottom: 0;
+  inset-inline: 0;
+  margin: 0;
+  /* Nunca se come un toque destinado a un botón. */
+  pointer-events: none;
+  position: absolute;
 }
 
 .anot-reposo {

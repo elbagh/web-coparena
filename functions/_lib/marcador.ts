@@ -151,39 +151,52 @@ export function aplicarPunto(estado: EstadoMarcador, lado: Lado, reglas: ReglasP
 }
 
 /**
- * El marcador que resulta de una lista de eventos.
+ * Un evento encima de un estado.
  *
- * Los eventos tienen que llegar ordenados por `orden`. Un `ajuste` reinicia el
- * estado al saldo que traiga: es lo que permite que un partido empezado a mano
- * gane un anotador a mitad sin inventarse quién metió los puntos anteriores.
+ * Está suelto para que se pueda plegar de uno en uno. `leerEstado` necesita
+ * saber en qué set cayó cada evento, y lo sacaba replegando el log entero por
+ * cada uno: O(n²) en un bucle que se recorre en cada punto anotado. Con el paso
+ * suelto es una sola pasada, y `plegarEventos` no es más que este paso repetido.
+ *
+ * Un `ajuste` reinicia el estado al saldo que traiga: es lo que permite que un
+ * partido empezado a mano gane un anotador a mitad sin inventarse quién metió
+ * los puntos anteriores.
+ */
+export function aplicarEvento(
+  estado: EstadoMarcador,
+  evento: EventoFila,
+  reglas: ReglasPartido
+): EstadoMarcador {
+  if (evento.tipo === "ajuste") {
+    const siguiente: EstadoMarcador = {
+      setNumero: Math.max(1, (evento.sets_a ?? 0) + (evento.sets_b ?? 0) + 1),
+      puntos: { A: evento.puntos_a ?? 0, B: evento.puntos_b ?? 0 },
+      sets: { A: evento.sets_a ?? 0, B: evento.sets_b ?? 0 },
+      // El historial de lo jugado antes del anotador no se conoce: se deja
+      // vacío en vez de inventar parciales.
+      historial: [],
+      terminado: false,
+      winner: null
+    };
+    const ganador = ganadorDelPartido(reglas, siguiente.sets.A, siguiente.sets.B);
+    if (ganador) {
+      siguiente.terminado = true;
+      siguiente.winner = ganador;
+    }
+    return siguiente;
+  }
+
+  if (!evento.lado_punto) return estado;
+  return aplicarPunto(estado, evento.lado_punto, reglas);
+}
+
+/**
+ * El marcador que resulta de una lista de eventos, que tienen que llegar
+ * ordenados por `orden`.
  */
 export function plegarEventos(eventos: readonly EventoFila[], reglas: ReglasPartido): EstadoMarcador {
   let estado = marcadorInicial();
-
-  for (const evento of eventos) {
-    if (evento.tipo === "ajuste") {
-      estado = {
-        setNumero: Math.max(1, (evento.sets_a ?? 0) + (evento.sets_b ?? 0) + 1),
-        puntos: { A: evento.puntos_a ?? 0, B: evento.puntos_b ?? 0 },
-        sets: { A: evento.sets_a ?? 0, B: evento.sets_b ?? 0 },
-        // El historial de lo jugado antes del anotador no se conoce: se deja
-        // vacío en vez de inventar parciales.
-        historial: [],
-        terminado: false,
-        winner: null
-      };
-      const ganador = ganadorDelPartido(reglas, estado.sets.A, estado.sets.B);
-      if (ganador) {
-        estado.terminado = true;
-        estado.winner = ganador;
-      }
-      continue;
-    }
-
-    if (!evento.lado_punto) continue;
-    estado = aplicarPunto(estado, evento.lado_punto, reglas);
-  }
-
+  for (const evento of eventos) estado = aplicarEvento(estado, evento, reglas);
   return estado;
 }
 

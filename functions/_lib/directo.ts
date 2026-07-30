@@ -128,7 +128,7 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
 }
 
 /**
- * Una sola fila que cambia con cualquier cosa que pase en un partido en juego.
+ * Una sola fila que cambia con cualquier cosa que pueda cambiar la respuesta.
  *
  * Lleva el marcador sumado además de `updated_at` porque dos escrituras dentro
  * del mismo milisegundo darían la misma marca de tiempo, y un punto que no
@@ -137,9 +137,20 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
  * Y lleva `log_version` desde que el payload trae también quién está en pista y
  * el historial: fijar una alineación, registrar un cambio de jugador o anotar
  * una defensa no mueven el marcador, así que sin ese contador el espectador se
- * quedaba con un 304 y el cuerpo viejo. Sigue siendo **una fila agregada**: un
- * COUNT sobre `partido_eventos` habría encarecido justo el camino barato, que es
- * el 304 (D1 factura filas leídas).
+ * quedaba con un 304 y el cuerpo viejo.
+ *
+ * Y lleva los ajustes y el próximo partido por el mismo motivo, visto del revés:
+ * lo que viaja en el cuerpo y no está en la versión es información que el
+ * navegador se queda sin actualizar, indefinidamente. Sin nadie jugando la
+ * versión era siempre la misma —«0 partidos, 0 puntos»—, así que todo el que ya
+ * la tuviera recibía 304 para siempre: subir la cadencia desde el panel, que es
+ * la válvula de la cuota, no llegaba a nadie, y mover la hora del primer partido
+ * tampoco. Justo lo que pasa la mañana del torneo, cuando aún no ha empezado
+ * nada.
+ *
+ * Sigue siendo **una fila agregada**: las subconsultas van dentro y el 304 se
+ * responde sin llegar a leer los partidos. Un COUNT sobre `partido_eventos`
+ * habría encarecido justo el camino barato (D1 factura filas leídas).
  */
 export async function versionDirecto(db: D1Database): Promise<string> {
   const fila = await db
@@ -147,16 +158,51 @@ export async function versionDirecto(db: D1Database): Promise<string> {
       `SELECT COUNT(*) AS n,
               COALESCE(MAX(updated_at), '') AS ultimo,
               COALESCE(SUM(points_a + points_b + sets_a + sets_b), 0) AS marcador,
-              COALESCE(SUM(log_version), 0) AS log
+              COALESCE(SUM(log_version), 0) AS log,
+              -- El ORDER BY dentro importa: GROUP_CONCAT no promete orden, y una
+              -- versión que baila daría 200 donde tenía que dar 304.
+              (SELECT COALESCE(GROUP_CONCAT(valor, '|'), '')
+                 FROM (SELECT valor FROM ajustes WHERE clave LIKE 'directo_%' ORDER BY clave)) AS ajustes,
+              -- El partido que sale como «siguiente» en el cuerpo, por su id y
+              -- su marca de cambio. NO por su ronda ni por los nombres de los
+              -- equipos: eso acaba en una cabecera HTTP, y «Ría» o «Ñ» la
+              -- rompen. updated_at es la convención de la casa para «esta fila
+              -- ha cambiado» y la escriben todos los caminos que la tocan.
+              (SELECT COALESCE(id || '|' || updated_at, '')
+                 FROM partidos
+                WHERE edicion_id = ${EDICION_ACTUAL} AND status = 'scheduled' AND scheduled_at IS NOT NULL
+                ORDER BY scheduled_at ASC LIMIT 1) AS proximo
          FROM partidos
         WHERE edicion_id = ${EDICION_ACTUAL} AND status = 'live'`
     )
-    .first<{ n: number; ultimo: string; marcador: number; log: number }>();
+    .first<{ n: number; ultimo: string; marcador: number; log: number; ajustes: string; proximo: string }>();
 
-  return `${fila?.n ?? 0}-${fila?.marcador ?? 0}-${fila?.log ?? 0}-${fila?.ultimo ?? ""}`;
+  return [
+    fila?.n ?? 0,
+    fila?.marcador ?? 0,
+    fila?.log ?? 0,
+    fila?.ultimo ?? "",
+    fila?.ajustes ?? "",
+    fila?.proximo ?? ""
+  ].join("-");
 }
 
-export const etagDe = (version: string): string => `W/"directo-${version}"`;
+/**
+ * El valor de una cabecera HTTP solo admite ASCII imprimible, y una comilla o
+ * una barra invertida dentro de un `quoted-string` lo parten. Un nombre de
+ * equipo con tilde metido en la versión y el navegador tira un `TypeError` al
+ * leer la respuesta: el directo entero caído, y por una eñe.
+ *
+ * La versión ya se construye en ASCII a propósito (ids, marcas de tiempo y
+ * números), así que esto no debería dispararse nunca. Se escapa en vez de
+ * limpiarse porque escapar es reversible: sustituir por «_» juntaría dos
+ * versiones distintas en una sola y el espectador se comería un 304 con el
+ * cuerpo viejo, que es justo lo que se está arreglando.
+ */
+const SEGURO = /^[\x20\x21\x23-\x5B\x5D-\x7E]*$/;
+
+export const etagDe = (version: string): string =>
+  `W/"directo-${SEGURO.test(version) ? version : encodeURIComponent(version)}"`;
 
 export async function estadoDirecto(db: D1Database, ajustes: Ajustes): Promise<EstadoDirecto> {
   const [vivos, proximo] = await Promise.all([
