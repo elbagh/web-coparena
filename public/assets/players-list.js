@@ -33,15 +33,15 @@
   const METRICAS = [
     { clave: "partidosJugados", etiqueta: "Partidos" },
     { clave: "puntos", etiqueta: "Puntos" },
-    { clave: "remates", etiqueta: "Remates" },
     { clave: "bloqueos", etiqueta: "Bloqueos" },
+    { clave: "chilenas", etiqueta: "Chilenas" },
     { clave: "aces", etiqueta: "Aces" },
-    { clave: "defensas", etiqueta: "Defensas" },
-    { clave: "errores", etiqueta: "Errores" }
+    { clave: "saquesFallados", etiqueta: "Saques fallados" }
   ];
 
-  // Lo que se corona en el ranking. Ni partidos (no es mérito) ni errores.
-  const RANKING = ["puntos", "remates", "bloqueos", "aces", "defensas"];
+  // Lo que se corona en el ranking. Ni partidos (no es mérito) ni los saques
+  // fallados (coronar al que más falla no es un ranking, es una broma).
+  const RANKING = ["puntos", "bloqueos", "chilenas", "aces"];
 
   // La lista de atributos no se repite aquí: se le pasa a CopaCromo el objeto
   // crudo de la API y es el cromo quien sabe sus etiquetas y abreviaturas.

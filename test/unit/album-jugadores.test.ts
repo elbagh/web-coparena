@@ -33,11 +33,10 @@ const MARCADO = `
 const estadisticas = (valores: Record<string, number> = {}) => ({
   partidosJugados: 0,
   puntos: 0,
-  remates: 0,
   bloqueos: 0,
+  chilenas: 0,
   aces: 0,
-  defensas: 0,
-  errores: 0,
+  saquesFallados: 0,
   ...valores
 });
 
