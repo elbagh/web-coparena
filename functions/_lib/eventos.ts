@@ -114,6 +114,42 @@ export class ConflictoDeOrden extends Error {
   }
 }
 
+/**
+ * El partido trae un marcador llevado a mano y todavía no tiene log.
+ *
+ * Anotar el primer punto sin más lo borraría: el pliegue reescribe las columnas
+ * planas, así que un 8–6 con sets 1–1 pasaría a 1–0 en el primer set y de los
+ * puntos anteriores no quedaría rastro en ninguna parte. Hay que decidir antes
+ * qué se hace con ellos —adoptarlos o ponerlos a cero—, y esa decisión la
+ * bloquea el SERVIDOR y no la pantalla: si dependiera del cliente, un anotador
+ * que entra por la URL sin pasar por el aviso seguiría vaciando el marcador.
+ */
+export class MarcadorSinAdoptar extends Error {
+  constructor(readonly marcadorPanel: MarcadorPlano) {
+    super(
+      `Este partido va ${marcadorPanel.puntos.A}–${marcadorPanel.puntos.B} (sets ` +
+        `${marcadorPanel.sets.A}–${marcadorPanel.sets.B}) anotado a mano. Adóptalo o ponlo a cero antes de anotar.`
+    );
+    this.name = "MarcadorSinAdoptar";
+  }
+}
+
+export interface MarcadorPlano {
+  puntos: { A: number; B: number };
+  sets: { A: number; B: number };
+}
+
+/** El marcador de las columnas de `partidos`, el que lleva el panel. */
+export const marcadorPlano = (partido: PartidoAnotable): MarcadorPlano => ({
+  puntos: { A: partido.points_a, B: partido.points_b },
+  sets: { A: partido.sets_a, B: partido.sets_b }
+});
+
+/** ¿Hay puntos apuntados a mano que el log todavía no conoce? */
+export const hayMarcadorAMano = (partido: PartidoAnotable): boolean =>
+  partido.origen_marcador !== "eventos" &&
+  partido.points_a + partido.points_b + partido.sets_a + partido.sets_b > 0;
+
 async function leerEventos(db: D1Database, partidoId: string): Promise<EventoFila[]> {
   const { results } = await db
     .prepare(
@@ -270,6 +306,10 @@ export async function registrarEvento(
   usuarioId: number
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
+
+  // Antes que nada: si viene con marcador a mano, no se anota encima.
+  if (eventos.length === 0 && hayMarcadorAMano(partido)) throw new MarcadorSinAdoptar(marcadorPlano(partido));
+
   const siguiente = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
   if (ordenEsperado !== siguiente) throw new ConflictoDeOrden();
 
@@ -428,10 +468,24 @@ export async function fijarAlineacion(
 export async function adoptarMarcador(
   db: D1Database,
   partido: PartidoAnotable,
-  usuarioId: number
+  usuarioId: number,
+  desdeCero = false
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
   if (eventos.length > 0) throw new Error("Este partido ya tiene anotación. No hace falta adoptarlo.");
+
+  /*
+   * `desdeCero` es la otra salida del cerrojo de `MarcadorSinAdoptar`: cuando el
+   * marcador de a mano no sirve (se apuntó mal, o se decide rejugar), se escribe
+   * un saldo de apertura de 0–0. Sigue siendo un `ajuste` y no un borrado: en el
+   * log queda dicho que ahí se empezó de cero, con quién y cuándo.
+   */
+  const saldo = desdeCero ? { puntos_a: 0, puntos_b: 0, sets_a: 0, sets_b: 0 } : {
+    puntos_a: partido.points_a,
+    puntos_b: partido.points_b,
+    sets_a: partido.sets_a,
+    sets_b: partido.sets_b
+  };
 
   const fila: EventoFila = {
     orden: 0,
@@ -439,10 +493,7 @@ export async function adoptarMarcador(
     lado_jugador: null,
     jugador_id: null,
     lado_punto: null,
-    puntos_a: partido.points_a,
-    puntos_b: partido.points_b,
-    sets_a: partido.sets_a,
-    sets_b: partido.sets_b
+    ...saldo
   };
 
   const { sentencias } = sentenciasDerivadas(db, partido, [fila]);
@@ -455,11 +506,11 @@ export async function adoptarMarcador(
       )
       .bind(
         partido.id,
-        partido.sets_a + partido.sets_b + 1,
-        partido.points_a,
-        partido.points_b,
-        partido.sets_a,
-        partido.sets_b,
+        saldo.sets_a + saldo.sets_b + 1,
+        saldo.puntos_a,
+        saldo.puntos_b,
+        saldo.sets_a,
+        saldo.sets_b,
         usuarioId
       ),
     ...sentencias

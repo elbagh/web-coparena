@@ -29,7 +29,15 @@ const secciones = [
   { clave: "usuarios", nombre: "Usuarios", href: "/admin/usuarios/", permiso: "usuarios.ver" },
   { clave: "roles", nombre: "Roles", href: "/admin/roles/", permiso: "roles.ver" },
   { clave: "torneo", nombre: "Torneo", href: "/admin/torneo/", permiso: "torneo.ver" },
-  { clave: "ediciones", nombre: "Ediciones", href: "/admin/ediciones/", permiso: "ediciones.ver" }
+  { clave: "ediciones", nombre: "Ediciones", href: "/admin/ediciones/", permiso: "ediciones.ver" },
+  /*
+   * El anotador no es una sección del panel —tiene su propia carcasa, hecha para
+   * usarse de pie en la arena— pero sí necesita una puerta. No había ninguna: se
+   * llegaba escribiendo `/anotador/` en el navegador, que es un mal sitio para
+   * esconder la herramienta del día del torneo. `clave` no coincide con ninguna
+   * página del panel, así que nunca sale marcada como actual.
+   */
+  { clave: "anotador", nombre: "Anotar en directo", href: "/anotador/", permiso: "partidos.anotar" }
 ];
 ---
 

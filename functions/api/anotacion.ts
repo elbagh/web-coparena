@@ -12,12 +12,15 @@
 import { jsonAdmin, requireAlgunPermiso, requirePermiso, type AdminEnv } from "../_lib/admin";
 import {
   ConflictoDeOrden,
+  MarcadorSinAdoptar,
   adoptarMarcador,
   corregirEvento,
   deshacerUltimo,
   fijarAlineacion,
+  hayMarcadorAMano,
   leerAlineacion,
   leerEstado,
+  marcadorPlano,
   recalcularPartido,
   registrarEvento,
   soltarAnotacion,
@@ -98,6 +101,16 @@ async function respuesta(db: D1Database, partido: PartidoAnotable, status = 200)
         startedAt: fresco.started_at
       },
       ...estado,
+      /*
+       * El marcador de las columnas planas viaja SIEMPRE, aparte del plegado.
+       * Sin él, la pantalla no podía enseñar el 8–6 de un partido llevado a mano
+       * —el pliegue de un log vacío es 0–0— y ofrecía adoptar un marcador que no
+       * sabía que existía. `pendienteDeAdoptar` es la misma condición que usa el
+       * cerrojo del servidor, resuelta aquí para que cliente y servidor no
+       * puedan discrepar sobre cuándo hay que decidir.
+       */
+      marcadorPanel: marcadorPlano(fresco),
+      pendienteDeAdoptar: estado.eventos.length === 0 && hayMarcadorAMano(fresco),
       alineacion,
       equipos,
       tipos: TIPOS
@@ -186,7 +199,7 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
       case "alineacion":
         return await accionAlineacion(env.DB, partido, body);
       case "adoptar":
-        return await accionAdoptar(env.DB, partido, acceso.user.id);
+        return await accionAdoptar(env.DB, partido, acceso.user.id, body.desdeCero === true);
       case "soltar":
         await soltarAnotacion(env.DB, partido.id);
         return await respuesta(env.DB, partido);
@@ -195,6 +208,11 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
     }
   } catch (err) {
     if (err instanceof ConflictoDeOrden) return jsonAdmin({ error: err.message }, 409);
+    // Lleva el marcador de a mano en el cuerpo: la pantalla lo necesita para
+    // poder decir «va 8–6» y ofrecer las dos salidas.
+    if (err instanceof MarcadorSinAdoptar) {
+      return jsonAdmin({ error: err.message, marcadorPanel: err.marcadorPanel, pendienteDeAdoptar: true }, 409);
+    }
     if (err instanceof Error && err.message.length < 200) return jsonAdmin({ error: err.message }, 409);
     console.error("Error anotando:", err);
     return jsonAdmin({ error: "No se ha podido guardar." }, 500);
@@ -299,8 +317,13 @@ async function accionAlineacion(
   return await respuesta(db, partido);
 }
 
-async function accionAdoptar(db: D1Database, partido: PartidoAnotable, usuarioId: number): Promise<Response> {
-  await adoptarMarcador(db, partido, usuarioId);
+async function accionAdoptar(
+  db: D1Database,
+  partido: PartidoAnotable,
+  usuarioId: number,
+  desdeCero: boolean
+): Promise<Response> {
+  await adoptarMarcador(db, partido, usuarioId, desdeCero);
   return await respuesta(db, partido, 201);
 }
 

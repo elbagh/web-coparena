@@ -17,15 +17,40 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <span class="anot-equipo anot-equipo--a" data-anot-nombre-a></span>
         <span class="anot-equipo anot-equipo--b" data-anot-nombre-b></span>
       </div>
+      {/*
+        Al acabar, los números grandes pasan a ser los SETS. Antes seguían siendo
+        los puntos, que el cierre del último set devuelve a cero: un partido
+        ganado 2–1 se despedía con un «0 – 0» que no dice nada.
+      */}
+      <p class="anot-rotulo" data-anot-rotulo hidden>Sets</p>
       <p class="anot-tanteo">
         <span class="anot-puntos anot-puntos--a" data-anot-puntos-a>0</span>
         <span class="anot-guion">–</span>
         <span class="anot-puntos anot-puntos--b" data-anot-puntos-b>0</span>
       </p>
       <p class="anot-detalle" data-anot-detalle></p>
+      <p class="anot-parciales" data-anot-parciales hidden></p>
     </section>
 
-    <section class="anot-pista" aria-label="Quién hizo la acción">
+    {/*
+      Un partido que venía llevándose a mano llega con puntos que el log no
+      conoce. Anotar encima los borraría, así que el servidor rechaza el primer
+      punto y esta pantalla ocupa el sitio de la pista: mientras haya algo que
+      decidir no se pinta una pista cuyos botones van a responder 409.
+    */}
+    <section class="anot-decision" data-anot-decision hidden>
+      <h2 class="anot-decision-titulo" data-anot-decision-titulo></h2>
+      <p class="anot-decision-texto">
+        De esos puntos no se sabe quién los metió, así que no van a la ficha de nadie. Decide qué hacemos con ellos
+        antes de anotar el primero.
+      </p>
+      <div class="anot-decision-botones">
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-adoptar></button>
+        <button type="button" class="anot-btn" data-anot-cero>Empezar en 0–0</button>
+      </div>
+    </section>
+
+    <section class="anot-pista" aria-label="Quién hizo la acción" data-anot-pista>
       <div class="anot-mitad anot-mitad--a" data-anot-mitad-a></div>
       <div class="anot-red" aria-hidden="true"></div>
       <div class="anot-mitad anot-mitad--b" data-anot-mitad-b></div>
@@ -37,7 +62,7 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       de acciones. Está siempre en el mismo sitio —la zona del pulgar— para que
       el segundo toque no haya que buscarlo.
     */}
-    <section class="anot-pulgar">
+    <section class="anot-pulgar" data-anot-pulgar>
       <div class="anot-reposo" data-anot-reposo>
         <p class="anot-ultimo" data-anot-ultimo>Sin puntos todavía.</p>
         <button type="button" class="anot-btn anot-btn--deshacer" data-anot-deshacer disabled>Deshacer</button>
@@ -54,8 +79,8 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       <summary>Más</summary>
       <div class="anot-mas-cuerpo">
         <button type="button" class="anot-btn" data-anot-alineacion>Cambiar quién está en pista</button>
-        <button type="button" class="anot-btn" data-anot-adoptar hidden>Adoptar el marcador actual</button>
         <button type="button" class="anot-btn" data-anot-soltar hidden>Soltar la anotación</button>
+        <p class="anot-hint">Toca un punto para cambiar la acción o a quién se le atribuye.</p>
         <div class="anot-historial" data-anot-historial></div>
       </div>
     </details>
@@ -75,7 +100,41 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
     </form>
   </dialog>
 
+  {/*
+    Corregir un punto ya anotado. El servidor sabía hacerlo desde el principio
+    —cambia el evento y vuelve a plegar todo lo posterior—, pero no había forma
+    de pedirlo desde aquí: para arreglar una atribución había que deshacer todos
+    los puntos posteriores hasta llegar a ella.
+  */}
+  <dialog class="anot-dialogo" data-anot-dialogo-corregir>
+    <form method="dialog">
+      <h2 data-anot-corregir-titulo>Corregir el punto</h2>
+      <p class="anot-hint">Lo que venga después se vuelve a calcular, incluidos los sets.</p>
+
+      <p class="anot-etiqueta">Acción</p>
+      <div class="anot-tipos" data-anot-corregir-tipos></div>
+
+      <p class="anot-etiqueta">Quién la hizo</p>
+      <div class="anot-corregir-quien" data-anot-corregir-jugadores></div>
+
+      <div class="anot-dialogo-pie">
+        <button type="button" class="anot-btn" data-anot-corregir-cancelar>Cancelar</button>
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-corregir-guardar>
+          Guardar la corrección
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <Fragment slot="scripts">
+    {/*
+      match-utils.js va ANTES: `partido.js` lo usa para predecir el marcador y
+      para saber a cuántos puntos va cada set. Sin él no había predicción —el
+      número solo se movía cuando respondía el servidor— y el objetivo del set
+      decisivo salía mal: decía «a 21» en un set que se juega a 15, porque el
+      fallback usaba el objetivo del set normal.
+    */}
+    <script is:inline src="/assets/match-utils.js" defer></script>
     <script is:inline src="/assets/anotador/core.js" defer></script>
     <script is:inline src="/assets/anotador/partido.js" defer></script>
   </Fragment>
