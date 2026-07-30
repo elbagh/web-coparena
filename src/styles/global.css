@@ -45,6 +45,24 @@
   --clasifica-directo: #d2ed91;
   --clasifica-repesca: #ffeaa9;
   --clasifica-repesca-borde: #c79a1f;
+  /*
+   * Azul y rojo de equipación: los dos lados de un partido, en el directo y en
+   * el anotador. No son --sea y --coral porque en un versus el color ES la
+   * identidad del equipo, y esos dos ya significan otras cosas por todo el
+   * sitio; tenerlos aquí evita además un tercer código de color para lo mismo.
+   *
+   * Dos paradas por equipo y no una: ningún color llega a 4.5:1 sobre la crema
+   * del anotador (#f7f3e6) Y sobre el --dusk del directo a la vez — los
+   * umbrales de luminancia no se solapan. `base` es tinta sobre claro y relleno
+   * de banda (--foam encima: 6,3:1 y 6,1:1); `claro` es tinta sobre --dusk.
+   * Medidos: 6,04 y 5,83 sobre crema, 5,69 y 5,56 sobre dusk. De paso arregla
+   * un problema que ya estaba: --coral sobre la crema del anotador daba 2,54:1,
+   * por debajo de AA, y --sea 3,50:1.
+   */
+  --equipo-azul: #1d4ed8;
+  --equipo-azul-claro: #38bdf8;
+  --equipo-rojo: #b91c1c;
+  --equipo-rojo-claro: #ff8f8f;
   --font-display: "Titan One", "Arial Rounded MT Bold", ui-rounded, ui-sans-serif, sans-serif;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   font-family:
@@ -3683,6 +3701,149 @@ html.js .reveal.in-view {
   font-weight: 900;
 }
 
+/* ------------------------------ retrato de jugador -------------------------- */
+
+/*
+ * La cara de un jugador con el metal de su cromo. Lo pintan el versus del
+ * directo (fondo oscuro) y la pista del anotador (crema a pleno sol), así que
+ * vive aquí y no en ninguna de las dos hojas: BaseLayout sirve global.css a las
+ * dos pantallas.
+ *
+ * Todo el color del aro sale de `--retrato-aro`, y el filo de tinta va por
+ * fuera porque la plata (#d7dde2) es casi invisible sobre la crema: sin ese
+ * borde negro, un jugador de plata no tendría contorno.
+ *
+ * `contain` y el aire de la raíz son para la vibración al puntuar: el retrato se
+ * mueve 2px y no debe recortarse contra su celda ni obligar a recalcular nada
+ * de fuera.
+ */
+.retrato {
+  align-items: center;
+  contain: layout paint;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  position: relative;
+  text-align: center;
+}
+
+.retrato--oro {
+  --retrato-aro: var(--metal-oro-oscuro);
+}
+
+.retrato--plata {
+  --retrato-aro: var(--metal-plata-oscuro);
+}
+
+.retrato--bronce {
+  --retrato-aro: var(--metal-bronce-oscuro);
+}
+
+.retrato-marco {
+  align-items: center;
+  background: var(--foam);
+  border: 3px solid var(--retrato-aro);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  outline: 2px solid var(--ink);
+  overflow: hidden;
+}
+
+/*
+ * El tamaño se estira con la pantalla. En el versus caben dos columnas de
+ * equipo más el marcador en medio, así que en un móvil de 360px un círculo fijo
+ * de 96px se sale de su mitad; el `clamp` lo baja a ~75px ahí y lo deja en 96
+ * en cuanto hay sitio. Los atributos `width`/`height` de la imagen se quedan
+ * como proporción para que la rejilla no salte mientras carga.
+ */
+.retrato--grande .retrato-marco {
+  height: clamp(64px, 21vw, 96px);
+  width: clamp(64px, 21vw, 96px);
+}
+
+.retrato--pequeno .retrato-marco {
+  height: clamp(44px, 13vw, 56px);
+  width: clamp(44px, 13vw, 56px);
+}
+
+.retrato-foto {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* Sin foto manda el dorsal: es lo que se lee desde la banda de la pista. */
+.retrato-hueco {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.retrato--pequeno .retrato-hueco {
+  font-size: 1.1rem;
+}
+
+.retrato-dorsal,
+.retrato-nota {
+  background: var(--ink);
+  border-radius: 999px;
+  color: var(--foam);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 3px 7px;
+  position: absolute;
+}
+
+.retrato-dorsal {
+  right: 0;
+  top: 0;
+}
+
+/* La nota lleva el metal: es lo que dice de qué cromo es esta cara. */
+.retrato-nota {
+  background: var(--retrato-aro);
+  color: var(--ink);
+  left: 0;
+  top: 0;
+}
+
+.retrato--pequeno .retrato-dorsal,
+.retrato--pequeno .retrato-nota {
+  font-size: 0.62rem;
+  padding: 2px 5px;
+}
+
+.retrato-nombre {
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 104px;
+  overflow-wrap: anywhere;
+}
+
+.retrato--pequeno .retrato-nombre {
+  font-size: 0.72rem;
+  max-width: 68px;
+}
+
+/* Solo está para desempatar dos nombres de pila iguales, así que va pequeño. */
+.retrato-apellidos {
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1;
+  max-width: 104px;
+  opacity: 0.75;
+  overflow-wrap: anywhere;
+}
+
+.retrato--pequeno .retrato-apellidos {
+  max-width: 68px;
+}
+
 /* ------- ranking ------- */
 
 .album-ranking {
@@ -5254,70 +5415,318 @@ html.js .directo-off[open] .directo-aviso {
  * El directo manda mientras hay alguien en pista, y se encoge a una línea
  * cuando no. Nada de reservar un hueco grande para un mensaje de «no hay nada».
  */
-.directo-panel {
-  background: var(--dusk);
-  border-radius: 20px;
-  color: var(--foam);
-  margin: 0 auto 26px;
-  max-width: 760px;
-  padding: 18px 20px;
+/* ------------------------------ directo: el versus ------------------------- */
+
+/*
+ * La página del partido en juego. Es un **versus**: cada equipo en su lado con
+ * su color de equipación, la gente que está jugando en grande y el banquillo en
+ * pequeño. Se diseña para el móvil en vertical, que es desde donde la mirará
+ * casi todo el mundo, de pie y con una mano.
+ *
+ * Por eso los dos lados son dos columnas desde el primer píxel y no se apilan:
+ * apilados dejarían de ser un enfrentamiento y pasarían a ser una lista.
+ */
+.directo-pagina {
+  width: min(760px, calc(100% - 24px));
+}
+
+.directo-estado {
+  color: var(--muted);
+  padding: 24px 0;
   text-align: center;
 }
 
-.directo-vacio {
-  color: rgba(255, 248, 233, 0.72);
-  font-size: 0.92rem;
-  margin: 0;
+.versus {
+  background: var(--dusk);
+  border-radius: 22px;
+  color: var(--foam);
+  padding: 16px 12px 18px;
 }
 
-.directo-marcador + .directo-marcador {
-  border-top: 1px solid rgba(255, 248, 233, 0.16);
-  margin-top: 14px;
-  padding-top: 14px;
-}
-
-.directo-ronda {
+.versus-ronda {
   color: var(--aqua);
   font-size: 0.72rem;
   letter-spacing: 0.09em;
-  margin: 0 0 6px;
+  margin: 0 0 12px;
+  text-align: center;
   text-transform: uppercase;
 }
 
-.directo-cruce {
-  align-items: center;
+/*
+ * Tres columnas: equipo, marcador, equipo. El marcador es la del medio y no
+ * crece, así que los dos lados miden lo mismo aunque un nombre sea más largo.
+ */
+.versus-tablero {
+  align-items: start;
   display: grid;
-  gap: 6px;
-  grid-template-columns: 1fr auto auto auto 1fr;
+  gap: 8px;
+  /*
+   * La del medio solo tiene que caber los dos números y el guion. Con `auto` a
+   * secas cualquier cosa que se meta ahí se lleva el ancho por delante y deja
+   * los equipos en una franja de nada; el `minmax` le pone techo.
+   */
+  grid-template-columns: 1fr minmax(72px, 26%) 1fr;
 }
 
-.directo-equipo {
-  font-size: 0.95rem;
+.versus-equipo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * El nombre va en banda sólida del color del equipo: sobre el fondo oscuro es lo
+ * único que aguanta bien el contraste en cualquier tamaño, y de paso es lo que
+ * empareja al equipo con el aro de su lado en el anotador.
+ */
+/*
+ * `min-height` de dos líneas: con un nombre largo a un lado y uno corto al otro,
+ * las dos bandas medirían distinto y las caras de cada equipo empezarían a
+ * alturas distintas. Un versus desalineado deja de leerse como un enfrentamiento.
+ */
+.versus-nombre {
+  align-items: center;
+  background: var(--versus-color);
+  border-radius: 10px;
+  color: var(--foam);
+  display: flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  justify-content: center;
+  line-height: 1.15;
+  margin: 0;
+  min-height: 46px;
+  overflow-wrap: anywhere;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+.versus-equipo--a {
+  --versus-color: var(--equipo-azul);
+  --versus-claro: var(--equipo-azul-claro);
+}
+
+.versus-equipo--b {
+  --versus-color: var(--equipo-rojo);
+  --versus-claro: var(--equipo-rojo-claro);
+}
+
+.versus-pista,
+.versus-suplentes {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.versus-pista .retrato-nombre,
+.versus-suplentes .retrato-nombre {
+  color: var(--versus-claro);
+}
+
+.versus-banquillo {
+  border-top: 1px solid rgba(255, 248, 233, 0.16);
+  padding-top: 6px;
+}
+
+.versus-banquillo summary {
+  color: rgba(255, 248, 233, 0.66);
+  cursor: pointer;
+  font-size: 0.72rem;
   font-weight: 700;
-  line-height: 1.2;
+  list-style: none;
+  text-align: center;
 }
 
-.directo-puntos {
+.versus-banquillo summary::-webkit-details-marker {
+  display: none;
+}
+
+.versus-suplentes {
+  padding-top: 8px;
+}
+
+.versus-marcador {
+  padding-top: 22px;
+  text-align: center;
+}
+
+.versus-tanteo {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin: 0;
+}
+
+.versus-puntos {
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 11vw, 3.6rem);
+  font-size: clamp(2rem, 9vw, 3.2rem);
   line-height: 1;
+  min-width: 1.4ch;
 }
 
-.directo-separador {
+.versus-puntos--a {
+  color: var(--equipo-azul-claro);
+}
+
+.versus-puntos--b {
+  color: var(--equipo-rojo-claro);
+}
+
+.versus-guion {
   color: rgba(255, 248, 233, 0.4);
   font-family: var(--font-display);
-  font-size: 1.6rem;
 }
 
-.directo-detalle,
-.directo-sets {
+.versus-detalle,
+.versus-parciales {
   color: rgba(255, 248, 233, 0.66);
-  font-size: 0.8rem;
-  margin: 6px 0 0;
+  font-size: 0.72rem;
+  margin: 12px 0 0;
+  text-align: center;
 }
 
-.directo-refrescar {
-  margin-top: 12px;
+.versus-parciales {
+  font-variant-numeric: tabular-nums;
+}
+
+/* El destello que sustituye a la vibración cuando se pide menos movimiento. */
+.retrato.is-anota .retrato-marco {
+  box-shadow: 0 0 0 6px var(--retrato-aro);
+}
+
+/* ------------------------------ directo: el historial ---------------------- */
+
+/*
+ * Lo que va pasando, como el minuto a minuto de un partido de fútbol: cada
+ * punto, cada bloqueo, cada error y cada cambio. En móvil va plegado, porque lo
+ * que se mira de pie es el marcador; el script lo abre en pantalla grande.
+ */
+.feed {
+  margin-top: 16px;
+}
+
+.feed-titulo {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  padding: 8px 2px;
+}
+
+.feed-lista {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.feed-linea {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 4.5ch 1fr;
+  padding: 8px 2px 8px 10px;
+  position: relative;
+}
+
+/* La barra de color dice de qué equipo fue la acción sin gastar una palabra. */
+.feed-linea::before {
+  background: var(--feed-color, var(--line));
+  border-radius: 2px;
+  bottom: 6px;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 6px;
+  width: 4px;
+}
+
+.feed-linea--lado-a {
+  --feed-color: var(--equipo-azul);
+}
+
+.feed-linea--lado-b {
+  --feed-color: var(--equipo-rojo);
+}
+
+.feed-cuando {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.feed-que {
+  font-size: 0.92rem;
+}
+
+/* Un cambio no es un punto: se lee distinto para que no cuente como uno. */
+.feed-linea--cambio .feed-que,
+.feed-linea--ajuste .feed-que {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.feed-mas {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 10px 2px 0;
+}
+
+.directo-pie {
+  margin-top: 24px;
+  text-align: center;
+}
+
+/*
+ * En cuanto el lado da para dos columnas, la gente del equipo se agrupa en
+ * rejilla en vez de en fila india: un equipo de cuatro leído en columna deja de
+ * parecer un equipo. El corte es el de siempre (561px) y no uno propio.
+ */
+@media (min-width: 561px) {
+  .versus-tablero {
+    gap: 16px;
+  }
+
+  .versus-pista,
+  .versus-suplentes {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  }
+
+  .versus-nombre {
+    font-size: 0.95rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .versus {
+    padding: 22px 24px 26px;
+  }
+
+  .versus-tablero {
+    gap: 28px;
+  }
+
+  .feed-que {
+    font-size: 0.88rem;
+  }
+}
+
+/* La puerta al directo desde el cuadro, solo mientras hay alguien jugando. */
+.torneo-directo {
+  background: var(--dusk);
+  border-radius: 14px;
+  color: var(--foam);
+  font-weight: 700;
+  margin: 0 auto 22px;
+  max-width: 620px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.torneo-directo a {
+  color: var(--aqua);
 }
 
 .torneo-seccion {

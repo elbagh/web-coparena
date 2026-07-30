@@ -28,11 +28,11 @@ import { cargarScriptPublico, ejecutarScriptPublico } from "../helpers/dom";
  */
 
 const MARCADO = `
-  <p class="anot-alerta" data-anot-error hidden></p>
+  <p class="anot-alerta anot-alerta--offline" data-anot-offline hidden>
+    Sin conexión: los puntos no se están guardando.
+  </p>
   <div class="anot-panel" data-anot-panel hidden>
     <section class="anot-marcador">
-      <span data-anot-nombre-a></span>
-      <span data-anot-nombre-b></span>
       <p data-anot-rotulo hidden>Sets</p>
       <p class="anot-tanteo">
         <span data-anot-puntos-a>0</span>
@@ -51,8 +51,17 @@ const MARCADO = `
     </section>
 
     <section class="anot-pista" data-anot-pista>
-      <div data-anot-mitad-a></div>
-      <div data-anot-mitad-b></div>
+      <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
+        <p data-anot-banda-a></p>
+        <div data-anot-mitad-a></div>
+        <div data-anot-banquillo-a></div>
+      </div>
+      <div class="anot-red"></div>
+      <div class="anot-mitad anot-mitad--b" data-anot-lado="B">
+        <p data-anot-banda-b></p>
+        <div data-anot-mitad-b></div>
+        <div data-anot-banquillo-b></div>
+      </div>
     </section>
 
     <section class="anot-pulgar" data-anot-pulgar>
@@ -65,6 +74,13 @@ const MARCADO = `
         <div data-anot-tipos></div>
         <button type="button" data-anot-cancelar>Cancelar</button>
       </div>
+      <div data-anot-cambio hidden>
+        <p>¿Por quién entra <strong data-anot-entra></strong>?</p>
+        <div data-anot-cambio-opciones></div>
+        <button type="button" data-anot-cambio-cancelar>Cancelar</button>
+      </div>
+
+      <p class="anot-alerta anot-alerta--pulgar" role="alert" data-anot-error hidden></p>
     </section>
 
     <details class="anot-mas">
@@ -100,16 +116,28 @@ const ALINEACION = [
   { jugador_id: 3, lado: "B", nombre: "Iago", apellidos: "García Hermida", dorsal: 9 }
 ];
 
+const enPlantilla = (id: number, nombre: string, apellidos: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  nombre,
+  apellidos,
+  dorsal: id,
+  nivel: "oro",
+  media: 70,
+  tieneFoto: false,
+  esSuplente: false,
+  ...extra
+});
+
 const EQUIPOS = {
   A: {
     nombre: "Areeiros",
     jugadores: [
-      { id: 1, nombre: "Marta Souto Lago", esSuplente: false },
-      { id: 2, nombre: "Marta Ferro Deus", esSuplente: false },
-      { id: 4, nombre: "Nuria Canle Rios", esSuplente: true }
+      enPlantilla(1, "Marta", "Souto Lago"),
+      enPlantilla(2, "Marta", "Ferro Deus"),
+      enPlantilla(4, "Nuria", "Canle Rios", { esSuplente: true })
     ]
   },
-  B: { nombre: "Os Pulpos Bravos", jugadores: [{ id: 3, nombre: "Iago García Hermida", esSuplente: false }] }
+  B: { nombre: "Os Pulpos Bravos", jugadores: [enPlantilla(3, "Iago", "García Hermida")] }
 };
 
 /** La respuesta de `/api/anotacion`, con lo mínimo para pintar. */
@@ -120,6 +148,7 @@ const respuesta = (extra: Record<string, unknown> = {}) => ({
   siguienteOrden: 0,
   marcadorPanel: { puntos: { A: 0, B: 0 }, sets: { A: 0, B: 0 } },
   pendienteDeAdoptar: false,
+  cambios: [],
   alineacion: ALINEACION,
   equipos: EQUIPOS,
   tipos: TIPOS,
@@ -132,17 +161,25 @@ const respirar = () => new Promise((r) => setTimeout(r, 0));
 
 let peticiones: { url: string; cuerpo: Record<string, unknown> | null }[] = [];
 
+/**
+ * Lo que contesta el fetch simulado. Por defecto devuelve los datos con los que
+ * se montó; los tests que tiran la red lo reemplazan a mitad.
+ */
+let responder: (cuerpo: Record<string, unknown> | null) => Promise<Response>;
+
 /** Monta la pantalla con esa respuesta y corre los scripts como en la página. */
 async function montar(datos: Record<string, unknown>) {
   document.body.innerHTML = MARCADO;
   peticiones = [];
   window.history.replaceState({}, "", "/anotador/partido/?id=p1");
+  responder = async () => new Response(JSON.stringify(datos), { status: 200 });
 
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, opciones?: { body?: string }) => {
-      peticiones.push({ url, cuerpo: opciones?.body ? JSON.parse(opciones.body) : null });
-      return new Response(JSON.stringify(datos), { status: 200 });
+      const cuerpo = opciones?.body ? JSON.parse(opciones.body) : null;
+      peticiones.push({ url, cuerpo });
+      return await responder(cuerpo);
     })
   );
 
@@ -151,8 +188,17 @@ async function montar(datos: Record<string, unknown>) {
     state: { loading: false, user: { id: 1 }, acceso: { permisos: ["partidos.anotar", "partidos.editar"] } }
   };
 
-  // El orden es el de la página: match-utils → core → partido.
+  // jsdom no implementa matchMedia; la vibración del retrato la consulta.
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: false,
+    media,
+    addEventListener() {},
+    removeEventListener() {}
+  }));
+
+  // El orden es el de la página: match-utils → cromo → core → partido.
   cargarScriptPublico("match-utils.js", "CopaArenaMatches");
+  cargarScriptPublico("cromo.js", "CopaCromo");
   cargarScriptPublico("anotador/core.js", "CopaAnotador");
   ejecutarScriptPublico("anotador/partido.js");
 
@@ -246,9 +292,113 @@ describe("el marcador", () => {
 
     const enPista = botones("[data-anot-mitad-a] .anot-jugador");
     expect(enPista).toHaveLength(2);
-    expect(enPista[0]!.textContent).toContain("Souto Lago");
-    expect(enPista[0]!.textContent).toContain("7");
-    expect(enPista[1]!.textContent).toContain("Ferro Deus");
+    expect(enPista[0]!.querySelector(".retrato-nombre")!.textContent).toBe("Marta");
+    expect(enPista[0]!.querySelector(".retrato-apellidos")!.textContent).toBe("Souto Lago");
+    expect(enPista[1]!.querySelector(".retrato-apellidos")!.textContent).toBe("Ferro Deus");
+    // Sin foto, el hueco del retrato lo ocupa el dorsal.
+    expect(enPista[0]!.querySelector(".retrato-hueco")!.textContent).toBe("1");
+  });
+
+  it("la pista es un versus: cada equipo con su banda y su lado", async () => {
+    await montar(respuesta());
+
+    expect($("[data-anot-banda-a]").textContent).toBe("Areeiros");
+    expect($("[data-anot-banda-b]").textContent).toBe("Os Pulpos Bravos");
+    expect(botones("[data-anot-mitad-b] .anot-jugador")).toHaveLength(1);
+  });
+});
+
+/*
+ * El cambio de jugador. El gesto es el mismo que el de un punto —dos toques, y
+ * el segundo en la zona del pulgar— porque a pleno sol no se aprende una
+ * gramática nueva.
+ */
+describe("meter a un suplente", () => {
+  it("el banquillo son los que no están en pista, y son más pequeños", async () => {
+    await montar(respuesta());
+
+    const banca = botones("[data-anot-banquillo-a] .anot-suplente");
+    expect(banca).toHaveLength(1);
+    expect(banca[0]!.querySelector(".retrato-nombre")!.textContent).toBe("Nuria");
+    expect(banca[0]!.querySelector(".retrato")!.className).toContain("retrato--pequeno");
+  });
+
+  it("tocar a un suplente pregunta por quién entra, y no anota", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+
+    expect($("[data-anot-cambio]").hidden).toBe(false);
+    expect($("[data-anot-acciones]").hidden).toBe(true);
+    expect($("[data-anot-entra]").textContent).toBe("Nuria");
+    // Las opciones son quienes están en pista de ESE lado.
+    expect(botones("[data-anot-cambio-opciones] .anot-btn").map((b) => b.dataset.sale)).toEqual(["1", "2"]);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  it("el segundo toque manda el cambio", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+    botones("[data-anot-cambio-opciones] .anot-btn")[1]!.click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "cambio", entra: 4, sale: 2 });
+    expect($("[data-anot-cambio]").hidden).toBe(true);
+  });
+
+  it("cancelar vuelve al reposo sin mandar nada", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+    $("[data-anot-cambio-cancelar]").click();
+
+    expect($("[data-anot-cambio]").hidden).toBe(true);
+    expect($("[data-anot-reposo]").hidden).toBe(false);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  /*
+   * Deshacer es una sola tecla y la decide el estado. Dos botones que hay que
+   * elegir a ciegas entre punto y punto es justo lo que esta pantalla no puede
+   * permitirse.
+   */
+  it("si lo último fue un cambio, «Deshacer» deshace el cambio", async () => {
+    await montar(
+      respuesta({
+        eventos: [
+          { orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+        ],
+        siguienteOrden: 1,
+        cambios: [{ id: 3, trasOrden: 0, lado: "A", entra: 4, sale: 2, setNumero: 1 }],
+        estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+      })
+    );
+
+    expect($("[data-anot-ultimo]").textContent).toBe("Entra Nuria por Marta");
+
+    $("[data-anot-deshacer]").click();
+    await respirar();
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "cambio-deshacer" });
+  });
+});
+
+describe("la vibración", () => {
+  it("sacude el retrato de quien acaba de anotar", async () => {
+    const animados: Element[] = [];
+    (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element) {
+      animados.push(this);
+      return { cancel: () => {} };
+    };
+    (Element.prototype as unknown as { getAnimations: unknown }).getAnimations = () => [];
+
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    const retrato = botones("[data-anot-mitad-a] .anot-jugador")[0]!.querySelector(".retrato")!;
+    expect(animados).toContain(retrato);
   });
 });
 
@@ -405,5 +555,226 @@ describe("la alineación", () => {
 
     expect(suplente!.textContent).toContain("suplente");
     expect(etiquetas.find((l) => l.textContent?.includes("Iago"))!.textContent).not.toContain("suplente");
+  });
+});
+
+/*
+ * Lo que pasa cuando la playa se queda sin cobertura a media final.
+ *
+ * La regla de esta pantalla es la del comentario de `core.js`: un anotador que
+ * cree que está guardando y no lo está es peor que uno que sabe que no puede
+ * anotar. La pintada optimista la contradecía sin querer — subía el número y,
+ * si la petición se caía, ahí se quedaba: el marcador enseñaba un punto que no
+ * existía en ninguna base de datos, con un aviso pequeño debajo que además
+ * estaba en inglés («Failed to fetch»).
+ */
+describe("sin red", () => {
+  /** Rompe la red a partir de la siguiente petición. */
+  const cortar = () => {
+    responder = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+  };
+
+  it("el punto que no se guardó no se queda pintado", async () => {
+    await montar(respuesta({ estado: { setNumero: 1, puntos: { A: 4, B: 2 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null } }));
+    expect($("[data-anot-puntos-a]").textContent).toBe("4");
+
+    cortar();
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    expect($("[data-anot-puntos-a]").textContent).toBe("4");
+    expect($("[data-anot-error]").hidden).toBe(false);
+  });
+
+  it("lo dice en cristiano, no con el mensaje del navegador", async () => {
+    await montar(respuesta());
+    cortar();
+
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    const aviso = $("[data-anot-error]").textContent || "";
+    expect(aviso).not.toContain("Failed to fetch");
+    expect(aviso.toLowerCase()).toContain("conexión");
+  });
+
+  /*
+   * `navigator.onLine` dice «sí» conectado a un wifi sin salida, que es
+   * exactamente el chiringuito de la playa. La única señal fiable de que no hay
+   * red es una petición que se cae.
+   */
+  it("una petición caída enciende la banda de sin conexión", async () => {
+    await montar(respuesta());
+    expect($("[data-anot-offline]").hidden).toBe(true);
+
+    cortar();
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    expect($("[data-anot-offline]").hidden).toBe(false);
+  });
+
+  it("y se apaga en cuanto una vuelve a llegar", async () => {
+    await montar(respuesta());
+    cortar();
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+    expect($("[data-anot-offline]").hidden).toBe(false);
+
+    responder = async () => new Response(JSON.stringify(respuesta()), { status: 200 });
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    expect($("[data-anot-offline]").hidden).toBe(true);
+  });
+});
+
+/*
+ * Ofrecer un botón que va a contestar con un error es ofrecer un fallo. Ya
+ * estaba decidido para «Deshacer» de un partido terminado; faltaban los otros
+ * dos casos que también responden 409 seguro.
+ */
+describe("botones que no se ofrecen si van a fallar", () => {
+  const conAjuste = () =>
+    respuesta({
+      partido: { id: "p1", status: "live", origenMarcador: "eventos", reglas: REGLAS, startedAt: null },
+      estado: { setNumero: 3, puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 }, historial: [], terminado: false, winner: null },
+      eventos: [{ orden: 0, tipo: "ajuste", jugadorId: null, jugador: null, ladoJugador: null, ladoPunto: null, setNumero: 3 }],
+      siguienteOrden: 1
+    });
+
+  /*
+   * El saldo de apertura no se deshace: el servidor lo rechaza, porque borrarlo
+   * dejaba el marcador adoptado en 0–0 y sin forma de recuperarlo.
+   */
+  it("deshacer se apaga cuando lo último es el saldo de apertura", async () => {
+    await montar(conAjuste());
+    expect(($("[data-anot-deshacer]") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("pero sigue encendido con un punto normal detrás", async () => {
+    await montar(
+      respuesta({
+        eventos: [{ orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }],
+        siguienteOrden: 1
+      })
+    );
+    expect(($("[data-anot-deshacer]") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  /*
+   * Pulsar dos veces «Seguir desde 8–6» con la red lenta mandaba dos adopciones:
+   * la segunda contesta «Este partido ya tiene anotación» y el anotador ve un
+   * error por haber hecho las cosas bien.
+   */
+  it("adoptar no se manda dos veces por un doble toque", async () => {
+    await montar(
+      respuesta({ marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } }, pendienteDeAdoptar: true })
+    );
+
+    let resolver: ((valor: Response) => void) | null = null;
+    responder = () => new Promise<Response>((res) => { resolver = res; });
+
+    $("[data-anot-adoptar]").click();
+    $("[data-anot-adoptar]").click();
+    $("[data-anot-cero]").click();
+    await respirar();
+
+    expect(peticiones.filter((p) => p.cuerpo?.accion === "adoptar")).toHaveLength(1);
+    resolver!(new Response(JSON.stringify(respuesta()), { status: 200 }));
+  });
+});
+
+/*
+ * El aviso vive pegado a la franja del pulgar y no en la cabecera.
+ *
+ * Se comprueba leyendo el .astro y el CSS porque es donde se declara: el test
+ * de DOM copia el marcado a mano, así que por sí solo seguiría en verde con la
+ * página diciendo lo contrario. Que sea `absolute` no es un detalle de estilo —
+ * es lo que garantiza que aparecer no mueva un botón, que es la regla de la que
+ * sale toda esta pantalla.
+ */
+describe("dónde se avisa de que algo no se ha guardado", () => {
+  const leer = (ruta: string) => readFileSync(path.resolve(import.meta.dirname, ruta), "utf8");
+
+  it("el aviso está dentro de la franja del pulgar, no arriba", () => {
+    const pagina = leer("../../src/pages/anotador/partido.astro");
+    const pulgar = pagina.indexOf("data-anot-pulgar");
+    const cierre = pagina.indexOf("</section>", pulgar);
+    const aviso = pagina.indexOf("data-anot-error");
+
+    expect(aviso).toBeGreaterThan(pulgar);
+    expect(aviso).toBeLessThan(cierre);
+  });
+
+  it("y la página se lo pide al armazón, que si no lo pintaría dos veces", () => {
+    expect(leer("../../src/pages/anotador/partido.astro")).toContain("avisoJuntoAlPulgar");
+    expect(leer("../../src/layouts/AnotadorLayout.astro")).toContain("!avisoJuntoAlPulgar &&");
+  });
+
+  it("se pinta fuera del flujo: aparecer no puede mover la botonera", () => {
+    const css = leer("../../src/styles/anotador/index.css");
+    const regla = css.slice(css.indexOf(".anot-alerta--pulgar"), css.indexOf(".anot-alerta--pulgar") + 400);
+
+    expect(regla).toContain("position: absolute");
+    expect(regla).toContain("pointer-events: none");
+    expect(css).toMatch(/\.anot-pulgar \{[^}]*position: relative/s);
+  });
+
+  /* La lista de partidos no tiene franja de pulgar: allí el aviso sigue arriba. */
+  it("la lista de partidos conserva el suyo", () => {
+    expect(leer("../../src/pages/anotador/index.astro")).not.toContain("avisoJuntoAlPulgar");
+  });
+});
+
+/*
+ * El anotador no sondea, y no debe hacerlo: un partido solo cambia cuando lo
+ * toca quien lo anota. Lo que sí hace falta es una lectura al volver a la
+ * pantalla, porque el móvil se bloquea entre sets y porque dos personas pueden
+ * estar anotando el mismo partido.
+ */
+describe("volver a la pantalla", () => {
+  it("relee una vez al reaparecer la pestaña", async () => {
+    await montar(respuesta());
+    const antes = peticiones.length;
+
+    document.dispatchEvent(new Event("visibilitychange"));
+    await respirar();
+
+    expect(peticiones.length).toBe(antes + 1);
+    expect(peticiones.at(-1)!.cuerpo).toBe(null);
+  });
+
+  it("pero no en mitad de un guardado, que pisaría lo que llega", async () => {
+    await montar(respuesta());
+
+    let resolver: ((valor: Response) => void) | null = null;
+    responder = () => new Promise<Response>((res) => { resolver = res; });
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+    const enVuelo = peticiones.length;
+
+    document.dispatchEvent(new Event("visibilitychange"));
+    await respirar();
+
+    expect(peticiones.length).toBe(enVuelo);
+    resolver!(new Response(JSON.stringify(respuesta()), { status: 200 }));
+  });
+
+  it("y no sondea: sin tocar nada, no pide nada", async () => {
+    await montar(respuesta());
+    const antes = peticiones.length;
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(peticiones.length).toBe(antes);
   });
 });

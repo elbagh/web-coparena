@@ -1,0 +1,108 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { breadcrumb } from "../data/seo";
+
+/*
+ * El partido que se está jugando, y nada más.
+ *
+ * Página propia y no un bloque de /torneo/ por dos razones. La primera es lo que
+ * se pidió: aquí no hay información de ningún otro partido — hay una sola pista,
+ * así que hay un solo directo. La segunda es el presupuesto: esta página **no
+ * pide `/api/torneo`**, que es la lectura pesada del sitio, así que quien entra
+ * solo a mirar el marcador no paga por el cuadro entero.
+ */
+const structuredData = [
+  breadcrumb([
+    { name: "Torneo", path: "/torneo/" },
+    { name: "En directo", path: "/directo/" }
+  ])
+];
+---
+
+<BaseLayout
+  title="En directo | La Copa Arena"
+  description="El marcador del partido que se está jugando en Playa O Pozo, punto a punto."
+  structuredData={structuredData}
+>
+  <SiteHeader />
+
+  <main class="legal-page directo-pagina" data-directo-pagina>
+    <p class="directo-estado" data-directo-estado aria-live="polite">Buscando el partido…</p>
+
+    {/*
+      El versus: cada equipo en su lado, con su color de equipación. Los
+      titulares en grande y el banquillo en pequeño, dentro de un desplegable
+      que en móvil arranca cerrado — sus fotos no se piden hasta abrirlo.
+    */}
+    <section class="versus" data-versus hidden aria-label="El partido">
+      <p class="versus-ronda" data-versus-ronda></p>
+
+      <div class="versus-tablero">
+        <div class="versus-equipo versus-equipo--a" data-versus-lado="A">
+          <p class="versus-nombre" data-versus-nombre-a></p>
+          <div class="versus-pista" data-versus-pista-a></div>
+          <details class="versus-banquillo" data-versus-banquillo-a hidden>
+            <summary data-versus-banquillo-a-titulo>Banquillo</summary>
+            <div class="versus-suplentes" data-versus-suplentes-a></div>
+          </details>
+        </div>
+
+        {/*
+          En la columna del medio solo van los números. El «Set 1 · Sets 0–0 · a
+          21» iría aquí de forma natural, pero es una línea larga: en un móvil de
+          360px se comía la mitad del ancho y dejaba las dos mitades del equipo
+          en 60px. Va debajo, donde puede ocupar todo el ancho.
+        */}
+        <div class="versus-marcador" aria-live="polite">
+          <p class="versus-tanteo">
+            <span class="versus-puntos versus-puntos--a" data-versus-puntos-a>0</span>
+            <span class="versus-guion">–</span>
+            <span class="versus-puntos versus-puntos--b" data-versus-puntos-b>0</span>
+          </p>
+        </div>
+
+        <div class="versus-equipo versus-equipo--b" data-versus-lado="B">
+          <p class="versus-nombre" data-versus-nombre-b></p>
+          <div class="versus-pista" data-versus-pista-b></div>
+          <details class="versus-banquillo" data-versus-banquillo-b hidden>
+            <summary data-versus-banquillo-b-titulo>Banquillo</summary>
+            <div class="versus-suplentes" data-versus-suplentes-b></div>
+          </details>
+        </div>
+      </div>
+
+      <p class="versus-detalle" data-versus-detalle></p>
+      <p class="versus-parciales" data-versus-parciales hidden></p>
+    </section>
+
+    {/*
+      El historial, como el de un partido de fútbol: cada punto, cada bloqueo,
+      cada error y cada cambio, del más reciente al más antiguo. En móvil va
+      plegado —lo que importa es el marcador— y el script lo abre en pantallas
+      grandes, donde cabe sin tapar nada.
+    */}
+    <section class="feed" data-feed hidden aria-label="Lo que va pasando">
+      <details class="feed-plegable" data-feed-plegable>
+        <summary class="feed-titulo" data-feed-titulo>Lo que va pasando</summary>
+        <ol class="feed-lista" data-feed-lista></ol>
+        <p class="feed-mas" data-feed-mas hidden></p>
+      </details>
+    </section>
+
+    <p class="directo-pie">
+      <a href="/torneo/">Ver el cuadro completo</a>
+    </p>
+  </main>
+
+  <SiteFooter />
+
+  {/*
+    El orden importa: `cromo.js` publica el retrato y `match-utils.js` sabe a
+    cuántos puntos va cada set. `directo.js` lo carga BaseLayout antes del slot.
+  */}
+  <script is:inline src="/assets/match-utils.js" defer></script>
+  <script is:inline src="/assets/cromo.js" defer></script>
+  <script is:inline src="/assets/directo-page.js" defer></script>
+</BaseLayout>
