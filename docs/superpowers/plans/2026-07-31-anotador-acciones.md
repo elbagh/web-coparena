@@ -1504,6 +1504,23 @@ EOF
 - Modify: `CLAUDE.md` (sección «Anotación en directo»)
 - Test: la suite entera
 
+- [ ] **Step 0: Comentarios y fixtures rezagados (hallazgos de la revisión de la Task 1)**
+
+Tres sitios siguen nombrando el catálogo viejo y no los cubre ninguna otra tarea:
+
+1. `functions/_lib/directo.ts:139` — el comentario de `versionDirecto` dice «fijar
+   una alineación, registrar un cambio de jugador o anotar **una defensa** no
+   mueven el marcador». Ese tipo ya no existe; el caso que sigue valiendo es
+   «anotar un bloqueo que no puntúa».
+2. `functions/_lib/eventos.ts:573` — en `ladosDelPartido`, «corregir "ese
+   **remate** fue de Ana, no de Nuria"» → «ese punto fue de…».
+3. `test/unit/directo-page.test.ts:87-93` y `:113-115` — el fixture
+   `PLANTILLA.tipos` y el `feed` siguen con `remate` / `error` / `defensa`. Es
+   autocontenido, así que **nunca falla solo**: hay que actualizarlo a mano. Y
+   ahí está su gracia — ese test demuestra que `/directo/` saca las etiquetas
+   del catálogo del servidor, y con claves que `/api/plantilla` ya no puede
+   devolver seguiría pasando aunque el cliente volviera a llevarlas a mano.
+
 - [ ] **Step 1: El texto de `/directo/`**
 
 En `src/pages/directo.astro`, línea 81, sustituir «cada punto, cada bloqueo, cada error y cada cambio» por:
