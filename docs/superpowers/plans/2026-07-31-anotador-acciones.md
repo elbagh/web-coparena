@@ -105,8 +105,7 @@ En pasado: quien anota registra lo que pasó, no lo que debería pasar. Ninguno 
   - `type TipoEvento = "punto" | "ace" | "saque_fallado" | "bloqueo" | "chilena" | "ajuste"`
   - `TIPOS: readonly { clave: TipoEvento; etiqueta: string; ayuda: string; punto: "siempre" | "pregunta"; aRival: boolean }[]` — sin `ajuste`, que no se ofrece
   - `ladoDelPunto(tipo: TipoEvento, ladoJugador: Lado, puntua?: boolean): Lado | null`
-  - `METRICA_DE_TIPO: Readonly<Record<TipoEvento, string | null>>`
-  - `EstadisticasJugador { puntos, bloqueos, chilenas, aces, saques_fallados }`
+  - `estadisticasDeEventos`, `EstadisticasJugador`, `vacias()` y `METRICA_DE_TIPO` **se borran** (ver Step 4)
   - `validarEvento(body, alineacion)` lee además `body.punto: boolean`
   - `corregirEvento(db, partido, orden, cambios: { tipo?, jugadorId?, punto? }, alineacion)`
   - `PUNTUA` **deja de existir** (hoy se re-exporta desde `eventos.ts:891`)
@@ -258,94 +257,35 @@ describe("ladoDelPunto", () => {
     expect(ladoDelPunto("ajuste", "A", true)).toBeNull();
   });
 
-  it("TIPOS y METRICA_DE_TIPO cubren todos los tipos, sin huecos", () => {
-    const tipos: TipoEvento[] = ["punto", "ace", "saque_fallado", "bloqueo", "chilena", "ajuste"];
-    for (const tipo of tipos) expect(METRICA_DE_TIPO).toHaveProperty(tipo);
-    // Los que se ofrecen son los que se pueden anotar de verdad.
-    expect(TIPOS.every((t) => t.clave !== "ajuste")).toBe(true);
+  /*
+   * El ajuste es un saldo de apertura, no una acción: nadie lo pulsa, así que no
+   * puede salir en la botonera. Es el único tipo que existe sin estar en TIPOS.
+   */
+  it("TIPOS son las cinco acciones que se pueden anotar, y no el ajuste", () => {
     expect(TIPOS.map((t) => t.clave)).toEqual(["punto", "ace", "saque_fallado", "bloqueo", "chilena"]);
   });
 });
 ```
 
-Sustituir el bloque `describe("estadísticas desde el log")` (líneas 217-266) por:
+**Borrar entero** el bloque `describe("estadísticas desde el log")` (líneas
+217-266), sin sustituirlo por nada.
 
-```ts
-describe("estadísticas desde el log", () => {
-  it("cada tipo suma a su métrica", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "punto", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "ace", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "bloqueo", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "chilena", jugador_id: 7, lado_jugador: "A", lado_punto: null })
-    ]);
+Se va con la función que probaba. `estadisticasDeEventos` era una segunda
+implementación en TS de la sentencia agregada de `eventos.ts`, y **nada de
+producción la llamaba**: dos implementaciones de la misma regla son dos sitios
+que mantener a la vez, que es justo el argumento por el que este proyecto tiene
+un solo camino de recálculo.
 
-    expect(stats.get(7)).toEqual({
-      puntos: 3,
-      bloqueos: 1,
-      chilenas: 1,
-      aces: 1,
-      saques_fallados: 0
-    });
-  });
-
-  /*
-   * La invariante es «todo punto tiene una acción con un jugador detrás», no
-   * «todo punto suma a la ficha de alguien». El saque fallado da el punto al
-   * rival y no le regala puntos a nadie.
-   */
-  it("un saque fallado no da puntos a nadie", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "saque_fallado", jugador_id: 7, lado_jugador: "A", lado_punto: "B" })
-    ]);
-
-    expect(stats.get(7)).toMatchObject({ saques_fallados: 1, puntos: 0 });
-    expect(stats.size).toBe(1);
-  });
-
-  /*
-   * El mismo tipo, dos resultados: es exactamente lo que `lado_punto` existe
-   * para poder decir, y lo que un mapa fijo por tipo no sabía expresar.
-   */
-  it("un bloqueo suma bloqueo siempre, y punto sólo si lo ganó", () => {
-    const conPunto = estadisticasDeEventos([
-      evento({ tipo: "bloqueo", jugador_id: 3, lado_jugador: "B", lado_punto: "B" })
-    ]);
-    expect(conPunto.get(3)).toMatchObject({ bloqueos: 1, puntos: 1 });
-
-    const sinPunto = estadisticasDeEventos([
-      evento({ tipo: "bloqueo", jugador_id: 3, lado_jugador: "B", lado_punto: null })
-    ]);
-    expect(sinPunto.get(3)).toMatchObject({ bloqueos: 1, puntos: 0 });
-  });
-
-  it("el ajuste no genera estadísticas de nadie", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "ajuste", jugador_id: null, lado_jugador: null, lado_punto: null, puntos_a: 12, puntos_b: 9 })
-    ]);
-    expect(stats.size).toBe(0);
-  });
-
-  it("reparte por jugador", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "punto", jugador_id: 1, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "punto", jugador_id: 2, lado_jugador: "B", lado_punto: "B" }),
-      evento({ tipo: "punto", jugador_id: 1, lado_jugador: "A", lado_punto: "A" })
-    ]);
-    expect(stats.get(1)!.puntos).toBe(2);
-    expect(stats.get(2)!.puntos).toBe(1);
-  });
-});
-```
+La regla queda cubierta donde se comprueba de verdad —contra una D1 real,
+después de anotar— por los tests de integración de la Task 2. Cuesta más
+(arranca workerd), pero prueba lo que de verdad corre.
 
 Y en la cabecera del fichero, cambiar el import (quitar `PUNTUA`) y los dos ayudantes:
 
 ```ts
 import {
-  METRICA_DE_TIPO,
   TIPOS,
   aplicarPunto,
-  estadisticasDeEventos,
   ladoDelPunto,
   marcadorInicial,
   plegarEventos,
@@ -377,7 +317,7 @@ const puntos = (lado: "A" | "B", veces: number, tipo: TipoEvento = "punto"): Eve
 - [ ] **Step 3: Ejecutar los tests para verlos fallar**
 
 Ejecutar: `npm test -- marcador`
-Esperado: FAIL — `ladoDelPunto("saque_fallado", ...)` devuelve `null` (el tipo no existe todavía), y `estadisticasDeEventos` devuelve objetos con `remates`/`defensas`/`errores`.
+Esperado: FAIL — `ladoDelPunto("saque_fallado", ...)` devuelve `null`, porque ese tipo todavía no existe.
 
 - [ ] **Step 4: Reescribir el catálogo en `marcador.ts`**
 
@@ -429,17 +369,6 @@ export const ACCION_POR_CLAVE: ReadonlyMap<TipoEvento, Accion> = new Map(
   TIPOS.map((accion) => [accion.clave, accion])
 );
 
-/** A qué columna de `estadisticas` suma cada tipo, además de a `puntos`. */
-export const METRICA_DE_TIPO: Readonly<Record<TipoEvento, string | null>> = {
-  // «Punto» no tiene columna propia: es lo que `puntos` ya cuenta.
-  punto: null,
-  ace: "aces",
-  saque_fallado: "saques_fallados",
-  bloqueo: "bloqueos",
-  chilena: "chilenas",
-  ajuste: null
-};
-
 /**
  * Quién se lleva el punto, o nadie.
  *
@@ -459,60 +388,33 @@ export function ladoDelPunto(tipo: TipoEvento, ladoJugador: Lado, puntua?: boole
 }
 ```
 
-Y sustituir `EstadisticasJugador`, `vacias` y el cuerpo del bucle de `estadisticasDeEventos` (líneas 203-246):
+**Borrar por completo**, sin sustituto:
 
-```ts
-export interface EstadisticasJugador {
-  puntos: number;
-  bloqueos: number;
-  chilenas: number;
-  aces: number;
-  saques_fallados: number;
-}
+- `PUNTUA` (líneas 20-34) y `ETIQUETAS` (36-42), que el catálogo nuevo reemplaza.
+- `EstadisticasJugador`, `vacias()` y `estadisticasDeEventos` (líneas 203-246).
 
-const vacias = (): EstadisticasJugador => ({
-  puntos: 0,
-  bloqueos: 0,
-  chilenas: 0,
-  aces: 0,
-  saques_fallados: 0
-});
+- `METRICA_DE_TIPO` (líneas 65-73), que arrastra la anterior.
 
-/**
- * Lo que cada jugador hizo, según el log.
- *
- * Es la versión legible de la sentencia agregada de `sentenciasDerivadas`, y
- * está aquí para eso: es el oráculo contra el que los tests contrastan el SQL,
- * de modo que un `CASE` mal puesto salga en un test y no en el álbum de
- * septiembre. **Nada de producción la llama.** Si cambia una, cambia la otra.
- *
- * `puntos` cuenta lo que ganó el punto para el **propio** equipo, y quien lo
- * dice es `lado_punto`: el mismo bloqueo suma punto o no según el evento, no
- * según el tipo.
- */
-export function estadisticasDeEventos(eventos: readonly EventoFila[]): Map<number, EstadisticasJugador> {
-  const porJugador = new Map<number, EstadisticasJugador>();
+El borrado de `estadisticasDeEventos` es una decisión, no una limpieza de paso:
+era una segunda implementación en TS de la sentencia agregada de `eventos.ts` y
+**nada de producción la llamaba**. Mantener dos veces la misma regla es lo que
+este proyecto evita a propósito en todo lo demás («un solo camino de
+recálculo»), y no hay razón para hacer una excepción con la que sólo veían los
+tests.
 
-  for (const evento of eventos) {
-    if (evento.jugador_id === null || evento.tipo === "ajuste") continue;
+`METRICA_DE_TIPO` cae con ella por el mismo argumento, no por descuido: su único
+consumidor en `functions/` era la línea 236 de esa función, así que conservarla
+dejaría una tabla que sólo leen los tests y que repite —en TypeScript— el mapeo
+tipo→columna que la sentencia SQL ya escribe. Sería reintroducir el problema con
+otro nombre.
 
-    const fila = porJugador.get(evento.jugador_id) ?? vacias();
-    const metrica = METRICA_DE_TIPO[evento.tipo];
-    if (metrica) fila[metrica as keyof EstadisticasJugador] += 1;
-    if (evento.lado_punto !== null && evento.lado_punto === evento.lado_jugador) fila.puntos += 1;
-
-    porJugador.set(evento.jugador_id, fila);
-  }
-
-  return porJugador;
-}
-```
-
-Borrar por completo `PUNTUA` (líneas 20-34) y `ETIQUETAS` (36-42).
+Quien añada un tipo nuevo se entera de que necesita columna por donde
+corresponde: el `CHECK` de la migración, la sentencia agregada y los tests de
+integración que leen `estadisticas` de una D1 real.
 
 - [ ] **Step 5: Adaptar `eventos.ts`**
 
-En los imports (líneas 15-26), quitar `PUNTUA` y añadir `ACCION_POR_CLAVE`. Quitar también `estadisticasDeEventos`, que **se importa y no se llama nunca** — una copia importada y sin usar parece la fuente de verdad sin serlo. Y borrar el `export { PUNTUA };` del final del fichero (línea 891).
+En los imports (líneas 15-26), quitar `PUNTUA` y `estadisticasDeEventos` (las dos dejan de existir tras el Step 4; la segunda además se importaba sin llamarse nunca) y añadir `ACCION_POR_CLAVE`. Y borrar el `export { PUNTUA };` del final del fichero (línea 891).
 
 Sustituir `TIPOS_ANOTABLES` (línea 72) y `validarEvento` (81-105) por:
 
@@ -574,8 +476,11 @@ En `sentenciasDerivadas`, sustituir la segunda sentencia (líneas 281-305) por:
      * el saque fallado apunta al rival y por eso no suma puntos a nadie, y el
      * mismo bloqueo suma punto o no según el evento.
      *
-     * Espejo en TS: `estadisticasDeEventos` en marcador.ts. Si cambia una,
-     * cambia la otra.
+     * Es la ÚNICA implementación de este reparto. Había un espejo en TS
+     * (`estadisticasDeEventos`) que sólo veían los tests; se borró para que no
+     * hubiera dos versiones de la misma regla esperando a discrepar. Lo que
+     * prueba esta sentencia son los tests de integración, leyendo la tabla de
+     * una D1 real después de anotar.
      */
     db
       .prepare(
@@ -757,6 +662,49 @@ describe("bloqueo y chilena: el punto lo decide quien anota", () => {
       "SELECT puntos, bloqueos FROM estadisticas WHERE jugador_id = ?1"
     ).bind(jugadorA).first();
     expect(ficha).toMatchObject({ puntos: 1, bloqueos: 1 });
+  });
+
+  /*
+   * La chilena va por su columna, no por la del bloqueo: comparten el gesto de
+   * la pregunta, no la métrica.
+   */
+  it("la chilena tiene columna propia", async () => {
+    const { partido, jugadorA } = await partidoConAlineacion();
+    await anotar(partido, { tipo: "chilena", jugadorId: jugadorA, ordenEsperado: 0, punto: true });
+
+    const ficha = await env.DB.prepare(
+      "SELECT puntos, chilenas, bloqueos FROM estadisticas WHERE jugador_id = ?1"
+    ).bind(jugadorA).first();
+    expect(ficha).toMatchObject({ puntos: 1, chilenas: 1, bloqueos: 0 });
+  });
+
+  /*
+   * Esta sentencia agregada es la única implementación del reparto desde que se
+   * borró su espejo en TS, así que un tipo que no llegue a su columna sólo se
+   * ve aquí: cada acción con su cifra, en una sola pasada.
+   */
+  it("cada acción llega a su columna", async () => {
+    const { partido, jugadorA } = await partidoConAlineacion();
+    await anotar(partido, { tipo: "punto", jugadorId: jugadorA, ordenEsperado: 0 });
+    await anotar(partido, { tipo: "ace", jugadorId: jugadorA, ordenEsperado: 1 });
+    await anotar(partido, { tipo: "bloqueo", jugadorId: jugadorA, ordenEsperado: 2, punto: true });
+    await anotar(partido, { tipo: "chilena", jugadorId: jugadorA, ordenEsperado: 3, punto: false });
+    await anotar(partido, { tipo: "saque_fallado", jugadorId: jugadorA, ordenEsperado: 4 });
+
+    const ficha = await env.DB.prepare(
+      `SELECT puntos, bloqueos, chilenas, aces, saques_fallados
+         FROM estadisticas WHERE jugador_id = ?1`
+    ).bind(jugadorA).first();
+
+    // Tres puntos: el punto, el ace y el bloqueo que ganó. Ni la chilena que no
+    // ganó ni el saque fallado, que se lo lleva el rival.
+    expect(ficha).toEqual({
+      puntos: 3,
+      bloqueos: 1,
+      chilenas: 1,
+      aces: 1,
+      saques_fallados: 1
+    });
   });
 });
 
@@ -1638,9 +1586,10 @@ El `CHECK` de la 0028 no admite los valores viejos, así que durante los segundo
 | Corregir con el sí/no | 2 (servidor) + 6 (pantalla) |
 | `METRICAS` y sus tres copias de cliente | 3 |
 | Copy de `/directo/` | 7 |
-| Import muerto de `estadisticasDeEventos` | 1 |
+| Borrado de `estadisticasDeEventos` (y `METRICA_DE_TIPO`, que sólo ella usaba) | 1 |
+| Cobertura del agregado, que pasa a estar sólo en integración | 2 |
 | Actualizar CLAUDE.md | 7 |
 
 Sin huecos.
 
-**Consistencia de tipos:** `TipoEvento`, `Accion`, `TIPOS`, `ACCION_POR_CLAVE`, `ladoDelPunto(tipo, lado, puntua?)`, `METRICA_DE_TIPO`, `EstadisticasJugador` y la forma de `cambios` en `corregirEvento` se definen en la Task 1 y se usan con esos mismos nombres en las 2, 3, 5 y 6. En el cliente, `tipo.punto` y `tipo.aRival` (Task 4) son los mismos campos que lee `predecir` (Task 5) y `marcarElegidos` (Task 6).
+**Consistencia de tipos:** `TipoEvento`, `Accion`, `TIPOS`, `ACCION_POR_CLAVE`, `ladoDelPunto(tipo, lado, puntua?)` y la forma de `cambios` en `corregirEvento` se definen en la Task 1 y se usan con esos mismos nombres en las 2, 3, 5 y 6. En el cliente, `tipo.punto` y `tipo.aRival` (Task 4) son los mismos campos que lee `predecir` (Task 5) y `marcarElegidos` (Task 6).

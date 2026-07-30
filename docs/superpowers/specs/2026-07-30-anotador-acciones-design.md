@@ -230,18 +230,20 @@ la simplificación no cambia ninguna cifra.
 `puntos`), `ace → aces`, `saque_fallado → saques_fallados`, `bloqueo →
 bloqueos`, `chilena → chilenas`, `ajuste → null`.
 
-### `estadisticasDeEventos` es el oráculo, y hoy tiene un import muerto
+### `estadisticasDeEventos` se borra
 
-`estadisticasDeEventos` en `marcador.ts` es una segunda implementación, en TS, de
-esa misma sentencia SQL. Comprobado: **fuera de `test/unit/marcador.test.ts` no
-la usa nadie**; `eventos.ts` la importa y no llega a llamarla nunca — el trabajo
-lo hace el agregado.
+`estadisticasDeEventos` en `marcador.ts` era una segunda implementación, en TS,
+de esa misma sentencia SQL. Comprobado: **fuera de `test/unit/marcador.test.ts`
+no la usaba nadie**; `eventos.ts` la importaba y no llegaba a llamarla nunca — el
+trabajo lo hace el agregado.
 
-Se conserva, con su papel escrito: es el **oráculo legible** contra el que se
-contrasta el SQL, que es lo que hace que un `CASE` mal puesto salga en un test en
-vez de en el álbum de septiembre. Lo que sí se quita es el import muerto de
-`eventos.ts`, porque una copia importada y no usada parece la fuente de verdad
-sin serlo.
+Se va, con `EstadisticasJugador` y `vacias()`. Dos implementaciones de la misma
+regla son dos sitios que mantener a la vez y un día dejan de coincidir, que es
+exactamente el argumento por el que este proyecto tiene **un solo camino de
+recálculo**. La regla queda cubierta donde se comprueba de verdad: en
+`test/integration/anotacion.test.ts`, leyendo `estadisticas` de una D1 real
+después de anotar. Cuesta más (arranca workerd), pero prueba lo que de verdad
+corre.
 
 ## Directo público
 
