@@ -498,6 +498,28 @@ describe("corregir un bloqueo", () => {
     const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
     expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 0, B: 0 });
   });
+
+  /*
+   * El caso simétrico, y el que de verdad protege el guardia del endpoint. Con
+   * `punto: false` de arriba, `cambios.punto = Boolean(body.punto)` (sin el
+   * `typeof`) da el mismo resultado que la versión correcta, porque
+   * `false ?? x` y `undefined ?? x` coinciden cuando `x` también es `false` —
+   * ese test pasaría igual con la implementación rota. Arrancando de un
+   * bloqueo que SÍ puntuó, `Boolean(undefined)` colapsa a `false` y el punto
+   * se borraría en silencio del marcador y de la ficha: aquí sí distingue.
+   */
+  it("cambiar sólo el autor conserva el punto cuando sí lo hubo", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    const berta = local.jugadores[1]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", true);
+
+    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
+    expect(await estadisticasDe(berta)).toMatchObject({ puntos: 1, bloqueos: 1 });
+    expect(await estadisticasDe(ana)).toBeNull();
+  });
 });
 
 /*
