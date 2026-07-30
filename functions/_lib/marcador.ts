@@ -17,14 +17,6 @@ export type Lado = "A" | "B";
 
 export type TipoEvento = "remate" | "ace" | "bloqueo" | "defensa" | "error" | "ajuste";
 
-export const TIPOS: readonly { clave: TipoEvento; etiqueta: string; ayuda: string }[] = [
-  { clave: "remate", etiqueta: "Remate", ayuda: "Punto de ataque" },
-  { clave: "ace", etiqueta: "Ace", ayuda: "Punto directo de saque" },
-  { clave: "bloqueo", etiqueta: "Bloqueo", ayuda: "Punto en el bloqueo" },
-  { clave: "error", etiqueta: "Error", ayuda: "Falla y el punto es del rival" },
-  { clave: "defensa", etiqueta: "Defensa", ayuda: "Buena defensa, el rally sigue" }
-];
-
 /**
  * Qué acciones cierran el rally con punto.
  *
@@ -40,6 +32,35 @@ export const PUNTUA: Readonly<Record<TipoEvento, boolean>> = {
   defensa: false,
   ajuste: false
 };
+
+const ETIQUETAS: readonly { clave: TipoEvento; etiqueta: string; ayuda: string }[] = [
+  { clave: "remate", etiqueta: "Remate", ayuda: "Punto de ataque" },
+  { clave: "ace", etiqueta: "Ace", ayuda: "Punto directo de saque" },
+  { clave: "bloqueo", etiqueta: "Bloqueo", ayuda: "Punto en el bloqueo" },
+  { clave: "error", etiqueta: "Error", ayuda: "Falla y el punto es del rival" },
+  { clave: "defensa", etiqueta: "Defensa", ayuda: "Buena defensa, el rally sigue" }
+];
+
+/**
+ * Los botones del anotador, con lo que hace falta para predecir el marcador.
+ *
+ * `puntua` y `alRival` salen de `PUNTUA` y de `ladoDelPunto`, no de una lista
+ * escrita otra vez: el anotador pinta el marcador antes de que responda el
+ * servidor, y con la regla copiada a mano en el cliente («todo menos defensa
+ * puntúa») cualquier tipo nuevo la habría dejado mintiendo. El que decide sigue
+ * siendo el servidor; esto solo evita que la predicción discrepe.
+ */
+export const TIPOS: readonly {
+  clave: TipoEvento;
+  etiqueta: string;
+  ayuda: string;
+  puntua: boolean;
+  alRival: boolean;
+}[] = ETIQUETAS.map((tipo) => ({
+  ...tipo,
+  puntua: PUNTUA[tipo.clave],
+  alRival: PUNTUA[tipo.clave] && ladoDelPunto(tipo.clave, "A") === "B"
+}));
 
 /** A qué columna de `estadisticas` suma cada tipo, además de a `puntos`. */
 export const METRICA_DE_TIPO: Readonly<Record<TipoEvento, string | null>> = {

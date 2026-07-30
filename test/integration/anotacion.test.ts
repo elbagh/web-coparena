@@ -34,6 +34,10 @@ interface Respuesta {
   eventos: { orden: number; tipo: string; jugadorId: number | null; ladoPunto: string | null }[];
   siguienteOrden: number;
   alineacion: { jugador_id: number; lado: string }[];
+  /** El marcador de las columnas planas, el que lleva el panel. */
+  marcadorPanel: { puntos: { A: number; B: number }; sets: { A: number; B: number } };
+  pendienteDeAdoptar: boolean;
+  error?: string;
 }
 
 const anotar = async (user: UsuarioSesion, partidoId: string, json: Record<string, unknown>) =>
@@ -50,8 +54,16 @@ const estadisticasDe = async (jugadorId: number) =>
     .bind(jugadorId)
     .first<Record<string, number>>();
 
-/** Un partido en juego con los dos equipos ya alineados. */
-async function montarPartido(user: UsuarioSesion, reglas?: unknown) {
+/**
+ * Un partido en juego con los dos equipos ya alineados. `extra` sirve para
+ * sembrarlo con un marcador ya puesto a mano, que es el caso del cerrojo de
+ * `MarcadorSinAdoptar`.
+ */
+async function montarPartido(
+  user: UsuarioSesion,
+  reglas?: unknown,
+  extra: { puntosA?: number; puntosB?: number; setsA?: number; setsB?: number } = {}
+) {
   const local: EquipoSembrado = await crearEquipo({
     nombre: "Delfines",
     jugadores: [{ nombre: "Ana" }, { nombre: "Berta" }]
@@ -65,6 +77,7 @@ async function montarPartido(user: UsuarioSesion, reglas?: unknown) {
     equipoA: local,
     equipoB: visitante,
     status: "live",
+    ...extra,
     ...(reglas === undefined ? {} : { reglas })
   });
 
@@ -505,6 +518,108 @@ describe("adoptar un partido que venía a mano", () => {
     await anotar(admin, partidoId, { accion: "adoptar" });
 
     expect((await anotar(admin, partidoId, { accion: "adoptar" })).status).toBe(409);
+  });
+});
+
+/*
+ * El cerrojo del marcador de a mano.
+ *
+ * Sin él, el primer punto de un anotador que se incorpora a mitad BORRABA el
+ * marcador que llevaba el panel: el pliegue reescribe las columnas planas, así
+ * que un 8–6 con sets 1–1 pasaba a 1–0 en el primer set y de los puntos
+ * anteriores no quedaba rastro. Y la pantalla no podía avisar porque el GET no
+ * mandaba ese marcador: plegar un log vacío da 0–0, así que enseñaba 0–0 y
+ * escondía el botón de adoptar justo en el único caso para el que existe.
+ *
+ * La decisión vive en el SERVIDOR a propósito. Si dependiera de la pantalla,
+ * quien entra por la URL con el partido a medias seguiría vaciándolo.
+ */
+describe("un partido que viene con marcador a mano", () => {
+  const aMano = { puntosA: 8, puntosB: 6, setsA: 1, setsB: 1 };
+
+  it("el GET dice cuánto va por el panel y que hay que decidir", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin, undefined, aMano);
+
+    const respuesta = await leer(admin, partidoId);
+    expect(respuesta.marcadorPanel).toEqual({ puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } });
+    expect(respuesta.pendienteDeAdoptar).toBe(true);
+    // El plegado sigue siendo 0–0: eso es correcto, y es justo por lo que hace
+    // falta el otro marcador al lado.
+    expect(respuesta.estado.puntos).toEqual({ A: 0, B: 0 });
+  });
+
+  it("el primer punto se rechaza y no toca la fila", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin, undefined, aMano);
+
+    const respuesta = await punto(admin, partidoId, local.jugadores[0]!.id);
+    expect(respuesta.status).toBe(409);
+    const cuerpo = (await respuesta.json()) as Respuesta;
+    expect(cuerpo.error).toContain("8–6");
+    expect(cuerpo.marcadorPanel).toEqual({ puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } });
+
+    const fila = await env.DB
+      .prepare("SELECT points_a, points_b, sets_a, sets_b, origen_marcador FROM partidos WHERE id = ?1")
+      .bind(partidoId)
+      .first<Record<string, unknown>>();
+    expect(fila).toMatchObject({ points_a: 8, points_b: 6, sets_a: 1, sets_b: 1, origen_marcador: "manual" });
+    const eventos = await env.DB.prepare("SELECT COUNT(*) AS n FROM partido_eventos").first<{ n: number }>();
+    expect(eventos!.n).toBe(0);
+  });
+
+  it("adoptándolo se sigue desde el 8–6", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin, undefined, aMano);
+
+    expect((await anotar(admin, partidoId, { accion: "adoptar" })).status).toBe(201);
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(201);
+
+    const despues = await leer(admin, partidoId);
+    expect(despues.estado.puntos).toEqual({ A: 9, B: 6 });
+    expect(despues.estado.sets).toEqual({ A: 1, B: 1 });
+    expect(despues.pendienteDeAdoptar).toBe(false);
+  });
+
+  /*
+   * La otra salida: el marcador de a mano no sirve y se empieza de cero. Sigue
+   * siendo un `ajuste` y no un borrado, para que en el log quede dicho que ahí
+   * se puso a cero, quién y cuándo.
+   */
+  it("o se pone a cero, y queda dicho en el log", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin, undefined, aMano);
+
+    expect((await anotar(admin, partidoId, { accion: "adoptar", desdeCero: true })).status).toBe(201);
+
+    const tras = await leer(admin, partidoId);
+    expect(tras.estado.puntos).toEqual({ A: 0, B: 0 });
+    expect(tras.estado.sets).toEqual({ A: 0, B: 0 });
+    expect(tras.eventos.map((e) => e.tipo)).toEqual(["ajuste"]);
+    expect(tras.marcadorPanel).toEqual({ puntos: { A: 0, B: 0 }, sets: { A: 0, B: 0 } });
+
+    // El ajuste no es de nadie, así que no genera estadísticas.
+    const cuantas = await env.DB.prepare("SELECT COUNT(*) AS n FROM estadisticas").first<{ n: number }>();
+    expect(cuantas!.n).toBe(0);
+
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(201);
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 1, B: 0 });
+  });
+
+  /*
+   * Soltar la anotación deja `origen_marcador = 'manual'` con el log intacto. Al
+   * volver a anotar no hay nada que decidir: esos puntos ya están atribuidos, y
+   * un cerrojo aquí dejaría el partido inanotable para siempre.
+   */
+  it("volver a coger un partido ya anotado no pide decidir nada", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    await anotar(admin, partidoId, { accion: "soltar" });
+
+    expect((await leer(admin, partidoId)).pendienteDeAdoptar).toBe(false);
+    expect((await punto(admin, partidoId, local.jugadores[1]!.id)).status).toBe(201);
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 2, B: 0 });
   });
 });
 

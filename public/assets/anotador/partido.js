@@ -11,6 +11,12 @@
  * hace dudar y provoca toques dobles. Se predice con `applyPoint` de
  * match-utils.js —el mismo que ya usa el panel, con las reglas del propio
  * partido— y en cuanto llega la respuesta manda el servidor.
+ *
+ * `window.CopaArenaMatches` se pide de frente, sin `?.`: la página lo carga
+ * antes que este fichero justamente para que esté. Con encadenamiento opcional
+ * pasó lo que tenía que pasar — durante un tiempo no se cargaba, el script no
+ * fallaba, y lo único que ocurría era que no había predicción y que el objetivo
+ * del set decisivo salía mal. Nadie se enteró.
  */
 (() => {
   const panel = document.querySelector("[data-anot-panel]");
@@ -30,36 +36,83 @@
     return nodo;
   };
 
+  const otroLado = (lado) => (lado === "A" ? "B" : "A");
+
   let datos = null;
   let elegido = null;
   let guardando = false;
+  /** El evento que se está corrigiendo en el diálogo. */
+  let correccion = null;
+
+  /** Rehacer un partido cerrado ya no es anotar: pide `partidos.editar`. */
+  const puedeEditar = () => Boolean(window.CopaAuth?.state?.acceso?.permisos?.includes("partidos.editar"));
 
   // ------------------------------------------------------------- pintado ---
 
   function pintar() {
     if (!datos) return;
     const { estado, alineacion } = datos;
+    const terminado = estado.terminado;
+    const decidir = Boolean(datos.pendienteDeAdoptar);
 
     $("[data-anot-nombre-a]").textContent = nombreEquipo("A");
     $("[data-anot-nombre-b]").textContent = nombreEquipo("B");
-    $("[data-anot-puntos-a]").textContent = String(estado.puntos.A);
-    $("[data-anot-puntos-b]").textContent = String(estado.puntos.B);
 
-    const objetivo = utils?.setTarget
-      ? utils.setTarget({ reglas: datos.partido.reglas, setNumber: estado.setNumero }, estado.setNumero)
-      : datos.partido.reglas.puntosPorSet;
-    $("[data-anot-detalle]").textContent = estado.terminado
+    /*
+     * Los números grandes son los puntos del set, salvo en dos casos:
+     *   - terminado: son los SETS, porque los puntos volvieron a cero al cerrarse
+     *     el último y ya no cuentan nada.
+     *   - pendiente de decidir: son los del panel, que es por donde va el partido
+     *     de verdad. Pintar el 0–0 del log al lado de un aviso que dice «va 12–9»
+     *     es contar dos cosas distintas en la misma pantalla.
+     */
+    const grandes = terminado ? estado.sets : decidir ? datos.marcadorPanel.puntos : estado.puntos;
+    const rotulo = $("[data-anot-rotulo]");
+    rotulo.hidden = !terminado && !decidir;
+    rotulo.textContent = terminado ? "Sets" : "Lo lleva el panel";
+    $("[data-anot-puntos-a]").textContent = String(grandes.A);
+    $("[data-anot-puntos-b]").textContent = String(grandes.B);
+
+    const sets = decidir ? datos.marcadorPanel.sets : estado.sets;
+    $("[data-anot-detalle]").textContent = terminado
       ? `Terminado · ganó ${nombreEquipo(estado.winner)}`
-      : `Set ${estado.setNumero} · sets ${estado.sets.A}–${estado.sets.B} · a ${objetivo}`;
+      : decidir
+        ? `Sets ${sets.A}–${sets.B} · sin anotar`
+        : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
 
-    pintarPista(alineacion);
-    pintarReposo();
+    const parciales = $("[data-anot-parciales]");
+    parciales.hidden = estado.historial.length === 0;
+    parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
+
+    // Mientras haya marcador de a mano por decidir, la pista y el pulgar no se
+    // pintan: sus botones responderían 409.
+    pintarDecision(decidir);
+    $("[data-anot-pista]").hidden = decidir;
+    $("[data-anot-pulgar]").hidden = decidir;
+
+    pintarPista(alineacion, terminado);
+    pintarReposo(terminado);
     pintarExtras();
   }
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
 
-  function pintarPista(alineacion) {
+  const objetivo = () =>
+    utils.setTarget({ reglas: datos.partido.reglas, setNumber: datos.estado.setNumero }, datos.estado.setNumero);
+
+  function pintarDecision(decidir) {
+    const caja = $("[data-anot-decision]");
+    caja.hidden = !decidir;
+    if (!decidir) return;
+
+    const mano = datos.marcadorPanel;
+    const marcador = `${mano.puntos.A}–${mano.puntos.B}`;
+    const sets = mano.sets.A + mano.sets.B > 0 ? `, sets ${mano.sets.A}–${mano.sets.B}` : "";
+    $("[data-anot-decision-titulo]").textContent = `Este partido va ${marcador}${sets} a mano`;
+    $("[data-anot-adoptar]").textContent = `Seguir desde ${marcador}`;
+  }
+
+  function pintarPista(alineacion, terminado) {
     for (const lado of ["A", "B"]) {
       const caja = $(`[data-anot-mitad-${lado.toLowerCase()}]`);
       caja.textContent = "";
@@ -73,14 +126,25 @@
       enPista.forEach((fila) => {
         const boton = el("button", `anot-jugador anot-jugador--${lado.toLowerCase()}`);
         boton.type = "button";
+        boton.disabled = terminado;
+        /*
+         * El nombre de pila manda —es lo que se grita en la pista—, pero el
+         * apellido va debajo: dos «Marta» en la misma mitad eran dos botones
+         * idénticos, y el apellido y el dorsal ya venían en la respuesta sin que
+         * nadie los pintara.
+         */
         boton.append(el("span", "anot-jugador-nombre", fila.nombre));
+        if (fila.apellidos) boton.append(el("span", "anot-jugador-apellidos", fila.apellidos));
+        if (fila.dorsal !== null && fila.dorsal !== undefined) {
+          boton.append(el("span", "anot-jugador-dorsal", String(fila.dorsal)));
+        }
         boton.addEventListener("click", () => elegir(fila, lado));
         caja.append(boton);
       });
     }
   }
 
-  function pintarReposo() {
+  function pintarReposo(terminado) {
     const ultimo = datos.eventos[datos.eventos.length - 1] || null;
     const texto = $("[data-anot-ultimo]");
     const deshacer = $("[data-anot-deshacer]");
@@ -91,18 +155,31 @@
       return;
     }
 
-    const etiqueta = (datos.tipos.find((t) => t.clave === ultimo.tipo) || {}).etiqueta || ultimo.tipo;
-    texto.textContent = ultimo.jugador
-      ? `${etiqueta} de ${ultimo.jugador} · ${datos.estado.puntos.A}–${datos.estado.puntos.B}`
-      : `Marcador adoptado · ${datos.estado.puntos.A}–${datos.estado.puntos.B}`;
-    deshacer.disabled = guardando;
+    texto.textContent = resumen(ultimo);
+    // Ofrecer deshacer a quien va a recibir un 403 es ofrecerle un fallo.
+    deshacer.disabled = guardando || (terminado && !puedeEditar());
+  }
+
+  /**
+   * Lo último anotado, en una línea.
+   *
+   * Cuando ese punto cerró un set lo dice, con su parcial. Antes ponía «Remate
+   * de X · 0–0» porque el marcador ya se había reiniciado, y leído del tirón
+   * parecía que el remate hubiera dejado el partido a cero.
+   */
+  function resumen(evento) {
+    const etiqueta = (datos.tipos.find((t) => t.clave === evento.tipo) || {}).etiqueta || evento.tipo;
+    if (!evento.jugador) return `Marcador adoptado · ${datos.estado.puntos.A}–${datos.estado.puntos.B}`;
+
+    if (evento.setNumero !== datos.estado.setNumero) {
+      const parcial = datos.estado.historial[datos.estado.historial.length - 1];
+      const cierre = parcial ? ` (${parcial.a}–${parcial.b})` : "";
+      return `${etiqueta} de ${evento.jugador} · cerró el set ${evento.setNumero}${cierre}`;
+    }
+    return `${etiqueta} de ${evento.jugador} · ${datos.estado.puntos.A}–${datos.estado.puntos.B}`;
   }
 
   function pintarExtras() {
-    // Adoptar solo tiene sentido si venía llevándose a mano y hay algo que heredar.
-    const sinLog = datos.eventos.length === 0;
-    const conMarcador = datos.estado.puntos.A + datos.estado.puntos.B + datos.estado.sets.A + datos.estado.sets.B > 0;
-    $("[data-anot-adoptar]").hidden = !(sinLog && conMarcador);
     $("[data-anot-soltar]").hidden = datos.partido.origenMarcador !== "eventos";
 
     const historial = $("[data-anot-historial]");
@@ -111,9 +188,13 @@
       .reverse()
       .slice(0, 12)
       .forEach((evento) => {
-        const linea = el("p", "anot-historial-linea");
         const etiqueta = (datos.tipos.find((t) => t.clave === evento.tipo) || {}).etiqueta || evento.tipo;
+        const linea = el("button", "anot-historial-linea");
+        linea.type = "button";
         linea.textContent = `${evento.orden + 1}. ${etiqueta}${evento.jugador ? ` de ${evento.jugador}` : ""}`;
+        // El saldo de apertura no se corrige: se suelta y se vuelve a adoptar.
+        linea.disabled = evento.tipo === "ajuste";
+        linea.addEventListener("click", () => abrirCorreccion(evento));
         historial.append(linea);
       });
   }
@@ -148,13 +229,15 @@
 
   /**
    * Predice el marcador con las reglas del partido para que el número se mueva
-   * al instante. No duplica lógica: `applyPoint` es el mismo que usa el panel.
+   * al instante. No duplica lógica: `applyPoint` es el mismo que usa el panel, y
+   * quién se lleva el punto sale de `tipos`, que el servidor construye desde
+   * `PUNTUA` y `ladoDelPunto`. Aquí estaba escrito a mano («todo menos defensa
+   * puntúa»), que es una copia esperando a quedarse vieja.
    */
   function predecir(tipo) {
-    if (!utils?.applyPoint) return null;
-    const puntua = tipo !== "defensa";
-    if (!puntua) return null;
-    const ladoPunto = tipo === "error" ? (elegido.lado === "A" ? "B" : "A") : elegido.lado;
+    const meta = datos.tipos.find((t) => t.clave === tipo);
+    if (!meta || !meta.puntua) return null;
+    const ladoPunto = meta.alRival ? otroLado(elegido.lado) : elegido.lado;
 
     const fingido = {
       status: "live",
@@ -230,6 +313,77 @@
     }
   }
 
+  // ----------------------------------------------------------- corregir ---
+
+  function abrirCorreccion(evento) {
+    correccion = { orden: evento.orden, tipo: evento.tipo, jugadorId: evento.jugadorId };
+    $("[data-anot-corregir-titulo]").textContent = `Corregir el punto ${evento.orden + 1}`;
+
+    const cajaTipos = $("[data-anot-corregir-tipos]");
+    cajaTipos.textContent = "";
+    datos.tipos.forEach((tipo) => {
+      const boton = el("button", `anot-btn anot-btn--tipo anot-btn--${tipo.clave}`);
+      boton.type = "button";
+      boton.dataset.tipo = tipo.clave;
+      boton.append(el("span", "anot-tipo-nombre", tipo.etiqueta));
+      boton.addEventListener("click", () => {
+        correccion.tipo = tipo.clave;
+        marcarElegidos();
+      });
+      cajaTipos.append(boton);
+    });
+
+    const cajaQuien = $("[data-anot-corregir-jugadores]");
+    cajaQuien.textContent = "";
+    datos.alineacion.forEach((fila) => {
+      const boton = el("button", `anot-btn anot-corregir-jugador anot-corregir-jugador--${fila.lado.toLowerCase()}`);
+      boton.type = "button";
+      boton.dataset.jugador = String(fila.jugador_id);
+      boton.textContent = `${fila.nombre} ${fila.apellidos || ""}`.trim();
+      boton.addEventListener("click", () => {
+        correccion.jugadorId = fila.jugador_id;
+        marcarElegidos();
+      });
+      cajaQuien.append(boton);
+    });
+
+    marcarElegidos();
+    $("[data-anot-dialogo-corregir]").showModal();
+  }
+
+  /** Lo elegido vive en `correccion`; esto solo lo refleja en los botones. */
+  function marcarElegidos() {
+    const dialogo = $("[data-anot-dialogo-corregir]");
+    dialogo.querySelectorAll("[data-tipo]").forEach((boton) => {
+      boton.setAttribute("aria-pressed", String(boton.dataset.tipo === correccion.tipo));
+    });
+    dialogo.querySelectorAll("[data-jugador]").forEach((boton) => {
+      boton.setAttribute("aria-pressed", String(Number(boton.dataset.jugador) === correccion.jugadorId));
+    });
+  }
+
+  async function guardarCorreccion() {
+    if (!correccion) return;
+    const dialogo = $("[data-anot-dialogo-corregir]");
+    try {
+      datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
+        accion: "corregir",
+        orden: correccion.orden,
+        tipo: correccion.tipo,
+        jugadorId: correccion.jugadorId
+      });
+      setError("");
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      // Se cierra en los dos casos: el aviso vive fuera del diálogo, y dejarlo
+      // abierto lo taparía.
+      dialogo.close();
+      correccion = null;
+      pintar();
+    }
+  }
+
   // ---------------------------------------------------------- alineación ---
 
   function abrirAlineacion() {
@@ -250,6 +404,9 @@
         input.dataset.lado = lado;
         input.checked = enPista.has(jugador.id);
         label.append(input, el("span", "", jugador.nombre));
+        // Quién es suplente venía en la respuesta y no se pintaba, así que
+        // alinear al equipo entero era igual de fácil que alinear a quien juega.
+        if (jugador.esSuplente) label.append(el("span", "anot-check-nota", "suplente"));
         bloque.append(label);
       });
 
@@ -285,9 +442,10 @@
     datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`);
   }
 
-  async function accionSimple(accion) {
+  async function accionSimple(cuerpo) {
     try {
-      datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", { accion });
+      datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", cuerpo);
+      setError("");
       pintar();
     } catch (error) {
       setError(error.message);
@@ -301,8 +459,11 @@
   $("[data-anot-alineacion-cancelar]").addEventListener("click", () =>
     $("[data-anot-dialogo-alineacion]").close()
   );
-  $("[data-anot-adoptar]").addEventListener("click", () => accionSimple("adoptar"));
-  $("[data-anot-soltar]").addEventListener("click", () => accionSimple("soltar"));
+  $("[data-anot-corregir-guardar]").addEventListener("click", guardarCorreccion);
+  $("[data-anot-corregir-cancelar]").addEventListener("click", () => $("[data-anot-dialogo-corregir]").close());
+  $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
+  $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
+  $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
 
   alEntrar(async () => {
     if (!partidoId) {
