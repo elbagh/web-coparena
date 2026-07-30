@@ -2,7 +2,7 @@
 import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 ---
 
-<AnotadorLayout titulo="Marcador">
+<AnotadorLayout titulo="Marcador" avisoJuntoAlPulgar={true}>
   {/*
     La página es una pista vista desde arriba: los jugadores de cada equipo en su
     mitad, separados por la línea de la red. Tocas a quien hizo la acción donde
@@ -73,6 +73,15 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <div class="anot-tipos" data-anot-tipos></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cancelar>Cancelar</button>
       </div>
+
+      {/*
+        El aviso vive aquí abajo y no en la cabecera de la página: es donde está
+        la mirada. Y va en `position: absolute` sobre el hueco que la franja ya
+        reserva (150px de alto para una fila de reposo de 56), así que aparecer y
+        desaparecer no mueve un solo botón — que es la regla de la que sale todo
+        el diseño de esta pantalla.
+      */}
+      <p class="anot-alerta anot-alerta--pulgar" role="alert" data-anot-error hidden></p>
     </section>
 
     <details class="anot-mas">

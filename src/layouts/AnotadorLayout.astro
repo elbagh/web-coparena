@@ -15,9 +15,22 @@ import "../styles/anotador/index.css";
 interface Props {
   titulo: string;
   volverA?: string;
+  /**
+   * La página coloca ella misma el aviso de error, en vez de heredarlo aquí
+   * arriba.
+   *
+   * Medido en la pantalla del marcador: el aviso quedaba en y 64–126 y la zona
+   * del pulgar en 598–748. Casi media pantalla de distancia entre lo que hay que
+   * leer y donde está la mirada, en una herramienta cuya premisa es que solo se
+   * mira tres segundos entre punto y punto. Y desde que un punto que no se
+   * guarda deshace su propia pintada, ese aviso es la ÚNICA señal de que hay que
+   * repetirlo. La lista de partidos no tiene zona de pulgar, así que allí sigue
+   * arriba.
+   */
+  avisoJuntoAlPulgar?: boolean;
 }
 
-const { titulo, volverA = "/anotador/" } = Astro.props;
+const { titulo, volverA = "/anotador/", avisoJuntoAlPulgar = false } = Astro.props;
 ---
 
 <BaseLayout title={`${titulo} | Anotador | La Copa Arena`} noindex={true} bodyClass="is-anotador">
@@ -59,7 +72,7 @@ const { titulo, volverA = "/anotador/" } = Astro.props;
         Sin conexión: los puntos no se están guardando.
       </p>
 
-      <p class="anot-alerta" role="alert" data-anot-error hidden></p>
+      {!avisoJuntoAlPulgar && <p class="anot-alerta" role="alert" data-anot-error hidden />}
       <slot />
     </div>
   </div>

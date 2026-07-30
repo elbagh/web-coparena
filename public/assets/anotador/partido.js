@@ -156,8 +156,13 @@
     }
 
     texto.textContent = resumen(ultimo);
-    // Ofrecer deshacer a quien va a recibir un 403 es ofrecerle un fallo.
-    deshacer.disabled = guardando || (terminado && !puedeEditar());
+    /*
+     * Ofrecer deshacer a quien va a recibir un error es ofrecerle un fallo: un
+     * partido terminado sólo lo toca quien puede editar, y el saldo de apertura
+     * no se deshace nunca —el servidor lo rechaza, porque borrarlo dejaba el
+     * marcador adoptado en 0–0 sin forma de recuperarlo—.
+     */
+    deshacer.disabled = guardando || ultimo.tipo === "ajuste" || (terminado && !puedeEditar());
   }
 
   /**
@@ -262,6 +267,10 @@
     // Se capturan antes de cerrar la botonera, que limpia `elegido`.
     const jugadorId = elegido.jugador_id;
     const ordenEsperado = datos.siguienteOrden;
+    // El último estado que confirmó el servidor, para poder volver a él. La
+    // predicción reemplaza `datos.estado` por un objeto nuevo, así que guardar
+    // la referencia al viejo basta.
+    const confirmado = datos.estado;
 
     const prediccion = predecir(tipo);
     if (prediccion) {
@@ -287,8 +296,18 @@
       datos = respuesta;
     } catch (error) {
       setError(error.message);
-      // La predicción no valía: manda lo que diga el servidor.
-      await recargar();
+      /*
+       * La predicción no valía, así que lo primero es deshacerla. Antes se
+       * llamaba directamente a `recargar()`: si esa también fallaba —que es lo
+       * que pasa sin cobertura, porque es la misma red— la excepción salía por
+       * encima del catch, el `finally` repintaba el estado OPTIMISTA y el
+       * marcador se quedaba con un punto que no existía en ninguna base de
+       * datos. Un anotador que cree que está guardando y no lo está es peor que
+       * uno que sabe que no puede anotar; esto era justo eso. Releer es un
+       * extra, no el remedio.
+       */
+      datos.estado = confirmado;
+      await recargarSiSePuede();
     } finally {
       guardando = false;
       pintar();
@@ -306,7 +325,7 @@
       });
     } catch (error) {
       setError(error.message);
-      await recargar();
+      await recargarSiSePuede();
     } finally {
       guardando = false;
       pintar();
@@ -363,7 +382,8 @@
   }
 
   async function guardarCorreccion() {
-    if (!correccion) return;
+    if (!correccion || guardando) return;
+    guardando = true;
     const dialogo = $("[data-anot-dialogo-corregir]");
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
@@ -380,6 +400,7 @@
       // abierto lo taparía.
       dialogo.close();
       correccion = null;
+      guardando = false;
       pintar();
     }
   }
@@ -417,6 +438,8 @@
   }
 
   async function guardarAlineacion() {
+    if (guardando) return;
+    guardando = true;
     const dialogo = $("[data-anot-dialogo-alineacion]");
     const marcados = [...dialogo.querySelectorAll("input[type=checkbox]")];
 
@@ -430,9 +453,12 @@
         });
       }
       dialogo.close();
-      pintar();
+      setError("");
     } catch (error) {
       setError(error.message);
+    } finally {
+      guardando = false;
+      pintar();
     }
   }
 
@@ -442,13 +468,35 @@
     datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`);
   }
 
+  /**
+   * Releer para recuperarse de un fallo, sabiendo que releer también puede
+   * fallar. El aviso que ya está puesto es el del fallo original, que es el que
+   * cuenta: taparlo con «sin conexión» al reintentar no ayuda a nadie.
+   */
+  async function recargarSiSePuede() {
+    try {
+      await recargar();
+    } catch {
+      /* Sin red: nos quedamos con lo último que confirmó el servidor. */
+    }
+  }
+
+  /*
+   * `guardando` también aquí: un doble toque en «Seguir desde 8–6» con la red
+   * lenta mandaba dos adopciones, y la segunda contestaba «este partido ya tiene
+   * anotación». El anotador veía un error por haberlo hecho bien.
+   */
   async function accionSimple(cuerpo) {
+    if (guardando) return;
+    guardando = true;
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", cuerpo);
       setError("");
-      pintar();
     } catch (error) {
       setError(error.message);
+    } finally {
+      guardando = false;
+      pintar();
     }
   }
 
@@ -464,6 +512,27 @@
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
+
+  /*
+   * Al volver a la pantalla, releer una vez.
+   *
+   * Esta pantalla no sondea, y no va a empezar: un partido solo cambia cuando lo
+   * toca quien lo está anotando, así que pedir cada pocos segundos durante seis
+   * horas sería gastar por gastar. Lo que sí pasa es que el móvil se bloquea
+   * entre sets, o que dos personas anotan el mismo partido sin saberlo: al
+   * volver, lo que hay en pantalla puede ser de hace diez minutos y el primer
+   * toque se lo lleva un conflicto de orden. Una lectura al reaparecer cuesta
+   * una petición y se ahorra ese toque perdido, que es el que duele porque llega
+   * justo cuando hay tres segundos para anotar.
+   */
+  document.addEventListener("visibilitychange", async () => {
+    // `panel.isConnected`: el oyente cuelga de `document`, que sobrevive a su
+    // propio panel. Si el panel ya no está en la página, esta copia del script
+    // no pinta en ninguna parte y lo único que haría es gastar una petición.
+    if (!panel.isConnected || document.visibilityState !== "visible" || guardando || !datos) return;
+    await recargarSiSePuede();
+    pintar();
+  });
 
   alEntrar(async () => {
     if (!partidoId) {

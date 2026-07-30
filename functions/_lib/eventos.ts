@@ -13,8 +13,10 @@
 // gratuito de D1: no hay ninguna razón para pagar ese riesgo.
 
 import {
+  aplicarEvento,
   estadisticasDeEventos,
   ladoDelPunto,
+  marcadorInicial,
   plegarEventos,
   PUNTUA,
   type EstadoMarcador,
@@ -106,8 +108,28 @@ export interface EventoPublico {
   setNumero: number;
 }
 
+/**
+ * Un «no» con motivo, dirigido a quien está anotando.
+ *
+ * Existe para separarlo de lo que NO es esto. El endpoint devolvía como 409
+ * cualquier `Error` de menos de 200 caracteres, con su texto: así, un fallo
+ * interno de D1 —«variable number must be between ?1 and ?100»— aterrizaba en el
+ * móvil del anotador con pinta de regla del juego, y de paso contaba por dentro
+ * cómo está construida la consulta. Lo que sale por aquí es lo que se ha
+ * decidido decir; lo demás es un 500 y una línea en el log.
+ */
+export class ErrorDeAnotacion extends Error {
+  constructor(
+    message: string,
+    readonly estado: number = 409
+  ) {
+    super(message);
+    this.name = "ErrorDeAnotacion";
+  }
+}
+
 /** Choque entre dos anotadores, o petición con un orden desfasado. */
-export class ConflictoDeOrden extends Error {
+export class ConflictoDeOrden extends ErrorDeAnotacion {
   constructor() {
     super("Alguien acaba de anotar en este partido. Vuelve a cargarlo antes de seguir.");
     this.name = "ConflictoDeOrden";
@@ -124,13 +146,21 @@ export class ConflictoDeOrden extends Error {
  * bloquea el SERVIDOR y no la pantalla: si dependiera del cliente, un anotador
  * que entra por la URL sin pasar por el aviso seguiría vaciando el marcador.
  */
-export class MarcadorSinAdoptar extends Error {
+export class MarcadorSinAdoptar extends ErrorDeAnotacion {
   constructor(readonly marcadorPanel: MarcadorPlano) {
     super(
       `Este partido va ${marcadorPanel.puntos.A}–${marcadorPanel.puntos.B} (sets ` +
         `${marcadorPanel.sets.A}–${marcadorPanel.sets.B}) anotado a mano. Adóptalo o ponlo a cero antes de anotar.`
     );
     this.name = "MarcadorSinAdoptar";
+  }
+}
+
+/** El partido ya está decidido: no caben más puntos. */
+export class PartidoTerminado extends ErrorDeAnotacion {
+  constructor() {
+    super("Este partido ya ha terminado. Para cambiar el resultado, deshaz o corrige el punto que lo cerró.");
+    this.name = "PartidoTerminado";
   }
 }
 
@@ -145,10 +175,27 @@ export const marcadorPlano = (partido: PartidoAnotable): MarcadorPlano => ({
   sets: { A: partido.sets_a, B: partido.sets_b }
 });
 
-/** ¿Hay puntos apuntados a mano que el log todavía no conoce? */
-export const hayMarcadorAMano = (partido: PartidoAnotable): boolean =>
+/**
+ * ¿Hay puntos apuntados a mano que el log todavía no conoce?
+ *
+ * Se compara el marcador plano con lo que da el log, en vez de mirar sólo si el
+ * log está vacío. La versión anterior («sin eventos y con puntos») se saltaba
+ * entera por el camino de «soltar»: el anotador suelta el partido, alguien
+ * corrige el marcador desde el panel, y al volver a pulsar el log ya no estaba
+ * vacío — así que el cerrojo no saltaba y el pliegue reescribía las columnas
+ * planas llevándose la corrección por delante. Es exactamente la pérdida
+ * silenciosa que esto existe para impedir, entrando por la otra puerta.
+ *
+ * Con `origen_marcador = 'eventos'` no hay nada que decidir: manda el log por
+ * definición. Y si el panel no ha tocado nada mientras estaba suelto, plano y
+ * plegado coinciden y anotar sigue sin preguntar nada.
+ */
+export const hayMarcadorAMano = (partido: PartidoAnotable, segunElLog: EstadoMarcador): boolean =>
   partido.origen_marcador !== "eventos" &&
-  partido.points_a + partido.points_b + partido.sets_a + partido.sets_b > 0;
+  (segunElLog.puntos.A !== partido.points_a ||
+    segunElLog.puntos.B !== partido.points_b ||
+    segunElLog.sets.A !== partido.sets_a ||
+    segunElLog.sets.B !== partido.sets_b);
 
 async function leerEventos(db: D1Database, partidoId: string): Promise<EventoFila[]> {
   const { results } = await db
@@ -251,43 +298,52 @@ function sentenciasDerivadas(
  * sola forma de leer, para que no puedan discrepar.
  */
 export async function leerEstado(db: D1Database, partido: PartidoAnotable): Promise<ResultadoAnotacion> {
-  const eventos = await leerEventos(db, partido.id);
   const reglas = normalizarReglas(partido.reglas).partido;
 
-  const { results: nombres } = await db
+  /*
+   * Una consulta, no dos. Antes se leía el log y luego se volvía a leer entero
+   * para sacar los nombres: el mismo recorrido de filas hecho dos veces, en un
+   * endpoint que se llama en cada punto y cuyo coste crece con lo anotado. D1
+   * factura filas leídas.
+   */
+  const { results: filas } = await db
     .prepare(
-      `SELECT e.orden, j.nombre, j.apellidos
+      `SELECT e.orden, e.tipo, e.lado_jugador, e.jugador_id, e.lado_punto,
+              e.puntos_a, e.puntos_b, e.sets_a, e.sets_b,
+              j.nombre, j.apellidos
          FROM partido_eventos e
          LEFT JOIN jugadores j ON j.id = e.jugador_id
-        WHERE e.partido_id = ?1`
+        WHERE e.partido_id = ?1
+        ORDER BY e.orden ASC`
     )
     .bind(partido.id)
-    .all<{ orden: number; nombre: string | null; apellidos: string | null }>();
-  const porOrden = new Map(nombres.map((fila) => [fila.orden, fila]));
+    .all<EventoFila & { nombre: string | null; apellidos: string | null }>();
 
-  // El número de set de cada evento se saca replegando: no se guarda, porque
-  // corregir un evento antiguo puede cambiar en qué set cayeron los siguientes.
+  /*
+   * El número de set de cada evento no se guarda —corregir uno antiguo puede
+   * cambiar en qué set cayeron los siguientes—, así que se saca plegando. En una
+   * sola pasada: antes se replegaba el log entero por cada evento, que a 250
+   * eventos son ~31.000 pliegues para pintar una lista de doce líneas.
+   */
   const publicos: EventoPublico[] = [];
-  let acumulado: EventoFila[] = [];
-  for (const evento of eventos) {
-    const antes = plegarEventos(acumulado, reglas);
-    const persona = porOrden.get(evento.orden);
+  let estado = marcadorInicial();
+  for (const fila of filas) {
     publicos.push({
-      orden: evento.orden,
-      tipo: evento.tipo,
-      jugadorId: evento.jugador_id,
-      jugador: persona?.nombre ? `${persona.nombre} ${persona.apellidos ?? ""}`.trim() : null,
-      ladoJugador: evento.lado_jugador,
-      ladoPunto: evento.lado_punto,
-      setNumero: antes.setNumero
+      orden: fila.orden,
+      tipo: fila.tipo,
+      jugadorId: fila.jugador_id,
+      jugador: fila.nombre ? `${fila.nombre} ${fila.apellidos ?? ""}`.trim() : null,
+      ladoJugador: fila.lado_jugador,
+      ladoPunto: fila.lado_punto,
+      setNumero: estado.setNumero
     });
-    acumulado = [...acumulado, evento];
+    estado = aplicarEvento(estado, fila, reglas);
   }
 
   return {
-    estado: plegarEventos(eventos, reglas),
+    estado,
     eventos: publicos,
-    siguienteOrden: eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1
+    siguienteOrden: filas.length === 0 ? 0 : filas[filas.length - 1]!.orden + 1
   };
 }
 
@@ -306,15 +362,27 @@ export async function registrarEvento(
   usuarioId: number
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
+  const reglas = normalizarReglas(partido.reglas).partido;
+  const antes = plegarEventos(eventos, reglas);
 
   // Antes que nada: si viene con marcador a mano, no se anota encima.
-  if (eventos.length === 0 && hayMarcadorAMano(partido)) throw new MarcadorSinAdoptar(marcadorPlano(partido));
+  if (hayMarcadorAMano(partido, antes)) throw new MarcadorSinAdoptar(marcadorPlano(partido));
+
+  /*
+   * Y no se anota por encima del final. `aplicarPunto` ignora los puntos que
+   * llegan con el partido ya decidido, pero la sentencia agregada de
+   * estadísticas cuenta TODAS las filas del log: seguir pulsando después del
+   * último punto engordaba la ficha del jugador sin mover el marcador, y el
+   * partido acababa con más puntos repartidos entre sus jugadores que puntos
+   * llegó a tener. La forma de tocar un resultado cerrado es deshacer o
+   * corregir, que sí vuelven a plegarlo entero.
+   */
+  if (antes.terminado) throw new PartidoTerminado();
 
   const siguiente = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
   if (ordenEsperado !== siguiente) throw new ConflictoDeOrden();
 
-  const reglas = normalizarReglas(partido.reglas).partido;
-  const setNumero = plegarEventos(eventos, reglas).setNumero;
+  const setNumero = antes.setNumero;
 
   const fila: EventoFila = {
     orden: siguiente,
@@ -370,6 +438,20 @@ export async function deshacerUltimo(
   const ultimo = eventos[eventos.length - 1]!;
   if (ordenEsperado !== ultimo.orden) throw new ConflictoDeOrden();
 
+  /*
+   * El saldo de apertura no se deshace. Borrar esa fila volvía a plegar un log
+   * vacío: el 8–6 adoptado pasaba a 0–0 y, como `origen_marcador` se queda en
+   * 'eventos', ya no había marcador a mano que ofrecer — no existía forma de
+   * recuperarlo. Un toque en «Deshacer» y ocho puntos no estaban en ninguna
+   * parte. `corregirEvento` ya decía que ese evento no se toca; esto lo dice
+   * igual, y la salida es la misma: soltar y volver a adoptar.
+   */
+  if (ultimo.tipo === "ajuste") {
+    throw new ErrorDeAnotacion(
+      "El saldo de apertura no se deshace: suelta la anotación y vuelve a adoptarla."
+    );
+  }
+
   const { sentencias } = sentenciasDerivadas(db, partido, eventos.slice(0, -1));
   await db.batch([
     db.prepare("DELETE FROM partido_eventos WHERE partido_id = ?1 AND orden = ?2").bind(partido.id, ultimo.orden),
@@ -398,14 +480,14 @@ export async function corregirEvento(
 
   const actual = eventos[indice]!;
   if (actual.tipo === "ajuste") {
-    throw new Error("El saldo de apertura no se corrige: suelta la anotación y vuelve a adoptarla.");
+    throw new ErrorDeAnotacion("El saldo de apertura no se corrige: suelta la anotación y vuelve a adoptarla.");
   }
 
   const tipo = cambios.tipo ?? actual.tipo;
   const jugadorId = cambios.jugadorId ?? actual.jugador_id!;
   const enPista = alineacion.find((fila) => fila.jugador_id === jugadorId);
   if (!TIPOS_ANOTABLES.has(tipo) || !enPista) {
-    throw new Error("Revisa la acción y a quién se le atribuye.");
+    throw new ErrorDeAnotacion("Revisa la acción y a quién se le atribuye.");
   }
 
   const corregido: EventoFila = {
@@ -472,7 +554,26 @@ export async function adoptarMarcador(
   desdeCero = false
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
-  if (eventos.length > 0) throw new Error("Este partido ya tiene anotación. No hace falta adoptarlo.");
+  const reglas = normalizarReglas(partido.reglas).partido;
+
+  /*
+   * Se adopta cuando hay algo que adoptar, no cuando el log está vacío. Esa era
+   * la condición antes, y dejaba sin salida el caso de «soltar»: con el partido
+   * suelto y el marcador corregido desde el panel, el log NO está vacío, así que
+   * anotar chocaba contra el cerrojo y adoptar contestaba «ya tiene anotación».
+   * El anotador se quedaba encerrado entre las dos puertas.
+   *
+   * Adoptar con log detrás escribe el saldo al FINAL del log, no en el orden 0:
+   * un `ajuste` es un saldo de apertura «de aquí en adelante», y plegar lo
+   * reinicia todo a partir de ahí. Lo anotado antes sigue en el log y sigue
+   * contando en las fichas de quien lo hizo —esos puntos se metieron de verdad—;
+   * lo que se pierde son los parciales anteriores, que es justo lo que el panel
+   * tampoco sabe.
+   */
+  if (!hayMarcadorAMano(partido, plegarEventos(eventos, reglas))) {
+    throw new ErrorDeAnotacion("Este partido ya tiene anotación. No hace falta adoptarlo.");
+  }
+  const orden = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
 
   /*
    * `desdeCero` es la otra salida del cerrojo de `MarcadorSinAdoptar`: cuando el
@@ -488,7 +589,7 @@ export async function adoptarMarcador(
   };
 
   const fila: EventoFila = {
-    orden: 0,
+    orden,
     tipo: "ajuste",
     lado_jugador: null,
     jugador_id: null,
@@ -496,16 +597,17 @@ export async function adoptarMarcador(
     ...saldo
   };
 
-  const { sentencias } = sentenciasDerivadas(db, partido, [fila]);
+  const { sentencias } = sentenciasDerivadas(db, partido, [...eventos, fila]);
   await db.batch([
     db
       .prepare(
         `INSERT INTO partido_eventos
            (partido_id, orden, set_numero, tipo, puntos_a, puntos_b, sets_a, sets_b, usuario_id)
-         VALUES (?1, 0, ?2, 'ajuste', ?3, ?4, ?5, ?6, ?7)`
+         VALUES (?1, ?2, ?3, 'ajuste', ?4, ?5, ?6, ?7, ?8)`
       )
       .bind(
         partido.id,
+        orden,
         saldo.sets_a + saldo.sets_b + 1,
         saldo.puntos_a,
         saldo.puntos_b,

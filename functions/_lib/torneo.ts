@@ -405,6 +405,74 @@ export async function propagarResultado(db: D1Database, partidoId: string): Prom
 }
 
 /**
+ * Lo contrario de `propagarResultado`: retira la plaza que este partido había
+ * dado cuando deja de tener ganador.
+ *
+ * Deshacer el punto que cerró una semifinal la devolvía a `live` y le quitaba el
+ * ganador, pero la final se quedaba con el equipo ya colocado: el cuadro
+ * anunciaba un finalista salido de un partido que, según la base, no había
+ * terminado. Y como `propagarResultado` sólo escribe cuando hay ganador, nada
+ * lo arreglaba después.
+ *
+ * Dos cerrojos, los mismos que gobiernan la ida:
+ *   - Sólo vacía huecos marcados `progresion`. Uno puesto a mano es una decisión
+ *     de la organización y no se toca.
+ *   - Y sólo si ese cruce sigue `scheduled`. Si ya ha empezado hay gente
+ *     jugándolo: dejarlo descuadrado es mucho menos malo que vaciarle un lado a
+ *     mitad de partido.
+ */
+export async function revertirProgresion(db: D1Database, partidoId: string): Promise<{ revertidos: string[] }> {
+  const partido = await db
+    .prepare(
+      `SELECT id, winner, status, siguiente_partido_id, siguiente_slot,
+              perdedor_partido_id, perdedor_slot
+         FROM partidos WHERE id = ?1`
+    )
+    .bind(partidoId)
+    .first<Pick<
+      PartidoProgresion,
+      "id" | "winner" | "status" | "siguiente_partido_id" | "siguiente_slot" | "perdedor_partido_id" | "perdedor_slot"
+    >>();
+
+  if (!partido || (partido.status === "finished" && partido.winner)) return { revertidos: [] };
+
+  const revertidos: string[] = [];
+  const vaciar = async (destinoId: string | null, slot: Lado | null) => {
+    if (!destinoId || !slot) return;
+    const columna = slot === "A" ? "a" : "b";
+    const resultado = await db
+      .prepare(
+        `UPDATE partidos SET
+           equipo_${columna}_id = NULL, equipo_${columna}_nombre = '', updated_at = ?1
+         WHERE id = ?2 AND origen_equipo_${columna} = 'progresion' AND status = 'scheduled'`
+      )
+      .bind(new Date().toISOString(), destinoId)
+      .run();
+    if ((resultado.meta.changes ?? 0) > 0) revertidos.push(destinoId);
+  };
+
+  await vaciar(partido.siguiente_partido_id, partido.siguiente_slot);
+  await vaciar(partido.perdedor_partido_id, partido.perdedor_slot);
+
+  return { revertidos };
+}
+
+/**
+ * El cuadro, puesto al día tras tocar un partido: sube al ganador si lo hay y
+ * retira la plaza si ha dejado de haberlo.
+ *
+ * La llaman los caminos que pueden quitarle el ganador a un partido —deshacer,
+ * corregir y adoptar—. Anotar un punto sigue llamando directamente a
+ * `propagarResultado`: un punto puede cerrar un partido pero nunca abrirlo (el
+ * servidor rechaza anotar sobre uno terminado), así que no hay nada que revertir
+ * y esa es la única ruta que se recorre miles de veces al día.
+ */
+export async function sincronizarCuadro(db: D1Database, partidoId: string): Promise<void> {
+  const { propagados } = await propagarResultado(db, partidoId);
+  if (propagados.length === 0) await revertirProgresion(db, partidoId);
+}
+
+/**
  * Los partidos aguas abajo que ya han empezado. Si devuelve alguno, corregir el
  * resultado de arriba dejaría el cuadro incoherente: hay gente jugando (o que ya
  * ha jugado) un cruce que quizá no le tocaba.
