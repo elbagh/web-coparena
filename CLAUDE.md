@@ -300,4 +300,5 @@ Every branch documents itself here, which makes CLAUDE.md the most conflict-pron
 - Spanish copy uses **proper accents/diacritics** ("Música", "Navegación", "información") — this reversed an earlier no-accents convention, so fix any accent-less stragglers you touch.
 - Always spell the sport **"volley"** (never "vóley") — fix any stragglers you touch.
 - Copy tone: fun but not jokey — short, confident lines; no chistes. The user curates final wording.
+- **How to write *to the user*** (distinct from site copy, and it applies to commit messages too): short sentences, one idea each. Plain Spanish, properly conjugated verbs — no verbless fragments. **No metaphors and no rhetorical flourishes** ("es la válvula del día", "el cerrojo es esto"): the dense style of this very file is what to avoid when talking to them. No preamble, no summary of what you are about to do. Technical terms only where they are needed.
 - Legal pages contain placeholder holder/ownership data that must be completed before real publication.
