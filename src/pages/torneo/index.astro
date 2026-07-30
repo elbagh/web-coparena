@@ -9,7 +9,7 @@ const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
 
 <BaseLayout
   title="El cuadro | La Copa Arena"
-  description="Calendario, resultados y clasificación de La Copa Arena en Playa O Pozo. El marcador del partido en juego, en directo."
+  description="Calendario, resultados y clasificación de La Copa Arena en Playa O Pozo."
   structuredData={structuredData}
 >
   <SiteHeader />
@@ -24,17 +24,13 @@ const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
     </section>
 
     {/*
-      El directo va arriba del todo y ocupa lo suyo: mientras hay alguien en
-      pista es lo único que importa de esta página. Cuando no lo hay, se encoge
-      a una línea en vez de dejar un hueco.
+      El marcador ya no vive aquí: es su propia página, /directo/, y enseña solo
+      el partido que se está jugando. Lo que queda es la puerta, y solo mientras
+      hay alguien en pista.
     */}
-    <section class="directo-panel" id="directo" data-directo-panel aria-live="polite">
-      <p class="directo-vacio" data-directo-panel-vacio>Ahora mismo no se está jugando nada.</p>
-      <div data-directo-panel-partidos hidden></div>
-      <button type="button" class="button button-secondary directo-refrescar" data-directo-refrescar hidden>
-        Actualizar marcador
-      </button>
-    </section>
+    <p class="torneo-directo" data-torneo-directo hidden aria-live="polite">
+      Se está jugando ahora: <a href="/directo/" data-torneo-directo-enlace>ver el directo</a>
+    </p>
 
     <p class="teams-status" data-torneo-status aria-live="polite">Cargando el torneo…</p>
     <button type="button" class="button button-secondary" data-torneo-retry hidden>Reintentar</button>

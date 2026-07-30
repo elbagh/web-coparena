@@ -13,10 +13,12 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
   */}
   <div class="anot-panel" data-anot-panel hidden>
     <section class="anot-marcador" aria-live="polite">
-      <div class="anot-marcador-equipos">
-        <span class="anot-equipo anot-equipo--a" data-anot-nombre-a></span>
-        <span class="anot-equipo anot-equipo--b" data-anot-nombre-b></span>
-      </div>
+      {/*
+        Los nombres de equipo no se repiten aquí: los llevan las bandas de
+        colores de la pista, justo debajo y al lado de su gente. En un móvil esta
+        fila costaba 24px, que es lo que separa a la botonera de quedar al
+        alcance del pulgar o por debajo del borde.
+      */}
       {/*
         Al acabar, los números grandes pasan a ser los SETS. Antes seguían siendo
         los puntos, que el cierre del último set devuelve a cero: un partido
@@ -50,10 +52,26 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       </div>
     </section>
 
+    {/*
+      La pista, como un versus: cada equipo en su lado con su color, quien está
+      jugando en grande y el banquillo debajo en pequeño. La red sigue en medio
+      —vertical ahora— porque es lo que decide de quién es el punto: un error de
+      este lado se lo lleva el otro.
+
+      Tocar a un suplente no anota: abre el cambio en la zona del pulgar.
+    */}
     <section class="anot-pista" aria-label="Quién hizo la acción" data-anot-pista>
-      <div class="anot-mitad anot-mitad--a" data-anot-mitad-a></div>
+      <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
+        <p class="anot-equipo-banda" data-anot-banda-a></p>
+        <div class="anot-enpista" data-anot-mitad-a></div>
+        <div class="anot-banquillo" data-anot-banquillo-a></div>
+      </div>
       <div class="anot-red" aria-hidden="true"></div>
-      <div class="anot-mitad anot-mitad--b" data-anot-mitad-b></div>
+      <div class="anot-mitad anot-mitad--b" data-anot-lado="B">
+        <p class="anot-equipo-banda" data-anot-banda-b></p>
+        <div class="anot-enpista" data-anot-mitad-b></div>
+        <div class="anot-banquillo" data-anot-banquillo-b></div>
+      </div>
     </section>
 
     {/*
@@ -72,6 +90,17 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <p class="anot-pregunta"><strong data-anot-elegido></strong> · ¿qué hizo?</p>
         <div class="anot-tipos" data-anot-tipos></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cancelar>Cancelar</button>
+      </div>
+
+      {/*
+        El tercer estado de la franja, y ocupa el mismo hueco que los otros dos:
+        el segundo toque de un cambio cae donde ya está el pulgar, igual que el
+        de un punto.
+      */}
+      <div class="anot-cambio" data-anot-cambio hidden>
+        <p class="anot-pregunta">¿Por quién entra <strong data-anot-entra></strong>?</p>
+        <div class="anot-tipos" data-anot-cambio-opciones></div>
+        <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cambio-cancelar>Cancelar</button>
       </div>
     </section>
 
@@ -135,6 +164,8 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       fallback usaba el objetivo del set normal.
     */}
     <script is:inline src="/assets/match-utils.js" defer></script>
+    {/* `cromo.js` publica el retrato con el que se pinta la pista. */}
+    <script is:inline src="/assets/cromo.js" defer></script>
     <script is:inline src="/assets/anotador/core.js" defer></script>
     <script is:inline src="/assets/anotador/partido.js" defer></script>
   </Fragment>

@@ -20,8 +20,9 @@ const TABLAS = [
   "estadisticas",
   "jugador_atributos",
   "jugadores",
-  // Los eventos y la alineación cuelgan del partido: antes que él.
+  // Los eventos, los cambios y la alineación cuelgan del partido: antes que él.
   "partido_eventos",
+  "partido_cambios",
   "partido_alineacion",
   // partidos antes que las fases: apunta a ellas con fase_id y grupo_id.
   "partidos",

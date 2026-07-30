@@ -31,8 +31,6 @@ const MARCADO = `
   <p class="anot-alerta" data-anot-error hidden></p>
   <div class="anot-panel" data-anot-panel hidden>
     <section class="anot-marcador">
-      <span data-anot-nombre-a></span>
-      <span data-anot-nombre-b></span>
       <p data-anot-rotulo hidden>Sets</p>
       <p class="anot-tanteo">
         <span data-anot-puntos-a>0</span>
@@ -51,8 +49,17 @@ const MARCADO = `
     </section>
 
     <section class="anot-pista" data-anot-pista>
-      <div data-anot-mitad-a></div>
-      <div data-anot-mitad-b></div>
+      <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
+        <p data-anot-banda-a></p>
+        <div data-anot-mitad-a></div>
+        <div data-anot-banquillo-a></div>
+      </div>
+      <div class="anot-red"></div>
+      <div class="anot-mitad anot-mitad--b" data-anot-lado="B">
+        <p data-anot-banda-b></p>
+        <div data-anot-mitad-b></div>
+        <div data-anot-banquillo-b></div>
+      </div>
     </section>
 
     <section class="anot-pulgar" data-anot-pulgar>
@@ -64,6 +71,11 @@ const MARCADO = `
         <p><strong data-anot-elegido></strong></p>
         <div data-anot-tipos></div>
         <button type="button" data-anot-cancelar>Cancelar</button>
+      </div>
+      <div data-anot-cambio hidden>
+        <p>¿Por quién entra <strong data-anot-entra></strong>?</p>
+        <div data-anot-cambio-opciones></div>
+        <button type="button" data-anot-cambio-cancelar>Cancelar</button>
       </div>
     </section>
 
@@ -100,16 +112,28 @@ const ALINEACION = [
   { jugador_id: 3, lado: "B", nombre: "Iago", apellidos: "García Hermida", dorsal: 9 }
 ];
 
+const enPlantilla = (id: number, nombre: string, apellidos: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  nombre,
+  apellidos,
+  dorsal: id,
+  nivel: "oro",
+  media: 70,
+  tieneFoto: false,
+  esSuplente: false,
+  ...extra
+});
+
 const EQUIPOS = {
   A: {
     nombre: "Areeiros",
     jugadores: [
-      { id: 1, nombre: "Marta Souto Lago", esSuplente: false },
-      { id: 2, nombre: "Marta Ferro Deus", esSuplente: false },
-      { id: 4, nombre: "Nuria Canle Rios", esSuplente: true }
+      enPlantilla(1, "Marta", "Souto Lago"),
+      enPlantilla(2, "Marta", "Ferro Deus"),
+      enPlantilla(4, "Nuria", "Canle Rios", { esSuplente: true })
     ]
   },
-  B: { nombre: "Os Pulpos Bravos", jugadores: [{ id: 3, nombre: "Iago García Hermida", esSuplente: false }] }
+  B: { nombre: "Os Pulpos Bravos", jugadores: [enPlantilla(3, "Iago", "García Hermida")] }
 };
 
 /** La respuesta de `/api/anotacion`, con lo mínimo para pintar. */
@@ -120,6 +144,7 @@ const respuesta = (extra: Record<string, unknown> = {}) => ({
   siguienteOrden: 0,
   marcadorPanel: { puntos: { A: 0, B: 0 }, sets: { A: 0, B: 0 } },
   pendienteDeAdoptar: false,
+  cambios: [],
   alineacion: ALINEACION,
   equipos: EQUIPOS,
   tipos: TIPOS,
@@ -151,8 +176,17 @@ async function montar(datos: Record<string, unknown>) {
     state: { loading: false, user: { id: 1 }, acceso: { permisos: ["partidos.anotar", "partidos.editar"] } }
   };
 
-  // El orden es el de la página: match-utils → core → partido.
+  // jsdom no implementa matchMedia; la vibración del retrato la consulta.
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: false,
+    media,
+    addEventListener() {},
+    removeEventListener() {}
+  }));
+
+  // El orden es el de la página: match-utils → cromo → core → partido.
   cargarScriptPublico("match-utils.js", "CopaArenaMatches");
+  cargarScriptPublico("cromo.js", "CopaCromo");
   cargarScriptPublico("anotador/core.js", "CopaAnotador");
   ejecutarScriptPublico("anotador/partido.js");
 
@@ -246,9 +280,113 @@ describe("el marcador", () => {
 
     const enPista = botones("[data-anot-mitad-a] .anot-jugador");
     expect(enPista).toHaveLength(2);
-    expect(enPista[0]!.textContent).toContain("Souto Lago");
-    expect(enPista[0]!.textContent).toContain("7");
-    expect(enPista[1]!.textContent).toContain("Ferro Deus");
+    expect(enPista[0]!.querySelector(".retrato-nombre")!.textContent).toBe("Marta");
+    expect(enPista[0]!.querySelector(".retrato-apellidos")!.textContent).toBe("Souto Lago");
+    expect(enPista[1]!.querySelector(".retrato-apellidos")!.textContent).toBe("Ferro Deus");
+    // Sin foto, el hueco del retrato lo ocupa el dorsal.
+    expect(enPista[0]!.querySelector(".retrato-hueco")!.textContent).toBe("1");
+  });
+
+  it("la pista es un versus: cada equipo con su banda y su lado", async () => {
+    await montar(respuesta());
+
+    expect($("[data-anot-banda-a]").textContent).toBe("Areeiros");
+    expect($("[data-anot-banda-b]").textContent).toBe("Os Pulpos Bravos");
+    expect(botones("[data-anot-mitad-b] .anot-jugador")).toHaveLength(1);
+  });
+});
+
+/*
+ * El cambio de jugador. El gesto es el mismo que el de un punto —dos toques, y
+ * el segundo en la zona del pulgar— porque a pleno sol no se aprende una
+ * gramática nueva.
+ */
+describe("meter a un suplente", () => {
+  it("el banquillo son los que no están en pista, y son más pequeños", async () => {
+    await montar(respuesta());
+
+    const banca = botones("[data-anot-banquillo-a] .anot-suplente");
+    expect(banca).toHaveLength(1);
+    expect(banca[0]!.querySelector(".retrato-nombre")!.textContent).toBe("Nuria");
+    expect(banca[0]!.querySelector(".retrato")!.className).toContain("retrato--pequeno");
+  });
+
+  it("tocar a un suplente pregunta por quién entra, y no anota", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+
+    expect($("[data-anot-cambio]").hidden).toBe(false);
+    expect($("[data-anot-acciones]").hidden).toBe(true);
+    expect($("[data-anot-entra]").textContent).toBe("Nuria");
+    // Las opciones son quienes están en pista de ESE lado.
+    expect(botones("[data-anot-cambio-opciones] .anot-btn").map((b) => b.dataset.sale)).toEqual(["1", "2"]);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  it("el segundo toque manda el cambio", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+    botones("[data-anot-cambio-opciones] .anot-btn")[1]!.click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "cambio", entra: 4, sale: 2 });
+    expect($("[data-anot-cambio]").hidden).toBe(true);
+  });
+
+  it("cancelar vuelve al reposo sin mandar nada", async () => {
+    await montar(respuesta());
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+    $("[data-anot-cambio-cancelar]").click();
+
+    expect($("[data-anot-cambio]").hidden).toBe(true);
+    expect($("[data-anot-reposo]").hidden).toBe(false);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  /*
+   * Deshacer es una sola tecla y la decide el estado. Dos botones que hay que
+   * elegir a ciegas entre punto y punto es justo lo que esta pantalla no puede
+   * permitirse.
+   */
+  it("si lo último fue un cambio, «Deshacer» deshace el cambio", async () => {
+    await montar(
+      respuesta({
+        eventos: [
+          { orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+        ],
+        siguienteOrden: 1,
+        cambios: [{ id: 3, trasOrden: 0, lado: "A", entra: 4, sale: 2, setNumero: 1 }],
+        estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+      })
+    );
+
+    expect($("[data-anot-ultimo]").textContent).toBe("Entra Nuria por Marta");
+
+    $("[data-anot-deshacer]").click();
+    await respirar();
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "cambio-deshacer" });
+  });
+});
+
+describe("la vibración", () => {
+  it("sacude el retrato de quien acaba de anotar", async () => {
+    const animados: Element[] = [];
+    (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element) {
+      animados.push(this);
+      return { cancel: () => {} };
+    };
+    (Element.prototype as unknown as { getAnimations: unknown }).getAnimations = () => [];
+
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    await respirar();
+
+    const retrato = botones("[data-anot-mitad-a] .anot-jugador")[0]!.querySelector(".retrato")!;
+    expect(animados).toContain(retrato);
   });
 });
 

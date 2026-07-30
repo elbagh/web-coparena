@@ -96,20 +96,25 @@ export async function guardarEquipo(
     .map((j) => j.foto_key as string);
 
   /*
-   * Quien tiene puntos anotados no se puede quitar de la plantilla.
+   * Quien ha pisado un partido no se puede quitar de la plantilla.
    *
-   * `partido_eventos.jugador_id` cae con ON DELETE CASCADE, así que borrar a esa
-   * persona se llevaría por delante sus eventos y descuadraría el marcador de un
-   * partido ya jugado — desde /mi-equipo/, sin que nadie de la organización se
-   * entere. Editar el resto de la plantilla sigue funcionando; lo único que se
-   * rechaza es esa baja concreta.
+   * `partido_eventos.jugador_id` y las dos columnas de `partido_cambios` caen
+   * con ON DELETE CASCADE, así que borrar a esa persona se llevaría por delante
+   * sus puntos —descuadrando el marcador de un partido ya jugado— o el cambio en
+   * el que entró o salió, y todo eso desde /mi-equipo/, sin que nadie de la
+   * organización se entere. Editar el resto de la plantilla sigue funcionando;
+   * lo único que se rechaza es esa baja concreta.
    */
   if (idsABorrar.length > 0) {
+    const huecos = idsABorrar.map(() => "?").join(",");
     const { results: conEventos } = await env.DB
       .prepare(
         `SELECT DISTINCT j.id, j.nombre, j.apellidos
-           FROM partido_eventos e JOIN jugadores j ON j.id = e.jugador_id
-          WHERE e.jugador_id IN (${idsABorrar.map(() => "?").join(",")})`
+           FROM jugadores j
+          WHERE j.id IN (${huecos})
+            AND (EXISTS (SELECT 1 FROM partido_eventos e WHERE e.jugador_id = j.id)
+              OR EXISTS (SELECT 1 FROM partido_cambios c
+                          WHERE c.entra_jugador_id = j.id OR c.sale_jugador_id = j.id))`
       )
       .bind(...idsABorrar)
       .all<{ id: number; nombre: string; apellidos: string }>();

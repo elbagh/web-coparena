@@ -37,6 +37,7 @@ interface Respuesta {
   /** El marcador de las columnas planas, el que lleva el panel. */
   marcadorPanel: { puntos: { A: number; B: number }; sets: { A: number; B: number } };
   pendienteDeAdoptar: boolean;
+  cambios: { id: number; trasOrden: number; lado: string; entra: number; sale: number; setNumero: number }[];
   error?: string;
 }
 
@@ -620,6 +621,213 @@ describe("un partido que viene con marcador a mano", () => {
     expect((await leer(admin, partidoId)).pendienteDeAdoptar).toBe(false);
     expect((await punto(admin, partidoId, local.jugadores[1]!.id)).status).toBe(201);
     expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 2, B: 0 });
+  });
+});
+
+/*
+ * Los cambios de jugador.
+ *
+ * Viven en `partido_cambios`, fuera del log de puntos, porque un cambio no es un
+ * punto: no pliega, no puntúa y no genera estadísticas. Lo único que comparte
+ * con los puntos es el sitio en el historial del directo, y eso es lo que ancla
+ * `tras_orden`.
+ */
+describe("cambios de jugador", () => {
+  /** Como montarPartido, pero el equipo local trae un suplente en el banquillo. */
+  async function conBanquillo(user: UsuarioSesion) {
+    const local = await crearEquipo({
+      nombre: "Delfines",
+      jugadores: [{ nombre: "Ana" }, { nombre: "Berta" }, { nombre: "Celia" }]
+    });
+    const visitante = await crearEquipo({
+      nombre: "Gaviotas",
+      jugadores: [{ nombre: "Carla" }, { nombre: "Diana" }]
+    });
+    const partidoId = await crearPartido({ equipoA: local, equipoB: visitante, status: "live" });
+
+    const titulares = [local.jugadores[0]!.id, local.jugadores[1]!.id];
+    await anotar(user, partidoId, { accion: "alineacion", lado: "A", jugadorIds: titulares });
+    await anotar(user, partidoId, {
+      accion: "alineacion",
+      lado: "B",
+      jugadorIds: visitante.jugadores.map((j) => j.id)
+    });
+
+    return { partidoId, local, visitante, suplente: local.jugadores[2]!, titular: local.jugadores[1]! };
+  }
+
+  const enPista = async (partidoId: string) =>
+    (
+      await env.DB
+        .prepare("SELECT jugador_id, lado, orden FROM partido_alineacion WHERE partido_id = ?1 ORDER BY lado, orden")
+        .bind(partidoId)
+        .all<{ jugador_id: number; lado: string; orden: number }>()
+    ).results;
+
+  it("el suplente entra y hereda el hueco del que sale", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, suplente, titular } = await conBanquillo(admin);
+    const huecoAntes = (await enPista(partidoId)).find((f) => f.jugador_id === titular.id)!.orden;
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "cambio",
+      entra: suplente.id,
+      sale: titular.id
+    });
+    expect(respuesta.status).toBe(201);
+
+    const pista = await enPista(partidoId);
+    expect(pista.map((f) => f.jugador_id)).toContain(suplente.id);
+    expect(pista.map((f) => f.jugador_id)).not.toContain(titular.id);
+    // El hueco es el mismo: en la pantalla, el retrato no salta de sitio.
+    expect(pista.find((f) => f.jugador_id === suplente.id)!.orden).toBe(huecoAntes);
+
+    const cambios = (await leer(admin, partidoId)).cambios;
+    expect(cambios).toHaveLength(1);
+    expect(cambios[0]).toMatchObject({ entra: suplente.id, sale: titular.id, lado: "A", setNumero: 1 });
+  });
+
+  /*
+   * El ancla del historial. Un cambio cae detrás del último punto anotado, así
+   * que el directo puede intercalarlo entre los puntos sin guardar una hora.
+   */
+  it("queda anclado detrás del punto que se acababa de anotar", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, suplente, titular } = await conBanquillo(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+
+    expect((await leer(admin, partidoId)).cambios[0]!.trasOrden).toBe(1);
+  });
+
+  it("no mueve el marcador ni escribe una sola estadística", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, suplente, titular } = await conBanquillo(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const antes = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+    const despues = await leer(admin, partidoId);
+
+    expect(despues.estado.puntos).toEqual(antes.estado.puntos);
+    expect(despues.estado.sets).toEqual(antes.estado.sets);
+    expect(despues.eventos).toHaveLength(antes.eventos.length);
+    expect(await estadisticasDe(suplente.id)).toBe(null);
+  });
+
+  it("el que sale deja de poder recibir puntos, y el que entra puede", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, suplente, titular } = await conBanquillo(admin);
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+
+    expect((await punto(admin, partidoId, titular.id)).status).toBe(400);
+    expect((await punto(admin, partidoId, suplente.id)).status).toBe(201);
+  });
+
+  it("no entra alguien de otro equipo", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, visitante, titular } = await conBanquillo(admin);
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "cambio",
+      entra: visitante.jugadores[0]!.id,
+      sale: titular.id
+    });
+    expect(respuesta.status).toBe(400);
+  });
+
+  it("no sale quien no está en pista", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, suplente } = await conBanquillo(admin);
+
+    // El suplente no está en pista: no puede ser el que sale.
+    expect((await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: suplente.id })).status).toBe(
+      409
+    );
+  });
+
+  it("no entra quien ya está en pista", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, titular } = await conBanquillo(admin);
+
+    expect(
+      (await anotar(admin, partidoId, { accion: "cambio", entra: local.jugadores[0]!.id, sale: titular.id })).status
+    ).toBe(409);
+  });
+
+  it("deshacer devuelve la pista exactamente como estaba", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, suplente, titular } = await conBanquillo(admin);
+    const antes = await enPista(partidoId);
+
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+    expect((await anotar(admin, partidoId, { accion: "cambio-deshacer" })).status).toBe(200);
+
+    expect(await enPista(partidoId)).toEqual(antes);
+    expect((await leer(admin, partidoId)).cambios).toHaveLength(0);
+  });
+
+  /*
+   * Solo se deshace el último, igual que con los puntos: deshacer el penúltimo
+   * dejaría la pista en una alineación que no existió nunca.
+   */
+  it("no deshace un cambio que otro posterior ya pisó", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, suplente, titular } = await conBanquillo(admin);
+
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+    // Ahora sale el suplente que acababa de entrar y vuelve el titular.
+    await anotar(admin, partidoId, { accion: "cambio", entra: titular.id, sale: suplente.id });
+    // Deshacer el último es legítimo; el de antes ya no.
+    expect((await anotar(admin, partidoId, { accion: "cambio-deshacer" })).status).toBe(200);
+    await anotar(admin, partidoId, { accion: "cambio", entra: local.jugadores[0]!.id, sale: suplente.id });
+
+    expect((await anotar(admin, partidoId, { accion: "cambio-deshacer" })).status).toBe(200);
+  });
+
+  /*
+   * Rehacer la alineación a mano no borra los cambios que sí ocurrieron: sería
+   * borrar historia para dejar una pantalla ordenada.
+   */
+  it("fijar la alineación entera no borra el historial de cambios", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, suplente, titular } = await conBanquillo(admin);
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+
+    await anotar(admin, partidoId, {
+      accion: "alineacion",
+      lado: "A",
+      jugadorIds: [local.jugadores[0]!.id, titular.id]
+    });
+
+    expect((await leer(admin, partidoId)).cambios).toHaveLength(1);
+  });
+
+  /*
+   * Sin esto, en cuanto hay un cambio deja de poderse corregir un punto hacia
+   * quien salió de pista — que es justo cuando hace falta («ese remate fue de
+   * Berta, no de Celia»).
+   */
+  it("se puede corregir un punto hacia quien ya salió de pista", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, suplente, titular } = await conBanquillo(admin);
+    await punto(admin, partidoId, titular.id);
+    await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
+    await punto(admin, partidoId, suplente.id);
+
+    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: titular.id });
+    expect(respuesta.status).toBe(200);
+
+    expect(await estadisticasDe(titular.id)).toMatchObject({ puntos: 2 });
+    expect(await estadisticasDe(suplente.id)).toBe(null);
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 2, B: 0 });
+    // Y quien no ha pisado el partido sigue sin poder recibir puntos.
+    expect(
+      (await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: local.jugadores[0]!.id + 999 }))
+        .status
+    ).toBe(409);
   });
 });
 

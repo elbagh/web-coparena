@@ -24,6 +24,7 @@
 
   const { api, setError, alEntrar } = window.CopaAnotador;
   const utils = window.CopaArenaMatches;
+  const cromo = window.CopaCromo;
 
   const partidoId = new URLSearchParams(location.search).get("id") || "";
   const estadoTexto = document.querySelector("[data-anot-estado]");
@@ -37,12 +38,19 @@
   };
 
   const otroLado = (lado) => (lado === "A" ? "B" : "A");
+  const texto = (nodo, valor) => {
+    if (nodo && nodo.textContent !== valor) nodo.textContent = valor;
+  };
 
   let datos = null;
   let elegido = null;
   let guardando = false;
   /** El evento que se está corrigiendo en el diálogo. */
   let correccion = null;
+  /** El suplente al que se ha tocado, esperando por quién entra. */
+  let entrante = null;
+  /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
+  const retratos = new Map();
 
   /** Rehacer un partido cerrado ya no es anotar: pide `partidos.editar`. */
   const puedeEditar = () => Boolean(window.CopaAuth?.state?.acceso?.permisos?.includes("partidos.editar"));
@@ -54,9 +62,6 @@
     const { estado, alineacion } = datos;
     const terminado = estado.terminado;
     const decidir = Boolean(datos.pendienteDeAdoptar);
-
-    $("[data-anot-nombre-a]").textContent = nombreEquipo("A");
-    $("[data-anot-nombre-b]").textContent = nombreEquipo("B");
 
     /*
      * Los números grandes son los puntos del set, salvo en dos casos:
@@ -97,6 +102,14 @@
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
 
+  const nombreDeJugador = (id) => {
+    for (const lado of ["A", "B"]) {
+      const encontrado = (datos.equipos[lado]?.jugadores || []).find((jugador) => jugador.id === id);
+      if (encontrado) return encontrado.nombre;
+    }
+    return "alguien";
+  };
+
   const objetivo = () =>
     utils.setTarget({ reglas: datos.partido.reglas, setNumber: datos.estado.setNumero }, datos.estado.setNumero);
 
@@ -112,35 +125,77 @@
     $("[data-anot-adoptar]").textContent = `Seguir desde ${marcador}`;
   }
 
+  /** El retrato de alguien, creado una vez y reutilizado siempre. */
+  function retratoDe(jugador, tamano) {
+    const guardado = retratos.get(jugador.id);
+    if (guardado && guardado.dataset.tamano === tamano) return guardado;
+
+    const nodo = cromo.retrato({
+      nivel: jugador.nivel,
+      dorsal: jugador.dorsal,
+      media: jugador.media,
+      nombre: jugador.nombre,
+      apellidos: jugador.apellidos,
+      // La ruta pública: el anotador puede no tener permiso de panel, y aquí no
+      // hace falta más que la misma cara que ve todo el mundo.
+      fotoUrl: jugador.tieneFoto ? `/api/jugadores?foto=${jugador.id}` : null,
+      tamano,
+      prioridad: tamano === "grande" ? "alta" : "baja"
+    });
+    nodo.dataset.tamano = tamano;
+    nodo.dataset.jugador = String(jugador.id);
+    retratos.set(jugador.id, nodo);
+    return nodo;
+  }
+
+  /**
+   * La pista, como un versus: cada equipo en su lado, quien juega en grande y el
+   * banquillo debajo en pequeño.
+   *
+   * Quién es titular lo dice la **alineación del partido**, no `esSuplente` de la
+   * inscripción: en cuanto entra un suplente, ese suplente está jugando.
+   */
   function pintarPista(alineacion, terminado) {
     for (const lado of ["A", "B"]) {
-      const caja = $(`[data-anot-mitad-${lado.toLowerCase()}]`);
-      caja.textContent = "";
-      const enPista = alineacion.filter((fila) => fila.lado === lado);
+      const minuscula = lado.toLowerCase();
+      const enPista = new Set(alineacion.filter((fila) => fila.lado === lado).map((fila) => fila.jugador_id));
+      const plantilla = (datos.equipos[lado]?.jugadores || []).map((jugador) => ({ ...jugador, lado }));
 
-      if (enPista.length === 0) {
+      texto($(`[data-anot-banda-${minuscula}]`), nombreEquipo(lado));
+
+      const caja = $(`[data-anot-mitad-${minuscula}]`);
+      caja.textContent = "";
+      const jugando = plantilla.filter((jugador) => enPista.has(jugador.id));
+
+      if (jugando.length === 0) {
         caja.append(el("p", "anot-sin-alineacion", "Nadie en pista. Márcalo en «Más»."));
-        continue;
+      } else {
+        jugando.forEach((jugador) => {
+          const boton = el("button", `anot-jugador anot-jugador--${minuscula}`);
+          boton.type = "button";
+          boton.disabled = terminado;
+          boton.append(retratoDe(jugador, "grande"));
+          boton.addEventListener("click", () => elegir(jugador));
+          caja.append(boton);
+        });
       }
 
-      enPista.forEach((fila) => {
-        const boton = el("button", `anot-jugador anot-jugador--${lado.toLowerCase()}`);
-        boton.type = "button";
-        boton.disabled = terminado;
-        /*
-         * El nombre de pila manda —es lo que se grita en la pista—, pero el
-         * apellido va debajo: dos «Marta» en la misma mitad eran dos botones
-         * idénticos, y el apellido y el dorsal ya venían en la respuesta sin que
-         * nadie los pintara.
-         */
-        boton.append(el("span", "anot-jugador-nombre", fila.nombre));
-        if (fila.apellidos) boton.append(el("span", "anot-jugador-apellidos", fila.apellidos));
-        if (fila.dorsal !== null && fila.dorsal !== undefined) {
-          boton.append(el("span", "anot-jugador-dorsal", String(fila.dorsal)));
-        }
-        boton.addEventListener("click", () => elegir(fila, lado));
-        caja.append(boton);
-      });
+      /*
+       * El banquillo. Tocar a un suplente no anota: pregunta por quién entra, y
+       * esa pregunta sale en la zona del pulgar como todo lo demás.
+       */
+      const banca = $(`[data-anot-banquillo-${minuscula}]`);
+      banca.textContent = "";
+      plantilla
+        .filter((jugador) => !enPista.has(jugador.id))
+        .forEach((jugador) => {
+          const boton = el("button", `anot-suplente anot-suplente--${minuscula}`);
+          boton.type = "button";
+          boton.disabled = terminado || jugando.length === 0;
+          boton.append(retratoDe(jugador, "pequeno"));
+          boton.addEventListener("click", () => elegirSuplente(jugador));
+          banca.append(boton);
+        });
     }
   }
 
@@ -148,6 +203,13 @@
     const ultimo = datos.eventos[datos.eventos.length - 1] || null;
     const texto = $("[data-anot-ultimo]");
     const deshacer = $("[data-anot-deshacer]");
+
+    if (ultimoFueCambio()) {
+      const cambio = datos.cambios[datos.cambios.length - 1];
+      texto.textContent = `Entra ${nombreDeJugador(cambio.entra)} por ${nombreDeJugador(cambio.sale)}`;
+      deshacer.disabled = guardando || (terminado && !puedeEditar());
+      return;
+    }
 
     if (!ultimo) {
       texto.textContent = "Sin puntos todavía.";
@@ -201,11 +263,13 @@
 
   // ---------------------------------------------------- los dos toques ---
 
-  function elegir(fila, lado) {
+  function elegir(jugador) {
     if (guardando || datos.estado.terminado) return;
-    elegido = { ...fila, lado };
+    elegido = jugador;
+    entrante = null;
 
-    $("[data-anot-elegido]").textContent = fila.nombre;
+    $("[data-anot-elegido]").textContent = jugador.nombre;
+    $("[data-anot-cambio]").hidden = true;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = false;
 
@@ -223,8 +287,72 @@
 
   function cancelar() {
     elegido = null;
+    entrante = null;
     $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-cambio]").hidden = true;
     $("[data-anot-reposo]").hidden = false;
+  }
+
+  // --------------------------------------------------------------- cambios ---
+
+  /**
+   * Tocar a un suplente abre el cambio. El segundo toque —por quién entra— cae
+   * en la zona del pulgar, igual que el de un punto: es la misma gramática y el
+   * mismo hueco, así que no hay nada nuevo que aprender a pleno sol.
+   */
+  function elegirSuplente(jugador) {
+    if (guardando || datos.estado.terminado) return;
+    entrante = jugador;
+    elegido = null;
+
+    $("[data-anot-entra]").textContent = jugador.nombre;
+    $("[data-anot-reposo]").hidden = true;
+    $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-cambio]").hidden = false;
+
+    const caja = $("[data-anot-cambio-opciones]");
+    caja.textContent = "";
+    datos.alineacion
+      .filter((fila) => fila.lado === jugador.lado)
+      .forEach((fila) => {
+        const boton = el("button", "anot-btn anot-btn--tipo");
+        boton.type = "button";
+        boton.dataset.sale = String(fila.jugador_id);
+        boton.append(el("span", "anot-tipo-nombre", fila.nombre));
+        boton.append(el("span", "anot-tipo-ayuda", `${fila.apellidos || ""}`.trim() || "Sale de la pista"));
+        boton.addEventListener("click", () => hacerCambio(fila.jugador_id));
+        caja.append(boton);
+      });
+  }
+
+  async function hacerCambio(saleId) {
+    if (guardando || !entrante) return;
+    guardando = true;
+    const entraId = entrante.id;
+    cancelar();
+    setError("");
+
+    try {
+      datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
+        accion: "cambio",
+        entra: entraId,
+        sale: saleId
+      });
+    } catch (error) {
+      setError(error.message);
+      await recargar();
+    } finally {
+      guardando = false;
+      pintar();
+    }
+  }
+
+  /** ¿Lo último que pasó fue un cambio, y no un punto? */
+  function ultimoFueCambio() {
+    const cambio = (datos.cambios || [])[datos.cambios.length - 1];
+    if (!cambio) return false;
+    const ultimoEvento = datos.eventos[datos.eventos.length - 1];
+    return cambio.trasOrden >= (ultimoEvento ? ultimoEvento.orden : -1);
   }
 
   /**
@@ -260,7 +388,7 @@
     setError("");
 
     // Se capturan antes de cerrar la botonera, que limpia `elegido`.
-    const jugadorId = elegido.jugador_id;
+    const jugadorId = elegido.id;
     const ordenEsperado = datos.siguienteOrden;
 
     const prediccion = predecir(tipo);
@@ -292,11 +420,37 @@
     } finally {
       guardando = false;
       pintar();
+      // El retrato de quien lo hizo se sacude. Va después de pintar, cuando el
+      // nodo ya está donde toca.
+      cromo.vibrar(retratos.get(jugadorId));
     }
   }
 
+  /**
+   * Deshacer es una sola tecla y la decide el estado: si lo último que pasó fue
+   * un cambio, deshace el cambio. Dos botones que hay que elegir a ciegas entre
+   * punto y punto es justo lo que esta pantalla no puede permitirse.
+   */
   async function deshacer() {
-    if (guardando || datos.eventos.length === 0) return;
+    if (guardando) return;
+    if (ultimoFueCambio()) {
+      guardando = true;
+      setError("");
+      try {
+        datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
+          accion: "cambio-deshacer"
+        });
+      } catch (error) {
+        setError(error.message);
+        await recargar();
+      } finally {
+        guardando = false;
+        pintar();
+      }
+      return;
+    }
+
+    if (datos.eventos.length === 0) return;
     guardando = true;
     setError("");
     try {
@@ -403,7 +557,7 @@
         input.value = String(jugador.id);
         input.dataset.lado = lado;
         input.checked = enPista.has(jugador.id);
-        label.append(input, el("span", "", jugador.nombre));
+        label.append(input, el("span", "", `${jugador.nombre} ${jugador.apellidos || ""}`.trim()));
         // Quién es suplente venía en la respuesta y no se pintaba, así que
         // alinear al equipo entero era igual de fácil que alinear a quien juega.
         if (jugador.esSuplente) label.append(el("span", "anot-check-nota", "suplente"));
@@ -454,6 +608,7 @@
 
   $("[data-anot-deshacer]").addEventListener("click", deshacer);
   $("[data-anot-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-cambio-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-alineacion]").addEventListener("click", abrirAlineacion);
   $("[data-anot-alineacion-guardar]").addEventListener("click", guardarAlineacion);
   $("[data-anot-alineacion-cancelar]").addEventListener("click", () =>

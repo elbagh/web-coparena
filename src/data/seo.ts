@@ -24,6 +24,7 @@ export const publicPages = [
   { path: "/inscripcion/", priority: "0.9", changefreq: "weekly" },
   { path: "/donde-estamos/", priority: "0.8", changefreq: "monthly" },
   { path: "/torneo/", priority: "0.9", changefreq: "daily" },
+  { path: "/directo/", priority: "0.9", changefreq: "daily" },
   { path: "/torneo/premios/", priority: "0.8", changefreq: "monthly" },
   { path: "/equipos/", priority: "0.7", changefreq: "daily" },
   { path: "/jugadores/", priority: "0.7", changefreq: "daily" },
