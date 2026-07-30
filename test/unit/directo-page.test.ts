@@ -128,16 +128,20 @@ const respirar = () => new Promise((r) => setTimeout(r, 0));
 let pintar: ((estado: unknown, info?: unknown) => Promise<void>) | null = null;
 let peticiones: string[] = [];
 
+/** Lo que contesta el fetch simulado. Los tests que tiran la red lo cambian. */
+let responder: (url: string) => Promise<Response>;
+
 async function montar(plantilla: unknown = PLANTILLA) {
   document.body.innerHTML = MARCADO;
   peticiones = [];
   pintar = null;
+  responder = async () => new Response(JSON.stringify(plantilla), { status: 200 });
 
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
       peticiones.push(url);
-      return new Response(JSON.stringify(plantilla), { status: 200 });
+      return await responder(url);
     })
   );
   vi.stubGlobal(
@@ -203,6 +207,34 @@ describe("la plantilla se pide una vez", () => {
 
     expect(peticiones.filter((url) => url.includes("/api/plantilla"))).toHaveLength(1);
     expect(peticiones[0]).toBe("/api/plantilla?partido=p1");
+  });
+
+  /*
+   * Y sobre todo: no la repite cuando FALLA. El guardia («ya la tengo de este
+   * partido») solo se ponía al recibirla bien, así que un 500 —o la propia
+   * ausencia de red— hacía que cada sondeo pidiera dos cosas en vez de una:
+   * justo el día que algo va mal, el gasto de cada espectador se dobla. Con
+   * ~100 espectadores sondeando seis horas, ese factor dos es la diferencia
+   * entre caber en el plan gratuito y no caber.
+   */
+  it("no la reintenta en cada sondeo cuando el servidor falla", async () => {
+    await montar();
+    responder = async () => new Response("vaya", { status: 500 });
+
+    for (let i = 0; i < 6; i++) await sondeo(estadoBase());
+
+    expect(peticiones.filter((url) => url.includes("/api/plantilla")).length).toBeLessThanOrEqual(2);
+  });
+
+  it("ni cuando no hay red", async () => {
+    await montar();
+    responder = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+
+    for (let i = 0; i < 6; i++) await sondeo(estadoBase());
+
+    expect(peticiones.filter((url) => url.includes("/api/plantilla")).length).toBeLessThanOrEqual(2);
   });
 
   it("la vuelve a pedir si cambia el partido", async () => {

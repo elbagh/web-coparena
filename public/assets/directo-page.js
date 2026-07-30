@@ -47,6 +47,17 @@
   let plantilla = null;
   let partidoDePlantilla = null;
   let pidiendoPlantilla = null;
+  /**
+   * Cuándo se puede volver a intentar la plantilla de un partido que falló.
+   *
+   * El guardia de «ya la tengo» solo se pone al recibirla bien, así que un 500 o
+   * un corte de red dejaban a la página pidiéndola **en cada sondeo**: el gasto
+   * de cada espectador se dobla justo el día que algo va mal, que es el peor
+   * momento posible. Va atado al id del partido para que al empezar otro se
+   * pida el suyo sin esperar.
+   */
+  const ESPERA_TRAS_FALLO_MS = 30000;
+  let plantillaFallida = null;
   /** Retratos vivos, por jugador: se mueven, no se recrean. */
   const retratos = new Map();
   /** Líneas del historial, por clave: `e:orden` o `c:id`. */
@@ -61,17 +72,23 @@
   async function asegurarPlantilla(partidoId) {
     if (partidoDePlantilla === partidoId) return plantilla;
     if (pidiendoPlantilla) return pidiendoPlantilla;
+    if (plantillaFallida?.partidoId === partidoId && Date.now() < plantillaFallida.hasta) return plantilla;
+
+    const fallo = () => {
+      plantillaFallida = { partidoId, hasta: Date.now() + ESPERA_TRAS_FALLO_MS };
+      return null;
+    };
 
     pidiendoPlantilla = fetch(`/api/plantilla?partido=${encodeURIComponent(partidoId)}`)
       .then((respuesta) => (respuesta.ok ? respuesta.json() : null))
       .then((datos) => {
-        if (datos) {
-          plantilla = datos;
-          partidoDePlantilla = partidoId;
-        }
+        if (!datos) return fallo();
+        plantilla = datos;
+        partidoDePlantilla = partidoId;
+        plantillaFallida = null;
         return datos;
       })
-      .catch(() => null)
+      .catch(fallo)
       .finally(() => {
         pidiendoPlantilla = null;
       });
