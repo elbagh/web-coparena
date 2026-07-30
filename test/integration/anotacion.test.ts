@@ -379,6 +379,128 @@ describe("corregir un evento antiguo", () => {
 });
 
 /*
+ * Bloqueo y chilena no llevan el punto grabado en el tipo: lo decide quien
+ * anota, rally a rally. Sin respuesta no se adivina —adivinar aquí es inventar
+ * marcador— así que el servidor rechaza el evento en vez de asumir un lado.
+ */
+describe("bloqueo y chilena: el punto lo decide quien anota", () => {
+  it("sin decir si ganó el punto, no se anota", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    const respuesta = await punto(admin, partidoId, local.jugadores[0]!.id, "bloqueo");
+    expect(respuesta.status).toBe(400);
+    expect(((await respuesta.json()) as { campos: Record<string, string> }).campos).toHaveProperty("punto");
+  });
+
+  it("un bloqueo sin punto no mueve el marcador, pero cuenta en la ficha", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    const respuesta = await punto(admin, partidoId, ana, "bloqueo", false);
+    expect(respuesta.status).toBe(201);
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 0, B: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, bloqueos: 1 });
+  });
+
+  it("un bloqueo con punto suma las dos cosas", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 1, bloqueos: 1 });
+  });
+
+  /*
+   * La chilena va por su columna, no por la del bloqueo: comparten el gesto de
+   * la pregunta, no la métrica.
+   */
+  it("la chilena tiene columna propia", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "chilena", true);
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 1, chilenas: 1, bloqueos: 0 });
+  });
+
+  /*
+   * Esta sentencia agregada es la única implementación del reparto desde que se
+   * borró su espejo en TS, así que un tipo que no llegue a su columna sólo se
+   * ve aquí: cada acción con su cifra, en una sola pasada.
+   */
+  it("cada acción llega a su columna", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "punto");
+    await punto(admin, partidoId, ana, "ace");
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    await punto(admin, partidoId, ana, "chilena", false);
+    await punto(admin, partidoId, ana, "saque_fallado");
+
+    // Tres puntos: el punto, el ace y el bloqueo que ganó. Ni la chilena que no
+    // ganó ni el saque fallado, que se lo lleva el rival.
+    expect(await estadisticasDe(ana)).toEqual({
+      puntos: 3,
+      bloqueos: 1,
+      chilenas: 1,
+      aces: 1,
+      saques_fallados: 1
+    });
+  });
+});
+
+describe("saque fallado", () => {
+  it("da el punto al rival y no suma puntos a quien lo falla", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    const respuesta = await punto(admin, partidoId, ana, "saque_fallado");
+    const cuerpo = (await respuesta.json()) as Respuesta;
+    expect(cuerpo.estado.puntos).toEqual({ A: 0, B: 1 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, saques_fallados: 1 });
+  });
+});
+
+/*
+ * Corregir un bloqueo o una chilena tiene que poder cambiar también el sí/no,
+ * porque ese sí/no no vive en el tipo del evento sino en `lado_punto`. Sin este
+ * camino, arreglar «no fue punto» sólo se podía deshaciendo todo lo posterior.
+ */
+describe("corregir un bloqueo", () => {
+  it("de «no fue punto» a «sí» mueve el marcador", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", false);
+
+    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, punto: true });
+    expect(respuesta.status).toBe(200);
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
+  });
+
+  /*
+   * Corregir a quién se atribuye no puede mover el marcador de propina: sin
+   * `punto` en el cuerpo, la fila conserva lo que ya afirmaba.
+   */
+  it("cambiar sólo el autor conserva si puntuaba o no", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    const berta = local.jugadores[1]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", false);
+
+    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 0, B: 0 });
+  });
+});
+
+/*
  * Lo que hace segura toda la anotación: da igual cómo se llegue a un estado, el
  * log manda. Si añadir y recalcular pudieran discrepar, un día lo harían.
  */
