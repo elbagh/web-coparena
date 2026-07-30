@@ -36,7 +36,12 @@ const { titulo, volverA = "/anotador/" } = Astro.props;
       <p class="anot-alerta" data-auth-error hidden></p>
     </section>
 
-    <div data-auth-logged-in hidden>
+    {/*
+      `anot-cuerpo` no es decorativa: es el eslabón de flex que le falta a la
+      cadena `.anot-app` → panel → zona del pulgar. Sin ella el panel no crece y
+      la botonera se queda a media pantalla (ver index.css).
+    */}
+    <div class="anot-cuerpo" data-auth-logged-in hidden>
       {/*
         Suplantar es solo lectura: el middleware rechaza toda escritura. Sin este
         aviso, el panel parecería funcionar y cada toque daría 403 en silencio.

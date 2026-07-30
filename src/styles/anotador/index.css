@@ -124,6 +124,20 @@ body.is-anotador {
  * El `[hidden]` necesita ganar al `display: flex`: si no, el panel se vería
  * mientras carga.
  */
+/*
+ * El envoltorio que auth.js enseña al entrar. Sin flex aquí la cadena se
+ * rompía: `.anot-panel { flex: 1 }` no crecía porque su padre era un bloque, y
+ * `margin-top: auto` de la zona del pulgar no tenía hueco que repartir. En una
+ * pantalla alta la botonera se quedaba a media altura —medido: 588px por encima
+ * del borde en un móvil de 1200px—, que es justo donde el pulgar no llega.
+ */
+.anot-cuerpo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .anot-panel {
   display: flex;
   flex: 1;
@@ -207,6 +221,60 @@ body.is-anotador {
   margin: 2px 0 0;
 }
 
+/* Terminado, los números grandes son los sets. Sin el rótulo, un 2 – 1 se leería
+   como un marcador de puntos absurdo. */
+.anot-rotulo {
+  color: var(--anot-apagado);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  margin: 4px 0 -4px;
+  text-transform: uppercase;
+}
+
+.anot-parciales {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+/* --------------------------------------------------------------- decisión --- */
+
+/*
+ * Un partido que venía a mano trae puntos que el log no conoce, y el servidor
+ * rechaza el primero hasta que se decide qué hacer con ellos. Esta caja ocupa el
+ * sitio de la pista mientras eso pasa: no es un aviso al lado de unos botones
+ * que no van a funcionar, es la pantalla entera preguntando una cosa.
+ *
+ * Ámbar y no rojo: no ha fallado nada, hay algo que resolver. El rojo de esta
+ * hoja ya significa error.
+ */
+.anot-decision {
+  background: #ffe9c2;
+  border: 3px solid #a06a00;
+  border-radius: 16px;
+  margin: 14px 0;
+  padding: 16px;
+}
+
+.anot-decision-titulo {
+  color: #4a3200;
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+}
+
+.anot-decision-texto {
+  color: #4a3200;
+  font-size: 0.92rem;
+  margin: 0 0 14px;
+}
+
+.anot-decision-botones {
+  display: grid;
+  gap: 8px;
+}
+
 /* ------------------------------------------------------------------ pista --- */
 
 /*
@@ -262,6 +330,35 @@ body.is-anotador {
 
 .anot-jugador:active {
   transform: scale(0.97);
+}
+
+/* Terminado el partido, la pista deja de responder y se ve que deja de
+   responder: antes los botones seguían pareciendo vivos y no hacían nada. */
+.anot-jugador:disabled {
+  border-color: var(--anot-linea);
+  color: var(--anot-apagado);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.anot-jugador-nombre {
+  display: block;
+}
+
+/* El apellido y el dorsal son para desempatar dos nombres de pila iguales, así
+   que van pequeños: lo que se lee de un vistazo sigue siendo el nombre. */
+.anot-jugador-apellidos {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.anot-jugador-dorsal {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .anot-sin-alineacion {
@@ -386,11 +483,29 @@ body.is-anotador {
   padding-top: 6px;
 }
 
+/*
+ * Cada línea del historial es un botón: se toca para corregir la acción o a
+ * quién se le atribuyó. Era un párrafo, y para arreglar un punto mal apuntado
+ * había que deshacer todos los posteriores hasta llegar a él.
+ */
 .anot-historial-linea {
+  background: none;
+  border: 0;
   border-bottom: 1px solid var(--anot-linea);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
   font-size: 0.85rem;
   margin: 0;
+  min-height: 44px;
   padding: 6px 2px;
+  text-align: left;
+  width: 100%;
+}
+
+.anot-historial-linea:disabled {
+  color: var(--anot-apagado);
+  cursor: default;
 }
 
 /* --------------------------------------------------------------- lista --- */
@@ -497,10 +612,60 @@ body.is-anotador {
   width: 24px;
 }
 
+/* Quién es suplente. Va en la etiqueta y no en un icono: se lee y no se
+   interpreta. */
+.anot-check-nota {
+  color: var(--anot-apagado);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: auto;
+  text-transform: lowercase;
+}
+
+.anot-etiqueta {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  margin: 14px 0 6px;
+  text-transform: uppercase;
+}
+
+.anot-corregir-quien {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.anot-corregir-jugador {
+  min-height: 52px;
+}
+
+.anot-corregir-jugador--a {
+  border-color: var(--anot-a);
+  color: var(--anot-a);
+}
+
+.anot-corregir-jugador--b {
+  border-color: var(--anot-b);
+  color: var(--anot-b);
+}
+
+/*
+ * Lo elegido se marca invirtiendo el botón, no con un borde más fino ni un tinte
+ * suave: bajo el sol, dos botones que solo se diferencian en el matiz son dos
+ * botones iguales.
+ */
+.anot-dialogo [aria-pressed="true"] {
+  background: var(--anot-tinta);
+  border-color: var(--anot-tinta);
+  color: var(--anot-fondo);
+}
+
 .anot-dialogo-pie {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  margin-top: 16px;
 }
 
 /* ------------------------------------------------------- estados globales --- */
