@@ -212,3 +212,92 @@ describe("lo que la versión ya hacía bien no se rompe", () => {
     expect(consultas).toBe(1);
   });
 });
+
+describe("las siglas viajan y mueven la versión", () => {
+  /*
+   * `equipos.siglas` se edita desde el panel, pero `updated_at` vive en
+   * `partidos`: sin meterlas en la versión, corregir unas siglas durante el
+   * torneo no le llega a NADIE —todos siguen con su 304 y el cuerpo viejo—.
+   * Es el mismo fallo que ya documentan los ajustes y el próximo partido.
+   */
+  it("editar las siglas de un equipo cambia la versión", async () => {
+    const equipoA = await crearEquipo({ nombre: "Ostreiros do Pozo" });
+    const equipoB = await crearEquipo({ nombre: "Os Pulpos" });
+    await crearPartido({ equipoA, equipoB, status: "live" });
+
+    const antes = await versionActual();
+    await env.DB.prepare("UPDATE equipos SET siglas = 'OST' WHERE id = ?1").bind(equipoA.id).run();
+
+    expect(await versionActual()).not.toBe(antes);
+  });
+
+  it("quien tenía la versión anterior recibe cuerpo, no un 304", async () => {
+    const equipoA = await crearEquipo({ nombre: "Ostreiros do Pozo" });
+    const equipoB = await crearEquipo({ nombre: "Os Pulpos" });
+    await crearPartido({ equipoA, equipoB, status: "live" });
+
+    const etag = await versionActual();
+    expect((await pedir(etag)).status).toBe(304);
+
+    await env.DB.prepare("UPDATE equipos SET siglas = 'OST' WHERE id = ?1").bind(equipoA.id).run();
+    expect((await pedir(etag)).status).toBe(200);
+  });
+
+  /*
+   * La versión acaba en una cabecera HTTP, y ahí solo cabe ASCII imprimible: una
+   * sigla con tilde metida en crudo tira un TypeError al leer la respuesta y deja
+   * el directo entero caído. Por eso van en hex().
+   */
+  it("una sigla con tilde no rompe la cabecera", async () => {
+    const equipoA = await crearEquipo({ nombre: "Ría de Muros" });
+    const equipoB = await crearEquipo({ nombre: "Ñoras" });
+    await crearPartido({ equipoA, equipoB, status: "live" });
+    await env.DB.prepare("UPDATE equipos SET siglas = 'RÍA' WHERE id = ?1").bind(equipoA.id).run();
+    await env.DB.prepare("UPDATE equipos SET siglas = 'ÑOR' WHERE id = ?1").bind(equipoB.id).run();
+
+    const respuesta = await pedir();
+    const etag = respuesta.headers.get("ETag")!;
+
+    expect(etag).toMatch(/^[\x20-\x7E]*$/);
+    expect(respuesta.status).toBe(200);
+  });
+
+  it("arrancar el cronómetro también mueve la versión", async () => {
+    const partidoId = await crearPartido({ status: "live" });
+    const antes = await versionActual();
+
+    await env.DB
+      .prepare("UPDATE partidos SET started_at = ?1, log_version = log_version + 1, updated_at = ?1 WHERE id = ?2")
+      .bind(new Date().toISOString(), partidoId)
+      .run();
+
+    expect(await versionActual()).not.toBe(antes);
+  });
+});
+
+describe("el cuerpo del directo lleva siglas", () => {
+  it("las guardadas mandan sobre las derivadas", async () => {
+    const equipoA = await crearEquipo({ nombre: "Ostreiros do Pozo" });
+    const equipoB = await crearEquipo({ nombre: "Os Pulpos" });
+    await crearPartido({ equipoA, equipoB, status: "live" });
+    await env.DB.prepare("UPDATE equipos SET siglas = 'ODP' WHERE id = ?1").bind(equipoA.id).run();
+
+    const cuerpo = (await (await pedir()).json()) as {
+      partidos: { teams: { A: { siglas: string }; B: { siglas: string } } }[];
+    };
+
+    expect(cuerpo.partidos[0]!.teams.A.siglas).toBe("ODP");
+    expect(cuerpo.partidos[0]!.teams.B.siglas).toBe("PUL");
+  });
+
+  it("un hueco del cuadro sin equipo también sale con siglas", async () => {
+    await crearPartido({ status: "live" });
+
+    const cuerpo = (await (await pedir()).json()) as {
+      partidos: { teams: { A: { siglas: string } } }[];
+    };
+
+    // El helper pone «Equipo A» de nombre congelado cuando no hay equipo.
+    expect(cuerpo.partidos[0]!.teams.A.siglas).toBe("EQU");
+  });
+});
