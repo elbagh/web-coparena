@@ -261,6 +261,16 @@ body.is-anotador {
   gap: 8px;
 }
 
+/*
+ * El aviso propio de este bloque. `[data-anot-error]`, el de siempre, vive
+ * dentro de `.anot-pulgar`, que `pintar()` oculta mientras se enseña esta
+ * decisión — un «Adoptar» que falla no tenía dónde decirlo. `.anot-decision`
+ * no es flex, así que el margen de arriba es lo que lo separa de los botones.
+ */
+[data-anot-error-decision] {
+  margin: 10px 0 0;
+}
+
 /* ---------------------------------------------------------- fuera de directo --- */
 
 /* Ocupa el hueco de la pista, así que se compone igual que `.anot-decision`. */
@@ -285,6 +295,16 @@ body.is-anotador {
   color: var(--anot-apagado);
   margin: 0;
   max-width: 34ch;
+}
+
+/*
+ * Mismo motivo que `[data-anot-error-decision]`: `.anot-pulgar` está oculto
+ * mientras se enseña este bloque, así que un «Poner en directo» que falla
+ * necesita su propio sitio. Sin margen propio: el `gap` de `.anot-fuera` ya
+ * lo separa del botón.
+ */
+[data-anot-error-fuera] {
+  margin: 0;
 }
 
 /* ------------------------------------------------------------------ pista --- */

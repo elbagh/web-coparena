@@ -48,10 +48,12 @@ const MARCADO = `
         <button type="button" data-anot-adoptar></button>
         <button type="button" data-anot-cero>Empezar en 0–0</button>
       </div>
+      <p role="alert" data-anot-error-decision hidden></p>
     </section>
 
     <section class="anot-fuera" data-anot-fuera hidden>
       <button type="button" data-anot-poner-directo>Poner en directo</button>
+      <p role="alert" data-anot-error-fuera hidden></p>
     </section>
 
     <section class="anot-pista" data-anot-pista>
@@ -648,6 +650,66 @@ describe("sin red", () => {
 });
 
 /*
+ * `[data-anot-error]`, el de siempre, cuelga de `.anot-pulgar` — que `pintar()`
+ * oculta durante `fuera` y `decidir`. Un fallo de «Poner en directo» o de
+ * «Adoptar» caía ahí y no se veía: el anotador solo veía el botón reaparecer,
+ * sin saber que había que repetir el toque. Comprobar solo `.hidden` en el
+ * propio párrafo es justo el chequeo que habría pasado con el bug en danza —
+ * hay que subir la cadena de antepasados, porque un nodo con `hidden=false`
+ * dentro de una sección `hidden=true` tampoco se ve.
+ */
+describe("el aviso de un fallo se ve en el bloque que está en pantalla", () => {
+  /** Rompe la red a partir de la siguiente petición: mismo camino de catch que un 409. */
+  const cortar = () => {
+    responder = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+  };
+
+  const visible = (nodo: HTMLElement | null): boolean => {
+    for (let actual: HTMLElement | null = nodo; actual; actual = actual.parentElement) {
+      if (actual.hidden) return false;
+    }
+    return Boolean(nodo);
+  };
+
+  it("«Poner en directo» que falla se ve, no solo el botón que vuelve", async () => {
+    await montar(
+      respuesta({ partido: { id: "p1", status: "scheduled", origenMarcador: "manual", reglas: REGLAS, startedAt: null } })
+    );
+
+    $("[data-anot-poner-directo]").click();
+    const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+    acepto.checked = true;
+    acepto.dispatchEvent(new Event("change"));
+    cortar();
+    $("[data-anot-directo-confirmar]").click();
+    await respirar();
+
+    const aviso = $("[data-anot-error-fuera]");
+    expect(aviso.hidden).toBe(false);
+    expect(visible(aviso)).toBe(true);
+    // El de siempre —oculto en este estado— no debe quedarse con el mensaje.
+    expect($("[data-anot-error]").hidden).toBe(true);
+  });
+
+  it("«Adoptar» que falla se ve mientras la decisión sigue en pantalla", async () => {
+    await montar(
+      respuesta({ pendienteDeAdoptar: true, marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } } })
+    );
+
+    cortar();
+    $("[data-anot-adoptar]").click();
+    await respirar();
+
+    const aviso = $("[data-anot-error-decision]");
+    expect(aviso.hidden).toBe(false);
+    expect(visible(aviso)).toBe(true);
+    expect($("[data-anot-error]").hidden).toBe(true);
+  });
+});
+
+/*
  * Ofrecer un botón que va a contestar con un error es ofrecer un fallo. Ya
  * estaba decidido para «Deshacer» de un partido terminado; faltaban los otros
  * dos casos que también responden 409 seguro.
@@ -719,7 +781,11 @@ describe("dónde se avisa de que algo no se ha guardado", () => {
     const pagina = leer("../../src/pages/anotador/partido.astro");
     const pulgar = pagina.indexOf("data-anot-pulgar");
     const cierre = pagina.indexOf("</section>", pulgar);
-    const aviso = pagina.indexOf("data-anot-error");
+    // No `indexOf("data-anot-error")`: eso encuentra antes a
+    // `data-anot-error-decision` / `data-anot-error-fuera` (los avisos propios
+    // de los otros dos bloques) o incluso su mención en un comentario. Este
+    // busca el atributo suelto: sin guion ni corchete detrás, un espacio.
+    const aviso = pagina.search(/data-anot-error(?=\s)/);
 
     expect(aviso).toBeGreaterThan(pulgar);
     expect(aviso).toBeLessThan(cierre);

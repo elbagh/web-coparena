@@ -57,23 +57,64 @@
 
   // ------------------------------------------------------------- pintado ---
 
+  /*
+   * `fuera` gana sobre `decidir`, y no por convención: así decide el propio
+   * servidor. Un `scheduled` con marcador a mano responde «no está en
+   * directo» (`PartidoNoEnDirecto`), no «hay un marcador por decidir»
+   * (`MarcadorSinAdoptar`) — `registrarEvento` en `_lib/eventos.ts` comprueba
+   * el status antes que el marcador. Pintar los dos avisos a la vez ofrecería
+   * dos salidas cuando solo una lleva a algún sitio: publicarlo primero. Un
+   * partido `finished` no entra aquí: ya se publicó, y el servidor le
+   * contesta con un aviso distinto («ya ha terminado»), no este.
+   *
+   * Una sola función y no dos cálculos sueltos: `pintar()` la usa para saber
+   * qué bloque enseñar y `mostrarError()` para saber a cuál de los tres avisos
+   * le toca un fallo. Que puedan desacoplarse es justo el bug de esta ronda.
+   */
+  function estadoBloque() {
+    const fuera = datos.partido.status === "scheduled";
+    const decidir = Boolean(datos.pendienteDeAdoptar) && !fuera;
+    return { fuera, decidir };
+  }
+
+  /**
+   * El aviso de un fallo vive en tres sitios, uno por bloque que puede estar
+   * en pantalla, no en uno: `[data-anot-error]` (el de siempre, en
+   * `core.js`) cuelga de `.anot-pulgar`, que `pintar()` oculta durante
+   * `fuera` y `decidir` — un fallo que cae ahí no se ve, que es justo lo que
+   * este aviso existe para evitar («Poner en directo» y «Adoptar»/«Empezar en
+   * 0–0» respondían 409 en silencio). Se elige con la misma cuenta que decide
+   * qué bloque se pinta, no mirando qué anda `hidden` en el DOM: así no puede
+   * desacoplarse de `pintar()` el día que cambie el orden de estados.
+   *
+   * Los otros dos huecos se limpian siempre, para que un aviso de un estado
+   * anterior no sobreviva al cambio que lo dejó sin sitio.
+   */
+  function mostrarError(mensaje) {
+    const { fuera, decidir } = datos ? estadoBloque() : { fuera: false, decidir: false };
+    const propio = fuera ? $("[data-anot-error-fuera]") : decidir ? $("[data-anot-error-decision]") : null;
+
+    for (const otro of [$("[data-anot-error-fuera]"), $("[data-anot-error-decision]")]) {
+      if (otro && otro !== propio) {
+        otro.textContent = "";
+        otro.hidden = true;
+      }
+    }
+
+    if (propio) {
+      propio.textContent = mensaje || "";
+      propio.hidden = !mensaje;
+      setError(""); // la franja del pulgar no se queda con el aviso de otro bloque
+      return;
+    }
+    setError(mensaje);
+  }
+
   function pintar() {
     if (!datos) return;
     const { estado, alineacion } = datos;
     const terminado = estado.terminado;
-
-    /*
-     * `fuera` gana sobre `decidir`, y no por convención: así decide el propio
-     * servidor. Un `scheduled` con marcador a mano responde «no está en
-     * directo» (`PartidoNoEnDirecto`), no «hay un marcador por decidir»
-     * (`MarcadorSinAdoptar`) — `registrarEvento` en `_lib/eventos.ts` comprueba
-     * el status antes que el marcador. Pintar los dos avisos a la vez
-     * ofrecería dos salidas cuando solo una lleva a algún sitio: publicarlo
-     * primero. Un partido `finished` no entra aquí: ya se publicó, y el
-     * servidor le contesta con un aviso distinto («ya ha terminado»), no este.
-     */
-    const fuera = datos.partido.status === "scheduled";
-    const decidir = Boolean(datos.pendienteDeAdoptar) && !fuera;
+    const { fuera, decidir } = estadoBloque();
 
     /*
      * Los números grandes son los puntos del set, salvo en dos casos:
@@ -91,11 +132,15 @@
     $("[data-anot-puntos-b]").textContent = String(grandes.B);
 
     const sets = decidir ? datos.marcadorPanel.sets : estado.sets;
+    // `fuera` antes que el set/objetivo normal: «Set 1 · a 21» encima de «no
+    // está en directo» leía como que el partido ya iba por ahí sin publicarse.
     $("[data-anot-detalle]").textContent = terminado
       ? `Terminado · ganó ${nombreEquipo(estado.winner)}`
-      : decidir
-        ? `Sets ${sets.A}–${sets.B} · sin anotar`
-        : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
+      : fuera
+        ? "Sin empezar"
+        : decidir
+          ? `Sets ${sets.A}–${sets.B} · sin anotar`
+          : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
 
     const parciales = $("[data-anot-parciales]");
     parciales.hidden = estado.historial.length === 0;
@@ -351,7 +396,7 @@
     guardando = true;
     const entraId = entrante.id;
     cancelar();
-    setError("");
+    mostrarError("");
 
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
@@ -360,7 +405,7 @@
         sale: saleId
       });
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       await recargar();
     } finally {
       guardando = false;
@@ -406,7 +451,7 @@
   async function anotarPunto(tipo) {
     if (guardando || !elegido) return;
     guardando = true;
-    setError("");
+    mostrarError("");
 
     // Se capturan antes de cerrar la botonera, que limpia `elegido`.
     const jugadorId = elegido.id;
@@ -439,7 +484,7 @@
       });
       datos = respuesta;
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       /*
        * La predicción no valía, así que lo primero es deshacerla. Antes se
        * llamaba directamente a `recargar()`: si esa también fallaba —que es lo
@@ -470,13 +515,13 @@
     if (guardando) return;
     if (ultimoFueCambio()) {
       guardando = true;
-      setError("");
+      mostrarError("");
       try {
         datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
           accion: "cambio-deshacer"
         });
       } catch (error) {
-        setError(error.message);
+        mostrarError(error.message);
         await recargar();
       } finally {
         guardando = false;
@@ -487,14 +532,14 @@
 
     if (datos.eventos.length === 0) return;
     guardando = true;
-    setError("");
+    mostrarError("");
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "deshacer",
         ordenEsperado: datos.eventos[datos.eventos.length - 1].orden
       });
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       await recargarSiSePuede();
     } finally {
       guardando = false;
@@ -562,9 +607,9 @@
         tipo: correccion.tipo,
         jugadorId: correccion.jugadorId
       });
-      setError("");
+      mostrarError("");
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
     } finally {
       // Se cierra en los dos casos: el aviso vive fuera del diálogo, y dejarlo
       // abierto lo taparía.
@@ -623,9 +668,9 @@
         });
       }
       dialogo.close();
-      setError("");
+      mostrarError("");
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
     } finally {
       guardando = false;
       pintar();
@@ -661,9 +706,9 @@
     guardando = true;
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", cuerpo);
-      setError("");
+      mostrarError("");
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
     } finally {
       guardando = false;
       pintar();

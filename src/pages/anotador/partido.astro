@@ -50,6 +50,12 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn anot-btn--primario" data-anot-adoptar></button>
         <button type="button" class="anot-btn" data-anot-cero>Empezar en 0–0</button>
       </div>
+      {/*
+        `[data-anot-error]`, el de siempre, vive dentro de `.anot-pulgar` —
+        oculto justo mientras se enseña este bloque. Sin uno propio aquí, un
+        «Adoptar» que falla no dice nada: el botón vuelve y ya está.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-decision hidden></p>
     </section>
 
     {/*
@@ -63,6 +69,13 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         Nadie lo está viendo todavía. Al ponerlo en directo se publica en la web para todo el mundo.
       </p>
       <button type="button" class="anot-btn anot-btn--primario" data-anot-poner-directo>Poner en directo</button>
+      {/*
+        Mismo motivo que en `.anot-decision`: el diálogo se cierra antes de
+        mandar la petición, así que si «Poner en directo» falla (otro
+        anotador ya lo publicó, o se cae la red) este bloque sigue en
+        pantalla y necesita su propio aviso.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-fuera hidden></p>
     </section>
 
     {/*
