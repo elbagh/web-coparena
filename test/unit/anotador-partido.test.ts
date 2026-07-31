@@ -50,6 +50,10 @@ const MARCADO = `
       </div>
     </section>
 
+    <section class="anot-fuera" data-anot-fuera hidden>
+      <button type="button" data-anot-poner-directo>Poner en directo</button>
+    </section>
+
     <section class="anot-pista" data-anot-pista>
       <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
         <p data-anot-banda-a></p>
@@ -105,6 +109,13 @@ const MARCADO = `
     <div data-anot-corregir-jugadores></div>
     <button type="button" data-anot-corregir-cancelar>Cancelar</button>
     <button type="button" data-anot-corregir-guardar>Guardar la corrección</button>
+  </dialog>
+
+  <dialog data-anot-dialogo-directo>
+    <p data-anot-directo-cruce></p>
+    <input type="checkbox" data-anot-directo-acepto />
+    <button type="button" data-anot-directo-cancelar>Cancelar</button>
+    <button type="button" data-anot-directo-confirmar disabled>Sí, en directo</button>
   </dialog>
 `;
 
@@ -776,5 +787,146 @@ describe("volver a la pantalla", () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(peticiones.length).toBe(antes);
+  });
+});
+
+describe("el marcado de poner en directo", () => {
+  const leer = (ruta: string) => readFileSync(path.resolve(import.meta.dirname, ruta), "utf8");
+  const pagina = () => leer("../../src/pages/anotador/partido.astro");
+
+  it("tiene el bloque de fuera de directo y su diálogo", () => {
+    const fuente = pagina();
+    expect(fuente).toContain("data-anot-fuera");
+    expect(fuente).toContain("data-anot-poner-directo");
+    expect(fuente).toContain("data-anot-dialogo-directo");
+  });
+
+  /*
+   * La segunda confirmación es una casilla que hay que marcar, no un segundo
+   * diálogo: dos diálogos seguidos en un móvil al sol se despachan a ciegas.
+   */
+  it("la confirmación es doble: casilla más botón", () => {
+    const fuente = pagina();
+    expect(fuente).toContain("data-anot-directo-acepto");
+    expect(fuente).toContain("data-anot-directo-confirmar");
+  });
+
+  /*
+   * El aviso tiene que decir QUÉ pasa, no solo que es importante: quien anota no
+   * tiene por qué saber dónde sale publicado el partido.
+   */
+  it("dice dónde va a aparecer el partido", () => {
+    expect(pagina()).toContain("portada");
+  });
+});
+
+/*
+ * El estado «fuera de directo»: mientras el partido sigue `scheduled`, publicar
+ * es un acto deliberado (`PartidoNoEnDirecto` en el servidor) y esta pantalla no
+ * pinta una pista cuyos botones responderían 409.
+ */
+describe("fuera de directo", () => {
+  const programado = (extra: Record<string, unknown> = {}) =>
+    respuesta({ partido: { id: "p1", status: "scheduled", origenMarcador: "manual", reglas: REGLAS, startedAt: null }, ...extra });
+
+  it("oculta la pista y la franja del pulgar, y enseña el aviso", async () => {
+    await montar(programado());
+
+    expect($("[data-anot-fuera]").hidden).toBe(false);
+    expect($("[data-anot-pista]").hidden).toBe(true);
+    expect($("[data-anot-pulgar]").hidden).toBe(true);
+  });
+
+  it("en directo, el aviso se oculta y vuelve la pista", async () => {
+    await montar(respuesta());
+
+    expect($("[data-anot-fuera]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+    expect($("[data-anot-pulgar]").hidden).toBe(false);
+  });
+
+  /*
+   * Un `scheduled` con marcador a mano: el servidor comprueba el status ANTES
+   * que el marcador (`registrarEvento` en `_lib/eventos.ts`), así que el primer
+   * aviso en llegar sería «no está en directo», no «hay un marcador por
+   * decidir». Pintar los dos a la vez ofrecería dos salidas cuando solo una
+   * lleva a algún sitio: publicarlo primero.
+   */
+  it("gana sobre la decisión del marcador a mano", async () => {
+    await montar(
+      programado({ pendienteDeAdoptar: true, marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } } })
+    );
+
+    expect($("[data-anot-fuera]").hidden).toBe(false);
+    expect($("[data-anot-decision]").hidden).toBe(true);
+  });
+
+  it("terminado sigue enseñando la pista, no el aviso de publicar", async () => {
+    await montar(
+      respuesta({
+        partido: { id: "p1", status: "finished", origenMarcador: "eventos", reglas: REGLAS, startedAt: null },
+        estado: { setNumero: 3, puntos: { A: 0, B: 0 }, sets: { A: 2, B: 0 }, historial: [], terminado: true, winner: "A" }
+      })
+    );
+
+    // Un partido terminado ya se publicó: ofrecerle «Poner en directo» otra
+    // vez repetiría el error que esto existe para evitar, y el servidor lo
+    // rechazaría con un aviso distinto («ya ha terminado»).
+    expect($("[data-anot-fuera]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+  });
+
+  describe("el diálogo de confirmación", () => {
+    it("el botón de confirmar arranca apagado y muestra el cruce", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).showModal).toHaveBeenCalled();
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(true);
+      expect($("[data-anot-directo-cruce]").textContent).toBe("Areeiros — Os Pulpos Bravos");
+    });
+
+    it("marcar la casilla enciende el botón, y se resetea cada vez que se abre", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+      acepto.checked = true;
+      acepto.dispatchEvent(new Event("change"));
+
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(false);
+
+      // Reabrir sin haber confirmado: la casilla no debe seguir marcada.
+      $("[data-anot-directo-cancelar]").click();
+      $("[data-anot-poner-directo]").click();
+
+      expect(acepto.checked).toBe(false);
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("confirmar publica el partido y cierra el diálogo", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+      acepto.checked = true;
+      acepto.dispatchEvent(new Event("change"));
+      $("[data-anot-directo-confirmar]").click();
+      await respirar();
+
+      expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "directo" });
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).close).toHaveBeenCalled();
+    });
+
+    it("cancelar no manda nada", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      $("[data-anot-directo-cancelar]").click();
+
+      expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).close).toHaveBeenCalled();
+    });
   });
 });

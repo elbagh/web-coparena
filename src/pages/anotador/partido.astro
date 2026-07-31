@@ -53,6 +53,19 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
     </section>
 
     {/*
+      Mientras el partido no esté en directo, esto ocupa el sitio de la pista — el
+      mismo patrón que `anot-decision`: no se pintan botones que van a responder 409.
+      La alineación sí se puede tocar desde «Más»: es la preparación previa.
+    */}
+    <section class="anot-fuera" data-anot-fuera hidden>
+      <h2 class="anot-fuera-titulo">Este partido no está en directo</h2>
+      <p class="anot-fuera-texto">
+        Nadie lo está viendo todavía. Al ponerlo en directo se publica en la web para todo el mundo.
+      </p>
+      <button type="button" class="anot-btn anot-btn--primario" data-anot-poner-directo>Poner en directo</button>
+    </section>
+
+    {/*
       La pista, como un versus: cada equipo en su lado con su color, quien está
       jugando en grande y el banquillo debajo en pequeño. La red sigue en medio
       —vertical ahora— porque es lo que decide de quién es el punto: un error de
@@ -160,6 +173,34 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn" data-anot-corregir-cancelar>Cancelar</button>
         <button type="button" class="anot-btn anot-btn--primario" data-anot-corregir-guardar>
           Guardar la corrección
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  {/*
+    La doble confirmación es UN diálogo, no dos: dos seguidos en un móvil al sol se
+    despachan a ciegas, que es lo contrario de lo que se busca. La casilla es una
+    fila ancha y no un cuadradito porque esto se usa de pie y con una mano.
+  */}
+  <dialog class="anot-dialogo" data-anot-dialogo-directo>
+    <form method="dialog">
+      <h2>¿Poner el partido en directo?</h2>
+      <p class="anot-dialogo-cruce" data-anot-directo-cruce></p>
+      <p class="anot-hint">
+        Se publicará ahora en la web: aparecerá en la portada, en el botón de la cabecera y en la página
+        del directo para todo el que entre.
+      </p>
+
+      <label class="anot-acepto">
+        <input type="checkbox" data-anot-directo-acepto />
+        <span>Lo entiendo, publícalo</span>
+      </label>
+
+      <div class="anot-dialogo-pie">
+        <button type="button" class="anot-btn" data-anot-directo-cancelar>Cancelar</button>
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-directo-confirmar disabled>
+          Sí, en directo
         </button>
       </div>
     </form>

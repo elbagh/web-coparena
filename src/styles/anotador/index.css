@@ -261,6 +261,32 @@ body.is-anotador {
   gap: 8px;
 }
 
+/* ---------------------------------------------------------- fuera de directo --- */
+
+/* Ocupa el hueco de la pista, así que se compone igual que `.anot-decision`. */
+.anot-fuera {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.anot-fuera-titulo {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.anot-fuera-texto {
+  color: var(--anot-apagado);
+  margin: 0;
+  max-width: 34ch;
+}
+
 /* ------------------------------------------------------------------ pista --- */
 
 /*
@@ -686,6 +712,30 @@ body.is-anotador {
 .anot-dialogo h2 {
   font-size: 1.2rem;
   margin: 0 0 4px;
+}
+
+/* Fila ancha, no casilla diminuta: esto se marca de pie y con una mano. */
+.anot-acepto {
+  align-items: center;
+  border: 2px solid var(--anot-linea);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  margin: 14px 0;
+  min-height: 52px;
+  padding: 10px 14px;
+}
+
+.anot-acepto input {
+  height: 24px;
+  width: 24px;
+}
+
+.anot-dialogo-cruce {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 6px;
 }
 
 .anot-plantilla {

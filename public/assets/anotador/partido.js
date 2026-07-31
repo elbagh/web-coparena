@@ -61,7 +61,19 @@
     if (!datos) return;
     const { estado, alineacion } = datos;
     const terminado = estado.terminado;
-    const decidir = Boolean(datos.pendienteDeAdoptar);
+
+    /*
+     * `fuera` gana sobre `decidir`, y no por convención: así decide el propio
+     * servidor. Un `scheduled` con marcador a mano responde «no está en
+     * directo» (`PartidoNoEnDirecto`), no «hay un marcador por decidir»
+     * (`MarcadorSinAdoptar`) — `registrarEvento` en `_lib/eventos.ts` comprueba
+     * el status antes que el marcador. Pintar los dos avisos a la vez
+     * ofrecería dos salidas cuando solo una lleva a algún sitio: publicarlo
+     * primero. Un partido `finished` no entra aquí: ya se publicó, y el
+     * servidor le contesta con un aviso distinto («ya ha terminado»), no este.
+     */
+    const fuera = datos.partido.status === "scheduled";
+    const decidir = Boolean(datos.pendienteDeAdoptar) && !fuera;
 
     /*
      * Los números grandes son los puntos del set, salvo en dos casos:
@@ -89,11 +101,15 @@
     parciales.hidden = estado.historial.length === 0;
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
 
-    // Mientras haya marcador de a mano por decidir, la pista y el pulgar no se
-    // pintan: sus botones responderían 409.
+    /*
+     * Tres estados excluyentes: fuera de directo, decidiendo el marcador de a
+     * mano, o anotando. La pista solo se pinta en el tercero y en el segundo
+     * no: en los dos, sus botones responderían 409.
+     */
     pintarDecision(decidir);
-    $("[data-anot-pista]").hidden = decidir;
-    $("[data-anot-pulgar]").hidden = decidir;
+    $("[data-anot-fuera]").hidden = !fuera;
+    $("[data-anot-pista]").hidden = decidir || fuera;
+    $("[data-anot-pulgar]").hidden = decidir || fuera;
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
@@ -654,6 +670,25 @@
     }
   }
 
+  // ------------------------------------------------------ poner en directo ---
+
+  /**
+   * El servidor rechaza el primer punto de un partido `scheduled`
+   * (`PartidoNoEnDirecto`) para que anotar no publique el partido sin querer.
+   * Este diálogo es esa decisión, tomada a propósito: una casilla ancha que hay
+   * que marcar, no un segundo diálogo — dos seguidos en un móvil al sol se
+   * despachan a ciegas. Se resetea cada vez que se abre, para que confirmar sin
+   * mirar no sea posible por venir ya marcada de la vez anterior.
+   */
+  function abrirDirecto() {
+    if (guardando) return;
+    const acepto = $("[data-anot-directo-acepto]");
+    acepto.checked = false;
+    $("[data-anot-directo-confirmar]").disabled = true;
+    $("[data-anot-directo-cruce]").textContent = `${nombreEquipo("A")} — ${nombreEquipo("B")}`;
+    $("[data-anot-dialogo-directo]").showModal();
+  }
+
   $("[data-anot-deshacer]").addEventListener("click", deshacer);
   $("[data-anot-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-cambio-cancelar]").addEventListener("click", cancelar);
@@ -667,6 +702,15 @@
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
+  $("[data-anot-poner-directo]").addEventListener("click", abrirDirecto);
+  $("[data-anot-directo-acepto]").addEventListener("change", (evento) => {
+    $("[data-anot-directo-confirmar]").disabled = !evento.target.checked;
+  });
+  $("[data-anot-directo-cancelar]").addEventListener("click", () => $("[data-anot-dialogo-directo]").close());
+  $("[data-anot-directo-confirmar]").addEventListener("click", async () => {
+    $("[data-anot-dialogo-directo]").close();
+    await accionSimple({ accion: "directo" });
+  });
 
   /*
    * Al volver a la pantalla, releer una vez.
