@@ -575,12 +575,18 @@ body.is-anotador {
 }
 
 /*
- * «No fue punto» lleva el mismo borde discontinuo que el grupo del que sale, y
- * por la misma razón: no mueve el marcador. Ninguno de los dos es `--primario`
- * — un botón sólido a pleno sol y con prisa sesga el toque, y aquí las dos
- * respuestas son igual de legítimas.
+ * «No fue punto» lleva el mismo borde discontinuo en los dos sitios donde
+ * aparece —el tercer toque al anotar y el sí/no del diálogo de corregir— y
+ * significa lo mismo en los dos: esto no mueve el marcador. Ninguno de los
+ * dos es `--primario` — un botón sólido a pleno sol y con prisa sesga el
+ * toque, y aquí las dos respuestas son igual de legítimas. El selector no se
+ * queda en `.anot-punto` porque el diálogo de corregir no vive dentro de ese
+ * bloque: es su propio `[data-anot-corregir-punto]`, y es justo ahí donde se
+ * decide si un punto existe o no — el único hilo visual de esta rama no
+ * podía faltar precisamente ahí.
  */
-.anot-punto .anot-btn--no {
+.anot-punto .anot-btn--no,
+[data-anot-corregir-punto] .anot-btn--no {
   border-style: dashed;
 }
 

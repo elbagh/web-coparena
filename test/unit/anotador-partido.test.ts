@@ -777,6 +777,54 @@ describe("corregir un punto", () => {
   });
 
   /*
+   * El caso que se colaba: `saque_fallado` es `aRival: true`, así que su
+   * `ladoPunto` no es nulo pero apunta al lado CONTRARIO al de quien sacó.
+   * «`ladoPunto` no nulo» no es lo mismo que «mi lado se lo llevó» — sólo
+   * coinciden cuando el tipo no cruza la red. Corregir un saque fallado hacia
+   * un bloqueo sin tocar el sí/no tiene que preguntar de nuevo (`punto:
+   * false`), no arrastrar un «sí» que en realidad era del rival: si no, el
+   * punto se lo queda quien sacó en vez de a quien se lo llevó de verdad, sin
+   * un solo error en pantalla.
+   */
+  it("corregir un saque fallado hacia bloqueo no arrastra el punto del rival como propio", async () => {
+    await montar(
+      respuesta({
+        eventos: [
+          { orden: 0, tipo: "ajuste", jugadorId: null, jugador: null, ladoJugador: null, ladoPunto: null, setNumero: 1 },
+          {
+            orden: 1,
+            tipo: "saque_fallado",
+            jugadorId: 1,
+            jugador: "Marta Souto Lago",
+            ladoJugador: "A",
+            ladoPunto: "B",
+            setNumero: 1
+          }
+        ],
+        siguienteOrden: 2,
+        estado: { setNumero: 1, puntos: { A: 0, B: 1 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+      })
+    );
+
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+    // `saque_fallado` no pregunta: el bloque no se enseña hasta cambiar el tipo.
+    expect($("[data-anot-corregir-punto]").hidden).toBe(true);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    // Sin tocar el sí/no.
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 1,
+      punto: false
+    });
+  });
+
+  /*
    * Con un tipo que no pregunta (`punto`, `ace`, `saque_fallado`) el cuerpo no
    * debe llevar `punto` en absoluto: mandarlo sería decidir por el servidor
    * cuando el propio tipo ya lo decide.

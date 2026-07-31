@@ -565,8 +565,16 @@
       orden: evento.orden,
       tipo: evento.tipo,
       jugadorId: evento.jugadorId,
-      // `ladoPunto` no nulo es exactamente «esta fila puntuó».
-      punto: evento.ladoPunto !== null
+      /*
+       * «Fue punto» significa «se lo llevó el lado de quien hizo la acción»,
+       * no «`ladoPunto` no es nulo». Con un tipo `aRival` (`saque_fallado`) el
+       * punto es del lado CONTRARIO al del jugador aunque exista: comparar
+       * sólo con `null` marcaría «Fue punto» al corregir un saque fallado
+       * hacia un bloqueo sin tocar el sí/no, y el punto —que era del
+       * rival— se lo llevaría el propio jugador. `ladoJugador` viaja en el
+       * evento (`EventoPublico`) exactamente para esta cuenta.
+       */
+      punto: evento.ladoPunto !== null && evento.ladoPunto === evento.ladoJugador
     };
     $("[data-anot-corregir-titulo]").textContent = `Corregir el punto ${evento.orden + 1}`;
 
