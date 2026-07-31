@@ -49,8 +49,6 @@
   let correccion = null;
   /** El suplente al que se ha tocado, esperando por quién entra. */
   let entrante = null;
-  /** La acción tocada que espera respuesta a «¿fue punto?». */
-  let preguntando = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
 
@@ -274,7 +272,6 @@
     if (guardando || datos.estado.terminado) return;
     elegido = jugador;
     entrante = null;
-    preguntando = null;
 
     $("[data-anot-elegido]").textContent = jugador.nombre;
     $("[data-anot-cambio]").hidden = true;
@@ -314,11 +311,19 @@
    * escrita aquí: con la regla copiada a mano, añadir un tipo la dejaría
    * mintiendo — que es exactamente lo que ya pasó con «todo menos defensa
    * puntúa».
+   *
+   * Los dos botones del tercer toque cierran sobre `tipo`, el parámetro de esta
+   * misma llamada — no sobre una variable compartida que otro gesto pudiera
+   * vaciar entretanto. Antes existía `preguntando` con ese papel y un
+   * `TypeError` esperaba agazapado detrás: tocar un suplente mientras la
+   * pregunta seguía abierta la ponía a `null` sin cerrar los botones, y pulsar
+   * «Fue punto» después reventaba leyendo `.clave` de `null` — en silencio,
+   * porque la promesa rechazada no la recogía nadie. Cerrar sobre el parámetro
+   * hace ese fallo irrepresentable en vez de vigilarlo con un test.
    */
   function elegirAccion(tipo) {
     if (tipo.punto !== "pregunta") return anotarPunto(tipo.clave);
 
-    preguntando = tipo;
     $("[data-anot-acciones]").hidden = true;
     $("[data-anot-punto]").hidden = false;
     $("[data-anot-punto-accion]").textContent = `${tipo.etiqueta} de ${elegido.nombre}`;
@@ -334,7 +339,7 @@
       boton.type = "button";
       boton.append(el("span", "anot-tipo-nombre", opcion.nombre));
       boton.append(el("span", "anot-tipo-ayuda", opcion.ayuda));
-      boton.addEventListener("click", () => anotarPunto(preguntando.clave, opcion.punto));
+      boton.addEventListener("click", () => anotarPunto(tipo.clave, opcion.punto));
       caja.append(boton);
     });
   }
@@ -342,7 +347,6 @@
   function cancelar() {
     elegido = null;
     entrante = null;
-    preguntando = null;
     $("[data-anot-acciones]").hidden = true;
     $("[data-anot-cambio]").hidden = true;
     $("[data-anot-punto]").hidden = true;
@@ -360,11 +364,17 @@
     if (guardando || datos.estado.terminado) return;
     entrante = jugador;
     elegido = null;
-    preguntando = null;
 
     $("[data-anot-entra]").textContent = jugador.nombre;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = true;
+    /*
+     * La pregunta «¿fue punto?» vive en el mismo hueco del pulgar que este
+     * cambio. Sin ocultarla aquí, tocar a un suplente con la pregunta todavía
+     * abierta dejaba dos bloques del pulgar apilados a la vez — el mismo hueco
+     * reclamado por dos preguntas contradictorias, y el presupuesto de alto
+     * que existe esta pantalla entera para respetar, roto.
+     */
     $("[data-anot-punto]").hidden = true;
     $("[data-anot-cambio]").hidden = false;
 

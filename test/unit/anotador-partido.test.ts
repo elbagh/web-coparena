@@ -585,6 +585,17 @@ describe("el tercer toque: bloqueo y chilena preguntan", () => {
     ]);
 
     opciones[1]!.click(); // «No fue punto»
+
+    /*
+     * Justo aquí, síncrono y antes de `respirar()`: la pintada optimista es
+     * síncrona, así que si `predecir` predijera un punto para un «no fue
+     * punto» el número subiría **ahora**, y el `finally` de `anotarPunto` no lo
+     * corregiría hasta que la promesa (mock) se resuelva. Con 4G de verdad esa
+     * ventana son 300–600 ms en los que el marcador mentiría solo, sin que
+     * nada en pantalla dijera que es provisional.
+     */
+    expect($("[data-anot-puntos-a]").textContent).toBe("0");
+
     await respirar();
 
     expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "bloqueo", punto: false });
@@ -646,6 +657,23 @@ describe("el tercer toque: bloqueo y chilena preguntan", () => {
     expect($("[data-anot-punto]").hidden).toBe(true);
     expect($("[data-anot-reposo]").hidden).toBe(false);
     expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  /*
+   * `[data-anot-cambio]` vive en el mismo hueco del pulgar que `[data-anot-punto]`.
+   * Sin cerrar la pregunta al abrir un cambio, los dos bloques quedaban
+   * apilados a la vez — dos preguntas contradictorias reclamando el mismo
+   * hueco, y el presupuesto de alto de esta pantalla roto de propina.
+   */
+  it("tocar a un suplente con la pregunta abierta cierra la pregunta", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect($("[data-anot-cambio]").hidden).toBe(false);
   });
 });
 
