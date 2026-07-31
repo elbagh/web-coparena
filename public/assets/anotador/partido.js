@@ -85,6 +85,8 @@
         ? `Sets ${sets.A}–${sets.B} · sin anotar`
         : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
 
+    pintarReloj();
+
     const parciales = $("[data-anot-parciales]");
     parciales.hidden = estado.historial.length === 0;
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
@@ -99,6 +101,29 @@
     pintarReposo(terminado);
     pintarExtras();
   }
+
+  /**
+   * El reloj del partido, al final de la línea de detalle.
+   *
+   * Corre solo, con su propio intervalo, y no con el repintado: esta pantalla no
+   * sondea nada —un partido sólo cambia cuando lo toca quien lo anota—, así que
+   * atado al repintado el reloj sólo avanzaría al anotar un punto.
+   *
+   * `elapsed()` de match-utils es la misma cuenta que usa el panel: mientras el
+   * partido está `live` suma desde `startedAt`, y al terminar se queda en
+   * `elapsedMs`, que es donde el servidor congela la duración final.
+   */
+  function pintarReloj() {
+    const nodo = $("[data-anot-reloj]");
+    if (!nodo || !datos) return;
+    const partido = datos.partido || {};
+    const corre = Boolean(partido.startedAt);
+    nodo.hidden = !corre;
+    if (!corre) return;
+    texto(nodo, ` · ${utils.formatClock(utils.elapsed(partido))}`);
+  }
+
+  window.setInterval(pintarReloj, 1000);
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
 

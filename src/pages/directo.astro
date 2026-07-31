@@ -73,7 +73,18 @@ const structuredData = [
         </div>
       </div>
 
-      <p class="versus-detalle" data-versus-detalle></p>
+      {/*
+        El reloj en su propio <span>: el detalle se escribe con textContent y se
+        llevaría cualquier hijo, y los dígitos necesitan `tabular-nums` para no
+        cambiar de ancho cada segundo.
+
+        Aquí el tictac hace además un trabajo que no hace en ningún otro sitio:
+        es la única señal continua de que la página está viva cuando el marcador
+        lleva un minuto quieto.
+      */}
+      <p class="versus-detalle">
+        <span data-versus-detalle></span><span class="versus-reloj" data-versus-reloj hidden></span>
+      </p>
       <p class="versus-parciales" data-versus-parciales hidden></p>
     </section>
 

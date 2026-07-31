@@ -30,7 +30,16 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <span class="anot-guion">–</span>
         <span class="anot-puntos anot-puntos--b" data-anot-puntos-b>0</span>
       </p>
-      <p class="anot-detalle" data-anot-detalle></p>
+      {/*
+        El reloj va en su propio <span> por dos razones. Una: `pintar()` escribe
+        el detalle con textContent, que se llevaría por delante cualquier hijo.
+        Y otra: necesita `tabular-nums`. Sin eso los dígitos cambian de ancho al
+        pasar de «11:11» a «00:00», y como esta línea va centrada se movería sola
+        cada segundo — en la pantalla cuya regla es que nada se mueve de sitio.
+      */}
+      <p class="anot-detalle">
+        <span data-anot-detalle></span><span class="anot-reloj" data-anot-reloj hidden></span>
+      </p>
       <p class="anot-parciales" data-anot-parciales hidden></p>
     </section>
 
