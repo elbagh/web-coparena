@@ -570,7 +570,7 @@ export async function corregirEvento(
  * A qué lado pertenece cada jugador que ha pisado este partido.
  *
  * La alineación **actual** manda, pero no basta: en cuanto hay un cambio, quien
- * salió de pista dejaría de poder recibir correcciones — y corregir «ese remate
+ * salió de pista dejaría de poder recibir correcciones — y corregir «ese punto
  * fue de Ana, no de Nuria» es justo lo que hace falta después de un cambio. El
  * log ya dice de qué lado jugaba cada uno, así que se completa con él.
  */

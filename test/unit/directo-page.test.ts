@@ -85,11 +85,11 @@ const PLANTILLA = {
     B: { id: 2, nombre: "Gaviotas", jugadores: [jugador(4, "Carla"), jugador(5, "Diana")] }
   },
   tipos: [
-    { clave: "remate", etiqueta: "Remate" },
+    { clave: "punto", etiqueta: "Punto" },
     { clave: "ace", etiqueta: "Ace" },
+    { clave: "saque_fallado", etiqueta: "Falló saque" },
     { clave: "bloqueo", etiqueta: "Bloqueo" },
-    { clave: "error", etiqueta: "Error" },
-    { clave: "defensa", etiqueta: "Defensa" }
+    { clave: "chilena", etiqueta: "Chilena" }
   ]
 };
 
@@ -110,8 +110,8 @@ const estadoBase = (extra: Record<string, unknown> = {}) => ({
   ],
   enPista: { A: [1, 2], B: [4, 5] },
   feed: [
-    { o: 0, t: "remate", j: 1, l: "A", p: "A", s: 1 },
-    { o: 1, t: "remate", j: 4, l: "B", p: "B", s: 1 },
+    { o: 0, t: "punto", j: 1, l: "A", p: "A", s: 1 },
+    { o: 1, t: "punto", j: 4, l: "B", p: "B", s: 1 },
     { o: 2, t: "ace", j: 2, l: "A", p: "A", s: 1 }
   ],
   feedTotal: 3,
@@ -317,7 +317,7 @@ describe("el historial", () => {
     await sondeo(estadoBase());
 
     const lineas = todos(".feed-linea .feed-que").map((n) => n.textContent);
-    expect(lineas).toEqual(["Ace de Berta", "Remate de Carla", "Remate de Ana"]);
+    expect(lineas).toEqual(["Ace de Berta", "Punto de Carla", "Punto de Ana"]);
 
     // El marcador se anda hacia atrás desde el actual (2–1).
     const cuando = todos(".feed-linea .feed-cuando").map((n) => n.textContent);
@@ -361,7 +361,7 @@ describe("el historial", () => {
     await montar();
     const estado = estadoBase();
     estado.feed = [
-      { o: 0, t: "remate", j: 1, l: "A", p: "A", s: 1 },
+      { o: 0, t: "punto", j: 1, l: "A", p: "A", s: 1 },
       { o: 0, c: 4, t: "cambio", j: 3, x: 2, l: "A", s: 1 } as never
     ];
     await sondeo(estado);

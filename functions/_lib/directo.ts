@@ -136,8 +136,8 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
  *
  * Y lleva `log_version` desde que el payload trae también quién está en pista y
  * el historial: fijar una alineación, registrar un cambio de jugador o anotar
- * una defensa no mueven el marcador, así que sin ese contador el espectador se
- * quedaba con un 304 y el cuerpo viejo.
+ * un bloqueo que no puntúa no mueven el marcador, así que sin ese contador el
+ * espectador se quedaba con un 304 y el cuerpo viejo.
  *
  * Y lleva los ajustes y el próximo partido por el mismo motivo, visto del revés:
  * lo que viaja en el cuerpo y no está en la versión es información que el

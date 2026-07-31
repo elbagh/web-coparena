@@ -5600,8 +5600,9 @@ html.js .directo-off[open] .directo-aviso {
 
 /*
  * Lo que va pasando, como el minuto a minuto de un partido de fútbol: cada
- * punto, cada bloqueo, cada error y cada cambio. En móvil va plegado, porque lo
- * que se mira de pie es el marcador; el script lo abre en pantalla grande.
+ * punto, cada bloqueo, cada saque fallado y cada cambio. En móvil va plegado,
+ * porque lo que se mira de pie es el marcador; el script lo abre en pantalla
+ * grande.
  */
 .feed {
   margin-top: 16px;
