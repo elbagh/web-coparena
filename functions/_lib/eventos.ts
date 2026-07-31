@@ -934,11 +934,16 @@ export async function adoptarMarcador(
 /**
  * Devuelve el mando al panel. El marcador derivado se queda congelado en las
  * columnas planas y el log se conserva: soltar no es borrar lo anotado.
+ *
+ * Y suelta el reclamo: quien lo llevaba deja de llevarlo, así que el siguiente
+ * anotador entra sin pedir el relevo. Es la salida limpia al terminar un partido.
  */
 export async function soltarAnotacion(db: D1Database, partidoId: string): Promise<void> {
   await db
     .prepare(
-      "UPDATE partidos SET origen_marcador = 'manual', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+      `UPDATE partidos SET origen_marcador = 'manual', anotador_usuario_id = NULL,
+              log_version = log_version + 1, updated_at = ?1
+        WHERE id = ?2`
     )
     .bind(new Date().toISOString(), partidoId)
     .run();

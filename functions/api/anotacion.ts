@@ -288,14 +288,30 @@ async function asegurarReclamo(
   if (await reclamarPartido(db, partido.id, usuarioId)) return null;
 
   // El CAS perdió: alguien lo reclamó entre la carga de la fila y este momento.
-  const fila = await db
-    .prepare(
-      `SELECT p.anotador_usuario_id AS id, u.nombre, u.email
-         FROM partidos p LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
-        WHERE p.id = ?1`
-    )
-    .bind(partido.id)
-    .first<{ id: number | null; nombre: string | null; email: string | null }>();
+  const relectura = () =>
+    db
+      .prepare(
+        `SELECT p.anotador_usuario_id AS id, u.nombre, u.email
+           FROM partidos p LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
+          WHERE p.id = ?1`
+      )
+      .bind(partido.id)
+      .first<{ id: number | null; nombre: string | null; email: string | null }>();
+
+  let fila = await relectura();
+
+  /*
+   * Entre perder el CAS y esta relectura, quien lo tenía puede haberlo
+   * soltado (`soltarAnotacion` pone la columna a NULL): la fila vuelve a
+   * enseñar libre sin que este usuario la haya reclamado de verdad. Sin este
+   * segundo intento, la petición seguiría adelante sobre un partido sin
+   * dueño en la base. Un solo reintento no es un cerrojo, pero cierra la
+   * ventana salvo que se suelte dos veces seguidas en el mismo instante.
+   */
+  if (fila && fila.id === null) {
+    if (await reclamarPartido(db, partido.id, usuarioId)) return null;
+    fila = await relectura();
+  }
 
   if (!fila || fila.id === null || fila.id === usuarioId) return null;
   return { id: fila.id, nombre: fila.nombre || fila.email };
@@ -367,6 +383,8 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
       case "soltar":
         await soltarAnotacion(env.DB, partido.id);
         return await respuesta(env.DB, partido, acceso.user.id);
+      case "relevo":
+        return await accionRelevo(env.DB, partido, acceso.user.id);
       default:
         return jsonAdmin({ error: "La acción no es válida." }, 400);
     }
@@ -560,6 +578,22 @@ async function accionAdoptar(
   // era el cuarto camino al final, y el único que no tocaba el cuadro.
   await sincronizarCuadro(db, partido.id);
   return await respuesta(db, partido, usuarioId, 201, resultado);
+}
+
+/**
+ * Toma el partido, lo lleve quien lo lleve.
+ *
+ * Sin condición y sin comprobar nada: es la salida del 409, y una salida que
+ * puede fallar no es una salida. Tampoco hace falta registrar el cambio de
+ * manos en ninguna parte, porque cada evento del log ya va firmado con su
+ * `usuario_id`.
+ */
+async function accionRelevo(db: D1Database, partido: PartidoAnotable, usuarioId: number): Promise<Response> {
+  await db
+    .prepare("UPDATE partidos SET anotador_usuario_id = ?1 WHERE id = ?2")
+    .bind(usuarioId, partido.id)
+    .run();
+  return await respuesta(db, partido, usuarioId);
 }
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {

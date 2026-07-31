@@ -201,3 +201,135 @@ describe("el reclamo", () => {
     }
   });
 });
+
+describe("el relevo", () => {
+  it("tras el relevo anota el nuevo y el anterior recibe 409", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId, local } = await montar(ana);
+
+    const relevo = await anotar(berta, partidoId, { accion: "relevo" });
+    expect(relevo.status).toBe(200);
+    expect(((await relevo.json()) as Respuesta).anotador.id).toBe(berta.id);
+
+    const suyo = await anotar(berta, partidoId, {
+      accion: "evento",
+      tipo: "punto",
+      jugadorId: local.jugadores[0]!.id,
+      ordenEsperado: 0
+    });
+    expect(suyo.status).toBe(201);
+
+    const delViejo = await anotar(ana, partidoId, {
+      accion: "evento",
+      tipo: "punto",
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 1
+    });
+    expect(delViejo.status).toBe(409);
+  });
+
+  /*
+   * Siempre disponible y nunca falla. Si al anterior anotador se le acabó la
+   * batería, el siguiente tiene que poder entrar sin llamar a nadie: por eso el
+   * reclamo es blando y no un cerrojo.
+   */
+  it("el relevo de un partido que no lleva nadie también vale", async () => {
+    const ana = await crearAdmin();
+    const { partidoId } = await partidoLibre();
+
+    const respuesta = await anotar(ana, partidoId, { accion: "relevo" });
+
+    expect(respuesta.status).toBe(200);
+    expect((await leer(ana, partidoId)).anotador.id).toBe(ana.id);
+  });
+
+  it("soltar libera el partido, y después lo anota otro sin relevo", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId, local } = await montar(ana);
+
+    expect((await anotar(ana, partidoId, { accion: "soltar" })).status).toBe(200);
+    expect((await leer(berta, partidoId)).anotador.id).toBeNull();
+
+    const respuesta = await anotar(berta, partidoId, {
+      accion: "alineacion",
+      lado: "A",
+      jugadorIds: local.jugadores.map((j) => j.id)
+    });
+    expect(respuesta.status).toBe(200);
+    expect((await leer(berta, partidoId)).anotador.id).toBe(berta.id);
+  });
+});
+
+/*
+ * `soltarAnotacion` pone `anotador_usuario_id` a NULL. Eso abre una ventana
+ * estrecha en `asegurarReclamo`: si el CAS de reclamar pierde justo cuando
+ * quien lo llevaba lo acaba de soltar, la relectura ve el partido libre y,
+ * sin un segundo intento, la petición seguiría adelante sin haberlo
+ * reclamado de verdad — el partido quedaría escribiéndose sin dueño en la
+ * base.
+ *
+ * Reproducir esa ventana con dos peticiones reales y una carrera de verdad
+ * sería no determinista. En su lugar se fuerza aquí: se intercepta sólo la
+ * primera consulta del CAS para que informe de que perdió (0 filas), sin
+ * llegar a ejecutarse — así el partido queda libre de verdad en la base,
+ * igual que si alguien lo hubiera soltado justo antes de la relectura.
+ */
+describe("la ventana entre perder el CAS y releer", () => {
+  /** Hace que la primera consulta del CAS de reclamo informe de que perdió, sin tocar la base. */
+  function conPrimerCasFallido(db: D1Database): D1Database {
+    const preparar = db.prepare.bind(db);
+    let interceptado = false;
+    return new Proxy(db, {
+      get: (objetivo, prop, receptor) => {
+        if (prop !== "prepare") return Reflect.get(objetivo, prop, receptor);
+        return (sql: string) => {
+          if (interceptado || !sql.includes("AND anotador_usuario_id IS NULL")) return preparar(sql);
+          interceptado = true;
+          return {
+            bind: () => ({
+              run: async () =>
+                ({
+                  success: true,
+                  results: [],
+                  meta: {
+                    duration: 0,
+                    size_after: 0,
+                    rows_read: 0,
+                    rows_written: 0,
+                    last_row_id: 0,
+                    changed_db: false,
+                    changes: 0
+                  }
+                }) as unknown as D1Result
+            })
+          } as unknown as D1PreparedStatement;
+        };
+      }
+    }) as D1Database;
+  }
+
+  it("reintenta el CAS y reclama de verdad en vez de seguir sin dueño", async () => {
+    const berta = await crearAdmin();
+    const { partidoId, local } = await partidoLibre();
+
+    const entorno = { ...env, DB: conPrimerCasFallido(env.DB) };
+    const respuesta = await onRequestPost(
+      ctx(
+        await peticion(`/api/anotacion?partido=${partidoId}`, {
+          method: "POST",
+          user: berta,
+          json: { accion: "alineacion", lado: "A", jugadorIds: local.jugadores.map((j) => j.id) }
+        }),
+        entorno
+      )
+    );
+
+    // La primera consulta del CAS «perdió»: si no hubiera reintento, esto
+    // sería un 409 contra un dueño fantasma, o pasaría sin haber reclamado
+    // nada. Con el reintento, la segunda consulta sí es real y reclama.
+    expect(respuesta.status).toBe(200);
+    expect((await leer(berta, partidoId)).anotador.id).toBe(berta.id);
+  });
+});
