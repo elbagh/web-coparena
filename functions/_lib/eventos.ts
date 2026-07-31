@@ -38,6 +38,8 @@ export interface PartidoAnotable {
   reglas: string;
   started_at: string | null;
   elapsed_ms: number;
+  /** Quién lleva la anotación, o `null` si no la lleva nadie. */
+  anotador_usuario_id: number | null;
 }
 
 export interface AlineacionFila {

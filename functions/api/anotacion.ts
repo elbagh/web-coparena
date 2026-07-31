@@ -46,15 +46,29 @@ import { propagarResultado, sincronizarCuadro } from "../_lib/torneo";
  */
 const MAXIMO_EN_PISTA = 30;
 
-const SELECT_PARTIDO = `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id,
-                               points_a, points_b, sets_a, sets_b, reglas, started_at, elapsed_ms
-                          FROM partidos WHERE id = ?1`;
+/*
+ * El nombre de quien lleva el partido viaja con la propia fila, no en una
+ * consulta aparte: esta carga la hace cada punto anotado.
+ */
+const SELECT_PARTIDO = `SELECT p.id, p.status, p.origen_marcador, p.equipo_a_id, p.equipo_b_id,
+                               p.points_a, p.points_b, p.sets_a, p.sets_b, p.reglas, p.started_at,
+                               p.elapsed_ms, p.updated_at, p.anotador_usuario_id,
+                               u.nombre AS anotador_nombre, u.email AS anotador_email
+                          FROM partidos p
+                          LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
+                         WHERE p.id = ?1`;
+
+export type PartidoConAnotador = PartidoAnotable & {
+  updated_at: string;
+  anotador_nombre: string | null;
+  anotador_email: string | null;
+};
 
 const idDelPartido = (url: URL) => url.searchParams.get("partido") || "";
 
-async function cargarPartido(db: D1Database, id: string) {
+async function cargarPartido(db: D1Database, id: string): Promise<PartidoConAnotador | null> {
   if (!id) return null;
-  return await db.prepare(SELECT_PARTIDO).bind(id).first<PartidoAnotable>();
+  return await db.prepare(SELECT_PARTIDO).bind(id).first<PartidoConAnotador>();
 }
 
 /**
@@ -138,6 +152,7 @@ async function plantillas(db: D1Database, partido: PartidoAnotable) {
 async function respuesta(
   db: D1Database,
   partido: PartidoAnotable,
+  usuarioId: number,
   status = 200,
   yaLeido?: ResultadoAnotacion
 ): Promise<Response> {
@@ -169,6 +184,21 @@ async function respuesta(
        */
       marcadorPanel: marcadorPlano(fresco),
       pendienteDeAdoptar: hayMarcadorAMano(fresco, estado.estado),
+      /*
+       * `puedeAnotar`, no `esMio`. Se separan justo en el caso más frecuente al
+       * abrir un partido: todavía no lo lleva nadie. Con «es mío» ese estado
+       * sería `false` y la pantalla arrancaría en modo lectura pidiendo un
+       * relevo a nadie.
+       */
+      anotador: {
+        id: fresco.anotador_usuario_id,
+        nombre:
+          fresco.anotador_usuario_id === null ? null : fresco.anotador_nombre || fresco.anotador_email,
+        puedeAnotar: fresco.anotador_usuario_id === null || fresco.anotador_usuario_id === usuarioId
+      },
+      // La última escritura del anotador. Como sólo el dueño escribe, es «la
+      // última vez que anotó quien lo lleva».
+      ultimaActividad: fresco.updated_at,
       alineacion,
       // Los cambios no son eventos del log: viajan aparte y el cliente los
       // mezcla con los puntos por `trasOrden` para pintar el historial.
@@ -200,7 +230,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 
     const partido = await cargarPartido(env.DB, id);
     if (!partido) return jsonAdmin({ error: "Ese partido ya no existe." }, 404);
-    return await respuesta(env.DB, partido);
+    return await respuesta(env.DB, partido, acceso.user.id);
   } catch (err) {
     console.error("Error leyendo la anotación:", err);
     return jsonAdmin({ error: "No se ha podido cargar el partido." }, 500);
@@ -261,21 +291,21 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
       case "evento":
         return await accionEvento(env.DB, partido, body, acceso.user.id);
       case "deshacer":
-        return await accionDeshacer(env.DB, partido, body);
+        return await accionDeshacer(env.DB, partido, body, acceso.user.id);
       case "corregir":
-        return await accionCorregir(env.DB, partido, body);
+        return await accionCorregir(env.DB, partido, body, acceso.user.id);
       case "alineacion":
-        return await accionAlineacion(env.DB, partido, body);
+        return await accionAlineacion(env.DB, partido, body, acceso.user.id);
       case "cambio":
         return await accionCambio(env.DB, partido, body, acceso.user.id);
       case "cambio-deshacer":
         await deshacerCambio(env.DB, partido);
-        return await respuesta(env.DB, partido);
+        return await respuesta(env.DB, partido, acceso.user.id);
       case "adoptar":
         return await accionAdoptar(env.DB, partido, acceso.user.id, body.desdeCero === true);
       case "soltar":
         await soltarAnotacion(env.DB, partido.id);
-        return await respuesta(env.DB, partido);
+        return await respuesta(env.DB, partido, acceso.user.id);
       default:
         return jsonAdmin({ error: "La acción no es válida." }, 400);
     }
@@ -335,13 +365,14 @@ async function accionEvento(
   // `sincronizarCuadro`: un punto puede cerrar un partido, nunca abrirlo.
   await propagarResultado(db, partido.id);
 
-  return await respuesta(db, partido, 201, resultado);
+  return await respuesta(db, partido, usuarioId, 201, resultado);
 }
 
 async function accionDeshacer(
   db: D1Database,
   partido: PartidoAnotable,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  usuarioId: number
 ): Promise<Response> {
   const orden = ordenDe(body);
   if (orden === null) return jsonAdmin({ error: "Falta el orden del evento a deshacer." }, 400);
@@ -350,13 +381,14 @@ async function accionDeshacer(
   // Deshacer el punto que cerró el partido le quita el ganador: la plaza que
   // había dado en la ronda siguiente tiene que volver a quedar libre.
   await sincronizarCuadro(db, partido.id);
-  return await respuesta(db, partido, 200, resultado);
+  return await respuesta(db, partido, usuarioId, 200, resultado);
 }
 
 async function accionCorregir(
   db: D1Database,
   partido: PartidoAnotable,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  usuarioId: number
 ): Promise<Response> {
   const orden = Number(body.orden);
   if (!Number.isInteger(orden) || orden < 0) return jsonAdmin({ error: "Indica qué evento corregir." }, 400);
@@ -373,7 +405,7 @@ async function accionCorregir(
   // Corregir puede cambiar quién ganó, y puede dejarlo sin ganador: el cuadro
   // tiene que seguir a las dos.
   await sincronizarCuadro(db, partido.id);
-  return await respuesta(db, partido, 200, resultado);
+  return await respuesta(db, partido, usuarioId, 200, resultado);
 }
 
 /**
@@ -429,13 +461,14 @@ async function accionCambio(
   }
 
   await registrarCambio(db, partido, entra, sale, usuarioId);
-  return await respuesta(db, partido, 201);
+  return await respuesta(db, partido, usuarioId, 201);
 }
 
 async function accionAlineacion(
   db: D1Database,
   partido: PartidoAnotable,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  usuarioId: number
 ): Promise<Response> {
   const lado = body.lado === "B" ? "B" : "A";
   const brutos = Array.isArray(body.jugadorIds) ? body.jugadorIds : [];
@@ -452,7 +485,7 @@ async function accionAlineacion(
   }
 
   await fijarAlineacion(db, partido.id, lado, ids);
-  return await respuesta(db, partido);
+  return await respuesta(db, partido, usuarioId);
 }
 
 async function accionAdoptar(
@@ -465,7 +498,7 @@ async function accionAdoptar(
   // Adoptar un partido que ya venía ganado a mano también lo deja `finished`:
   // era el cuarto camino al final, y el único que no tocaba el cuadro.
   await sincronizarCuadro(db, partido.id);
-  return await respuesta(db, partido, 201, resultado);
+  return await respuesta(db, partido, usuarioId, 201, resultado);
 }
 
 export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) => {
@@ -478,7 +511,7 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   // Vía de escape: volver a derivar todo desde el log si algo quedó descuadrado.
   try {
     const resultado = await recalcularPartido(env.DB, partido);
-    return await respuesta(env.DB, partido, 200, resultado);
+    return await respuesta(env.DB, partido, acceso.user.id, 200, resultado);
   } catch (err) {
     console.error("Error recalculando:", err);
     return jsonAdmin({ error: "No se ha podido recalcular." }, 500);
