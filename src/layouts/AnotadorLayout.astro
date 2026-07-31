@@ -77,5 +77,18 @@ const { titulo, volverA = "/anotador/", avisoJuntoAlPulgar = false } = Astro.pro
     </div>
   </div>
 
+  {/*
+    El script de Google, igual que en AdminLayout y en las tres páginas públicas
+    con login. Va aquí y no en BaseLayout porque BaseLayout lo sirve TODO —
+    incluida la portada— y no se le carga un tercero a quien solo viene a mirar
+    el cuadro.
+
+    Faltaba. Esta pantalla nació copiando de AdminLayout la tarjeta
+    [data-google-login] y dejándose el <script>, así que quien entraba sin sesión
+    veía el recuadro de «Zona de anotadores» y, cuatro segundos después, «No se
+    ha podido cargar el botón de Google» — sin botón que pulsar y sin forma de
+    entrar. `test/unit/paridad-login-google.test.ts` empareja las dos cosas.
+  */}
+  <script is:inline src="https://accounts.google.com/gsi/client" async defer></script>
   <slot name="scripts" />
 </BaseLayout>
