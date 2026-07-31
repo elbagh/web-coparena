@@ -88,13 +88,20 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 
       <div class="anot-acciones" data-anot-acciones hidden>
         <p class="anot-pregunta"><strong data-anot-elegido></strong> · ¿qué hizo?</p>
+        {/*
+          Dos grupos y ningún rótulo. Dos encabezados costarían ~36px en la
+          pantalla cuyo presupuesto de alto ya está gastado; la separación la
+          llevan los propios botones — el filete, el borde discontinuo del
+          segundo grupo y el ancho completo de «Falló saque», que es la única
+          acción cuyo punto cruza la red.
+        */}
         <div class="anot-tipos" data-anot-tipos></div>
+        <div class="anot-tipos anot-tipos--extra" data-anot-tipos-extra></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cancelar>Cancelar</button>
       </div>
 
       {/*
-      {/*
-        El tercer estado de la franja, y ocupa el mismo hueco que los otros dos:
+        El tercer estado de la franja, y ocupa el mismo hueco que las otras tres:
         el segundo toque de un cambio cae donde ya está el pulgar, igual que el
         de un punto.
       */}
@@ -102,6 +109,20 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <p class="anot-pregunta">¿Por quién entra <strong data-anot-entra></strong>?</p>
         <div class="anot-tipos" data-anot-cambio-opciones></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cambio-cancelar>Cancelar</button>
+      </div>
+
+      {/*
+        El cuarto estado de la franja, y ocupa el mismo hueco que los otros tres.
+        Bloqueo y chilena no dicen por sí solos si el rally acabó en punto, así
+        que se pregunta — con la misma gramática que «¿por quién entra?»: el
+        toque cae donde ya está el pulgar.
+
+        En pasado: aquí se registra lo que pasó, no lo que debería pasar.
+      */}
+      <div class="anot-punto" data-anot-punto hidden>
+        <p class="anot-pregunta"><strong data-anot-punto-accion></strong></p>
+        <div class="anot-tipos" data-anot-punto-opciones></div>
+        <button type="button" class="anot-btn anot-btn--cancelar" data-anot-punto-cancelar>Cancelar</button>
       </div>
 
       {/*
@@ -152,6 +173,21 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 
       <p class="anot-etiqueta">Acción</p>
       <div class="anot-tipos" data-anot-corregir-tipos></div>
+
+      {/*
+        Sólo con bloqueo y chilena: los demás tipos ya deciden solos si hubo
+        punto. Si no se toca, la corrección conserva lo que la fila ya decía —
+        cambiar a quién se atribuye un bloqueo no debe mover el marcador.
+      */}
+      <div data-anot-corregir-punto hidden>
+        <p class="anot-etiqueta">¿Ganó el punto?</p>
+        <div class="anot-tipos">
+          <button type="button" class="anot-btn anot-btn--tipo" data-punto="true">Fue punto</button>
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--no" data-punto="false">
+            No fue punto
+          </button>
+        </div>
+      </div>
 
       <p class="anot-etiqueta">Quién la hizo</p>
       <div class="anot-corregir-quien" data-anot-corregir-jugadores></div>

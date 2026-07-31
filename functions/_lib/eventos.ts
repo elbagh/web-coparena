@@ -13,12 +13,11 @@
 // gratuito de D1: no hay ninguna razón para pagar ese riesgo.
 
 import {
+  ACCION_POR_CLAVE,
   aplicarEvento,
-  estadisticasDeEventos,
   ladoDelPunto,
   marcadorInicial,
   plegarEventos,
-  PUNTUA,
   type EstadoMarcador,
   type EventoFila,
   type Lado,
@@ -69,14 +68,13 @@ export interface EventoNuevo {
   ladoPunto: Lado | null;
 }
 
-const TIPOS_ANOTABLES = new Set<TipoEvento>(["remate", "ace", "bloqueo", "defensa", "error"]);
-
 /**
- * Valida lo que manda el cliente. Solo llegan `tipo` y `jugadorId`: el lado del
- * jugador sale de la alineación y el lado del punto lo calcula el servidor.
+ * Valida lo que manda el cliente. Del cuerpo sólo se leen `tipo`, `jugadorId` y
+ * —con los tipos que preguntan— `punto`: el lado del jugador sale de la
+ * alineación y el lado del punto lo calcula el servidor.
  *
- * Aceptar cualquiera de los dos del cliente sería regalar la posibilidad de
- * invertir el marcador, y el daño no se vería hasta el final del torneo.
+ * Aceptar cualquiera de los dos lados del cliente sería regalar la posibilidad
+ * de invertir el marcador, y el daño no se vería hasta el final del torneo.
  */
 export function validarEvento(
   body: Record<string, unknown>,
@@ -85,12 +83,24 @@ export function validarEvento(
   const campos: Record<string, string> = {};
 
   const tipo = String(body.tipo || "") as TipoEvento;
-  if (!TIPOS_ANOTABLES.has(tipo)) campos.tipo = "Esa acción no existe.";
+  const accion = ACCION_POR_CLAVE.get(tipo);
+  if (!accion) campos.tipo = "Esa acción no existe.";
 
   const jugadorId = Number(body.jugadorId);
   const enPista = alineacion.find((fila) => fila.jugador_id === jugadorId);
   if (!Number.isInteger(jugadorId) || jugadorId <= 0) campos.jugadorId = "Elige a quien hizo la acción.";
   else if (!enPista) campos.jugadorId = "Esa persona no está en la alineación de este partido.";
+
+  /*
+   * Con bloqueo y chilena, si el rally acabó en punto lo decide quien anota. No
+   * hay valor por defecto a propósito: caer del lado de «sí» inventaría puntos y
+   * caer del lado de «no» los perdería, y las dos cosas en silencio.
+   */
+  let puntua: boolean | undefined;
+  if (accion?.punto === "pregunta") {
+    if (typeof body.punto !== "boolean") campos.punto = "Dinos si ganó el punto.";
+    else puntua = body.punto;
+  }
 
   if (Object.keys(campos).length > 0) return { campos };
 
@@ -99,7 +109,7 @@ export function validarEvento(
       tipo,
       jugadorId,
       ladoJugador: enPista!.lado,
-      ladoPunto: ladoDelPunto(tipo, enPista!.lado)
+      ladoPunto: ladoDelPunto(tipo, enPista!.lado, puntua)
     }
   };
 }
@@ -226,9 +236,10 @@ async function leerEventos(db: D1Database, partidoId: string): Promise<EventoFil
  *
  * Va en la misma fila de `partidos` que `versionDirecto` ya lee, así que cubrir
  * las escrituras que no tocan el marcador —la alineación, un cambio de jugador,
- * una defensa— no encarece el camino barato (el 304). Devuelve la sentencia en
- * vez de ejecutarla para que entre en el mismo `batch` que la provoca: un
- * contador que no sube deja al espectador con el cuerpo viejo y sin saberlo.
+ * un bloqueo que no puntúa— no encarece el camino barato (el 304). Devuelve la
+ * sentencia en vez de ejecutarla para que entre en el mismo `batch` que la
+ * provoca: un contador que no sube deja al espectador con el cuerpo viejo y sin
+ * saberlo.
  */
 export const sentenciaLogVersion = (db: D1Database, partidoId: string): D1PreparedStatement =>
   db.prepare("UPDATE partidos SET log_version = log_version + 1, updated_at = ?1 WHERE id = ?2").bind(
@@ -281,25 +292,31 @@ function sentenciasDerivadas(
     /*
      * Las estadísticas sí son un agregado puro, así que caben en una sentencia
      * sea cual sea el número de jugadores. `puntos` cuenta las acciones que
-     * ganaron el punto para el propio equipo: un error da punto al rival y por
-     * eso no suma puntos a nadie, solo errores a quien lo comete.
+     * ganaron el punto para el propio equipo, y quien lo dice es `lado_punto`:
+     * el saque fallado apunta al rival y por eso no suma puntos a nadie, y el
+     * mismo bloqueo suma punto o no según el evento.
+     *
+     * Es la ÚNICA implementación de este reparto. Había un espejo en TS
+     * (`estadisticasDeEventos`) que sólo veían los tests; se borró para que no
+     * hubiera dos versiones de la misma regla esperando a discrepar. Lo que
+     * prueba esta sentencia son los tests de integración, leyendo la tabla de
+     * una D1 real después de anotar.
      */
     db
       .prepare(
-        `INSERT INTO estadisticas (jugador_id, partido_id, puntos, remates, bloqueos, aces, defensas, errores)
+        `INSERT INTO estadisticas (jugador_id, partido_id, puntos, bloqueos, chilenas, aces, saques_fallados)
          SELECT jugador_id, partido_id,
-                SUM(CASE WHEN tipo IN ('remate','ace','bloqueo','error') AND lado_punto = lado_jugador THEN 1 ELSE 0 END),
-                SUM(CASE WHEN tipo = 'remate' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN lado_punto = lado_jugador THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo = 'bloqueo' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo = 'chilena' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo = 'ace' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN tipo = 'defensa' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN tipo = 'error' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN tipo = 'saque_fallado' THEN 1 ELSE 0 END)
            FROM partido_eventos
           WHERE partido_id = ?1 AND jugador_id IS NOT NULL AND tipo <> 'ajuste'
           GROUP BY jugador_id, partido_id
          ON CONFLICT(jugador_id, partido_id) DO UPDATE SET
-           puntos = excluded.puntos, remates = excluded.remates, bloqueos = excluded.bloqueos,
-           aces = excluded.aces, defensas = excluded.defensas, errores = excluded.errores,
+           puntos = excluded.puntos, bloqueos = excluded.bloqueos, chilenas = excluded.chilenas,
+           aces = excluded.aces, saques_fallados = excluded.saques_fallados,
            updated_at = datetime('now')`
       )
       .bind(partido.id),
@@ -499,7 +516,7 @@ export async function corregirEvento(
   db: D1Database,
   partido: PartidoAnotable,
   orden: number,
-  cambios: { tipo?: TipoEvento; jugadorId?: number },
+  cambios: { tipo?: TipoEvento; jugadorId?: number; punto?: boolean },
   alineacion: readonly AlineacionFila[]
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
@@ -514,16 +531,31 @@ export async function corregirEvento(
   const tipo = cambios.tipo ?? actual.tipo;
   const jugadorId = cambios.jugadorId ?? actual.jugador_id!;
   const lado = ladosDelPartido(eventos, alineacion).get(jugadorId);
-  if (!TIPOS_ANOTABLES.has(tipo) || !lado) {
+  if (!ACCION_POR_CLAVE.has(tipo) || !lado) {
     throw new ErrorDeAnotacion("Revisa la acción y a quién se le atribuye.");
   }
+
+  /*
+   * Si no se dice nada, se conserva lo que la fila ya afirmaba: corregir sólo a
+   * quién se atribuye un bloqueo no puede mover el marcador de propina.
+   *
+   * «Lo que la fila ya afirmaba» es «se lo llevó el lado de quien hizo la
+   * acción», no «`lado_punto` no es nulo» — mirar sólo la nulidad es la misma
+   * trampa que costó un Crítico en el cliente (`partido.js`, `abrirCorreccion`).
+   * Con un tipo `aRival` (`saque_fallado`) el punto es del lado CONTRARIO al
+   * del jugador aunque `lado_punto` exista: una corrección que cambia el tipo
+   * a `bloqueo` sin mandar `punto` heredaría ese «sí» y se lo daría al propio
+   * jugador en vez de al rival que lo tenía, volcando el marcador en dos
+   * puntos y sumando uno de más en la ficha de quien corrige.
+   */
+  const puntua = cambios.punto ?? (actual.lado_punto !== null && actual.lado_punto === actual.lado_jugador);
 
   const corregido: EventoFila = {
     ...actual,
     tipo,
     jugador_id: jugadorId,
     lado_jugador: lado,
-    lado_punto: ladoDelPunto(tipo, lado)
+    lado_punto: ladoDelPunto(tipo, lado, puntua)
   };
   const nuevos = [...eventos];
   nuevos[indice] = corregido;
@@ -547,7 +579,7 @@ export async function corregirEvento(
  * A qué lado pertenece cada jugador que ha pisado este partido.
  *
  * La alineación **actual** manda, pero no basta: en cuanto hay un cambio, quien
- * salió de pista dejaría de poder recibir correcciones — y corregir «ese remate
+ * salió de pista dejaría de poder recibir correcciones — y corregir «ese punto
  * fue de Ana, no de Nuria» es justo lo que hace falta después de un cambio. El
  * log ya dice de qué lado jugaba cada uno, así que se completa con él.
  */
@@ -566,10 +598,10 @@ function ladosDelPartido(
 /**
  * Reescribe el `set_numero` de lo que haya cambiado de set al replegar.
  *
- * Corregir un evento antiguo puede mover una frontera de set (convertir una
- * defensa en remate desplaza todo lo posterior), y la columna guardada es lo que
- * lee el historial público: sin esto, el feed diría «Set 2» en líneas del set 1
- * y sería un fallo invisible para cualquier test que solo mire el marcador.
+ * Corregir un evento antiguo puede mover una frontera de set (decir que aquel
+ * bloqueo sí ganó el punto desplaza todo lo posterior), y la columna guardada es
+ * lo que lee el historial público: sin esto, el feed diría «Set 2» en líneas del
+ * set 1 y sería un fallo invisible para cualquier test que solo mire el marcador.
  * Los cambios de jugador se anclan a un evento, así que se recolocan igual.
  */
 async function sentenciasSetNumero(
@@ -887,5 +919,3 @@ export async function leerAlineacion(db: D1Database, partidoId: string): Promise
     .all<AlineacionFila>();
   return results;
 }
-
-export { PUNTUA };

@@ -136,8 +136,8 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
  *
  * Y lleva `log_version` desde que el payload trae también quién está en pista y
  * el historial: fijar una alineación, registrar un cambio de jugador o anotar
- * una defensa no mueven el marcador, así que sin ese contador el espectador se
- * quedaba con un 304 y el cuerpo viejo.
+ * un bloqueo que no puntúa no mueven el marcador, así que sin ese contador el
+ * espectador se quedaba con un 304 y el cuerpo viejo.
  *
  * Y lleva los ajustes y el próximo partido por el mismo motivo, visto del revés:
  * lo que viaja en el cuerpo y no está en la versión es información que el
@@ -450,7 +450,7 @@ export async function plantillaPublica(db: D1Database, partidoId: string) {
     },
     /*
      * Las etiquetas de las acciones viajan aquí y no en el sondeo: el historial
-     * público necesita escribir «Remate» o «Bloqueo», y esta respuesta se pide
+     * público necesita escribir «Punto» o «Bloqueo», y esta respuesta se pide
      * una vez y se cachea. Mandarlas en cada sondeo serían las mismas cinco
      * palabras cien veces por minuto; copiarlas al cliente sería una lista más
      * que mantener a mano.

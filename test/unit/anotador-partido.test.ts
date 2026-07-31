@@ -72,12 +72,18 @@ const MARCADO = `
       <div data-anot-acciones hidden>
         <p><strong data-anot-elegido></strong></p>
         <div data-anot-tipos></div>
+        <div data-anot-tipos-extra></div>
         <button type="button" data-anot-cancelar>Cancelar</button>
       </div>
       <div data-anot-cambio hidden>
         <p>¿Por quién entra <strong data-anot-entra></strong>?</p>
         <div data-anot-cambio-opciones></div>
         <button type="button" data-anot-cambio-cancelar>Cancelar</button>
+      </div>
+      <div data-anot-punto hidden>
+        <p><strong data-anot-punto-accion></strong></p>
+        <div data-anot-punto-opciones></div>
+        <button type="button" data-anot-punto-cancelar>Cancelar</button>
       </div>
 
       <p class="anot-alerta anot-alerta--pulgar" role="alert" data-anot-error hidden></p>
@@ -102,6 +108,10 @@ const MARCADO = `
   <dialog data-anot-dialogo-corregir>
     <h2 data-anot-corregir-titulo></h2>
     <div data-anot-corregir-tipos></div>
+    <div data-anot-corregir-punto hidden>
+      <button type="button" data-punto="true">Fue punto</button>
+      <button type="button" data-punto="false">No fue punto</button>
+    </div>
     <div data-anot-corregir-jugadores></div>
     <button type="button" data-anot-corregir-cancelar>Cancelar</button>
     <button type="button" data-anot-corregir-guardar>Guardar la corrección</button>
@@ -367,7 +377,7 @@ describe("meter a un suplente", () => {
     await montar(
       respuesta({
         eventos: [
-          { orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+          { orden: 0, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
         ],
         siguienteOrden: 1,
         cambios: [{ id: 3, trasOrden: 0, lado: "A", entra: 4, sale: 2, setNumero: 1 }],
@@ -394,7 +404,7 @@ describe("la vibración", () => {
 
     await montar(respuesta());
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     const retrato = botones("[data-anot-mitad-a] .anot-jugador")[0]!.querySelector(".retrato")!;
@@ -464,9 +474,10 @@ describe("los dos toques", () => {
   /*
    * La predicción existe para que el número se mueva antes de que conteste el
    * servidor. Quién se lleva el punto sale de `tipos`, que lo trae el servidor:
-   * el error da el punto al RIVAL, y esa regla estaba escrita a mano aquí.
+   * el saque fallado es el único cuyo punto cruza la red, y esa regla estaba
+   * escrita a mano aquí.
    */
-  it("un error pinta el punto del rival sin esperar al servidor", async () => {
+  it("un saque fallado pinta el punto del rival sin esperar al servidor", async () => {
     await montar(respuesta());
 
     let resolver: ((valor: Response) => void) | null = null;
@@ -482,25 +493,211 @@ describe("los dos toques", () => {
     );
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--error")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--saque_fallado")[0]!.click();
     await respirar();
 
     // La petición está en el aire y el marcador ya se movió, del lado B.
     expect($("[data-anot-puntos-a]").textContent).toBe("0");
     expect($("[data-anot-puntos-b]").textContent).toBe("1");
-    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "error", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "saque_fallado", jugadorId: 1 });
 
     resolver!(new Response(JSON.stringify(respuesta({ estado: { setNumero: 1, puntos: { A: 0, B: 1 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null } })), { status: 200 }));
   });
 
-  it("una defensa no mueve el marcador", async () => {
+  /*
+   * Bloqueo y chilena no las decide el tipo, sino quien anota rally a rally.
+   * Mientras no haya respuesta no hay nada que predecir: adivinar aquí sería
+   * pintar un punto que el servidor puede no llegar a guardar.
+   */
+  it("un bloqueo no mueve el marcador mientras no se diga que fue punto", async () => {
     await montar(respuesta());
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--defensa")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
 
     expect($("[data-anot-puntos-a]").textContent).toBe("0");
     expect($("[data-anot-puntos-b]").textContent).toBe("0");
+  });
+
+  /*
+   * Quién va en cada grupo lo dice `tipos[].punto`, que manda el servidor: los
+   * que suman siempre (punto, ace, saque_fallado) en un lado, los que sólo
+   * cuentan estadística mientras no se confirme el punto (bloqueo, chilena) en
+   * el otro. No hay una lista de claves escrita aquí a propósito — sería una
+   * copia de la regla del servidor esperando a desincronizarse.
+   */
+  it("separa las acciones que suman punto de las que sólo cuentan", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    const suman = [...document.querySelectorAll("[data-anot-tipos] button")].map(
+      (b) => b.querySelector(".anot-tipo-nombre")!.textContent
+    );
+    const cuentan = [...document.querySelectorAll("[data-anot-tipos-extra] button")].map(
+      (b) => b.querySelector(".anot-tipo-nombre")!.textContent
+    );
+
+    expect(suman).toEqual(["Punto", "Ace", "Falló saque"]);
+    expect(cuentan).toEqual(["Bloqueo", "Chilena"]);
+  });
+
+  /*
+   * `bloqueo` y `chilena` no traen `ayuda` (decisión de diseño: era la única de
+   * las dos que sólo repetía la etiqueta) — si el servidor no la manda, el
+   * cliente no debe fabricar un `<span>` vacío, que ocuparía el mismo alto sin
+   * decir nada.
+   */
+  it("no pinta el subtítulo de ayuda cuando el tipo no lo trae", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    const conAyuda = botones("[data-anot-tipos] .anot-btn--tipo").map(
+      (b) => b.querySelector(".anot-tipo-ayuda") !== null
+    );
+    const sinAyuda = botones("[data-anot-tipos-extra] .anot-btn--tipo").map(
+      (b) => b.querySelector(".anot-tipo-ayuda") !== null
+    );
+
+    expect(conAyuda).toEqual([true, true, true]);
+    expect(sinAyuda).toEqual([false, false]);
+  });
+});
+
+/*
+ * El tercer toque. Bloqueo y chilena no dicen por sí solos si el rally acabó en
+ * punto, así que antes de anotar se pregunta — en la misma zona del pulgar,
+ * con la misma gramática que «¿por quién entra?».
+ */
+describe("el tercer toque: bloqueo y chilena preguntan", () => {
+  it("un bloqueo pregunta si fue punto antes de anotar", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    // El bloqueo vive en el grupo de los que sólo cuentan.
+    const bloqueo = botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!;
+    bloqueo.click();
+
+    expect($("[data-anot-punto]").hidden).toBe(false);
+    expect($("[data-anot-acciones]").hidden).toBe(true);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+
+    const opciones = botones("[data-anot-punto-opciones] button");
+    expect(opciones).toHaveLength(2);
+    expect(opciones.map((b) => b.querySelector(".anot-tipo-nombre")!.textContent)).toEqual([
+      "Fue punto",
+      "No fue punto"
+    ]);
+
+    opciones[1]!.click(); // «No fue punto»
+
+    /*
+     * Justo aquí, síncrono y antes de `respirar()`: la pintada optimista es
+     * síncrona, así que si `predecir` predijera un punto para un «no fue
+     * punto» el número subiría **ahora**, y el `finally` de `anotarPunto` no lo
+     * corregiría hasta que la promesa (mock) se resuelva. Con 4G de verdad esa
+     * ventana son 300–600 ms en los que el marcador mentiría solo, sin que
+     * nada en pantalla dijera que es provisional.
+     */
+    expect($("[data-anot-puntos-a]").textContent).toBe("0");
+
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "bloqueo", punto: false });
+  });
+
+  it("«Fue punto» manda punto: true y predice el marcador sin esperar al servidor", async () => {
+    await montar(respuesta());
+
+    let resolver: ((valor: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (url: string, opciones?: { body?: string }) =>
+          new Promise<Response>((res) => {
+            peticiones.push({ url, cuerpo: opciones?.body ? JSON.parse(opciones.body) : null });
+            resolver = res;
+          })
+      )
+    );
+
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+    botones("[data-anot-punto-opciones] button")[0]!.click(); // «Fue punto»
+    await respirar();
+
+    expect($("[data-anot-puntos-a]").textContent).toBe("1");
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "bloqueo", punto: true });
+
+    resolver!(
+      new Response(
+        JSON.stringify(
+          respuesta({
+            estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+          })
+        ),
+        { status: 200 }
+      )
+    );
+  });
+
+  it("un punto no pregunta nada: se anota directo, sin `punto` en el cuerpo", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
+    await respirar();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "punto" });
+    expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
+  });
+
+  it("cancelar la pregunta vuelve al reposo sin mandar nada", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+
+    $("[data-anot-punto-cancelar]").click();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect($("[data-anot-reposo]").hidden).toBe(false);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+  });
+
+  /*
+   * `[data-anot-cambio]` vive en el mismo hueco del pulgar que `[data-anot-punto]`.
+   * Sin cerrar la pregunta al abrir un cambio, los dos bloques quedaban
+   * apilados a la vez — dos preguntas contradictorias reclamando el mismo
+   * hueco, y el presupuesto de alto de esta pantalla roto de propina.
+   */
+  it("tocar a un suplente con la pregunta abierta cierra la pregunta", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+
+    botones("[data-anot-banquillo-a] .anot-suplente")[0]!.click();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect($("[data-anot-cambio]").hidden).toBe(false);
+  });
+
+  /*
+   * Todo lo de arriba prueba `MARCADO`, la copia a mano del `.astro` — el
+   * mismo punto ciego que ya advierte el comentario de cabecera de este
+   * fichero: si el `.astro` real mueve `[data-anot-punto]` fuera de la franja
+   * del pulgar, esta suite seguiría en verde y sería producción la que se
+   * quedara con la pregunta fuera de sitio. La spec pedía «el tercer toque
+   * existe y cae en la franja del pulgar»; esto cierra la segunda mitad,
+   * leyendo el `.astro` como texto, igual que ya hace el test del aviso más
+   * abajo.
+   */
+  it("en el .astro real, la pregunta cae dentro de la franja del pulgar", () => {
+    const pagina = readFileSync(path.resolve(import.meta.dirname, "../../src/pages/anotador/partido.astro"), "utf8");
+    const pulgar = pagina.indexOf('class="anot-pulgar"');
+    const cierre = pagina.indexOf("</section>", pulgar);
+    const punto = pagina.indexOf('class="anot-punto"');
+
+    expect(punto).toBeGreaterThan(pulgar);
+    expect(punto).toBeLessThan(cierre);
   });
 });
 
@@ -509,7 +706,7 @@ describe("corregir un punto", () => {
     respuesta({
       eventos: [
         { orden: 0, tipo: "ajuste", jugadorId: null, jugador: null, ladoJugador: null, ladoPunto: null, setNumero: 1 },
-        { orden: 1, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
+        { orden: 1, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }
       ],
       siguienteOrden: 2,
       estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
@@ -521,7 +718,7 @@ describe("corregir un punto", () => {
     const lineas = botones("[data-anot-historial] .anot-historial-linea");
     expect(lineas).toHaveLength(2);
     // Se pintan del más reciente al más antiguo.
-    expect(lineas[0]!.textContent).toBe("2. Remate de Marta Souto Lago");
+    expect(lineas[0]!.textContent).toBe("2. Punto de Marta Souto Lago");
     expect(lineas[0]!.disabled).toBe(false);
     expect(lineas[1]!.disabled).toBe(true);
   });
@@ -533,7 +730,7 @@ describe("corregir un punto", () => {
     expect($("[data-anot-corregir-titulo]").textContent).toBe("Corregir el punto 2");
 
     // Llega marcado lo que el evento tenía.
-    const tipoActual = botones("[data-anot-corregir-tipos] [data-tipo='remate']")[0]!;
+    const tipoActual = botones("[data-anot-corregir-tipos] [data-tipo='punto']")[0]!;
     expect(tipoActual.getAttribute("aria-pressed")).toBe("true");
 
     botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
@@ -541,7 +738,127 @@ describe("corregir un punto", () => {
     $("[data-anot-corregir-guardar]").click();
     await respirar();
 
-    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "bloqueo", jugadorId: 3 });
+    /*
+     * El evento original era un `punto` (puntuó), así que al pasar a `bloqueo`
+     * —que pregunta— la corrección conserva ese sí sin que se toque el sí/no:
+     * el evento decía «esta fila puntuó» y cambiar sólo la acción y el autor no
+     * debe perder esa afirmación.
+     */
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 3,
+      punto: true
+    });
+  });
+
+  /*
+   * El sí/no del diálogo sólo tiene sentido con los tipos que preguntan
+   * (bloqueo, chilena): con los demás el tipo ya decide y el servidor ignora
+   * `punto` — pedirlo siempre sería sugerir una elección que no existe.
+   */
+  it("corregir enseña el sí/no sólo con los tipos que preguntan", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    const bloque = $("[data-anot-corregir-punto]");
+    // El evento tocado es un «punto», que no pregunta.
+    expect(bloque.hidden).toBe(true);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    expect(bloque.hidden).toBe(false);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='punto']")[0]!.click();
+    expect(bloque.hidden).toBe(true);
+  });
+
+  /*
+   * Con un tipo que pregunta, tocar «No fue punto» tiene que llegar al
+   * servidor como `punto: false` — es el caso que motiva la tarea entera: un
+   * bloqueo anotado como punto que en realidad no lo fue.
+   */
+  it("«No fue punto» en el diálogo manda punto: false", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    botones("[data-anot-corregir-punto] [data-punto='false']")[0]!.click();
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 1,
+      punto: false
+    });
+  });
+
+  /*
+   * El caso que se colaba: `saque_fallado` es `aRival: true`, así que su
+   * `ladoPunto` no es nulo pero apunta al lado CONTRARIO al de quien sacó.
+   * «`ladoPunto` no nulo» no es lo mismo que «mi lado se lo llevó» — sólo
+   * coinciden cuando el tipo no cruza la red. Corregir un saque fallado hacia
+   * un bloqueo sin tocar el sí/no tiene que preguntar de nuevo (`punto:
+   * false`), no arrastrar un «sí» que en realidad era del rival: si no, el
+   * punto se lo queda quien sacó en vez de a quien se lo llevó de verdad, sin
+   * un solo error en pantalla.
+   */
+  it("corregir un saque fallado hacia bloqueo no arrastra el punto del rival como propio", async () => {
+    await montar(
+      respuesta({
+        eventos: [
+          { orden: 0, tipo: "ajuste", jugadorId: null, jugador: null, ladoJugador: null, ladoPunto: null, setNumero: 1 },
+          {
+            orden: 1,
+            tipo: "saque_fallado",
+            jugadorId: 1,
+            jugador: "Marta Souto Lago",
+            ladoJugador: "A",
+            ladoPunto: "B",
+            setNumero: 1
+          }
+        ],
+        siguienteOrden: 2,
+        estado: { setNumero: 1, puntos: { A: 0, B: 1 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+      })
+    );
+
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+    // `saque_fallado` no pregunta: el bloque no se enseña hasta cambiar el tipo.
+    expect($("[data-anot-corregir-punto]").hidden).toBe(true);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    // Sin tocar el sí/no.
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 1,
+      punto: false
+    });
+  });
+
+  /*
+   * Con un tipo que no pregunta (`punto`, `ace`, `saque_fallado`) el cuerpo no
+   * debe llevar `punto` en absoluto: mandarlo sería decidir por el servidor
+   * cuando el propio tipo ya lo decide.
+   */
+  it("con un tipo que no pregunta, guardarCorreccion no manda punto", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    // Se queda en «punto», que ya llega marcado desde el evento original.
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "punto", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
   });
 });
 
@@ -582,7 +899,7 @@ describe("sin red", () => {
 
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-puntos-a]").textContent).toBe("4");
@@ -594,7 +911,7 @@ describe("sin red", () => {
     cortar();
 
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     const aviso = $("[data-anot-error]").textContent || "";
@@ -613,7 +930,7 @@ describe("sin red", () => {
 
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-offline]").hidden).toBe(false);
@@ -623,13 +940,13 @@ describe("sin red", () => {
     await montar(respuesta());
     cortar();
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
     expect($("[data-anot-offline]").hidden).toBe(false);
 
     responder = async () => new Response(JSON.stringify(respuesta()), { status: 200 });
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
 
     expect($("[data-anot-offline]").hidden).toBe(true);
@@ -662,7 +979,7 @@ describe("botones que no se ofrecen si van a fallar", () => {
   it("pero sigue encendido con un punto normal detrás", async () => {
     await montar(
       respuesta({
-        eventos: [{ orden: 0, tipo: "remate", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }],
+        eventos: [{ orden: 0, tipo: "punto", jugadorId: 1, jugador: "Marta Souto Lago", ladoJugador: "A", ladoPunto: "A", setNumero: 1 }],
         siguienteOrden: 1
       })
     );
@@ -758,7 +1075,7 @@ describe("volver a la pantalla", () => {
     let resolver: ((valor: Response) => void) | null = null;
     responder = () => new Promise<Response>((res) => { resolver = res; });
     botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
-    botones("[data-anot-tipos] .anot-btn--remate")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
     await respirar();
     const enVuelo = peticiones.length;
 

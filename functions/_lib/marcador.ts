@@ -15,74 +15,79 @@ import { ganadorDelPartido, ganadorDelSet, type ReglasPartido } from "./reglas";
 
 export type Lado = "A" | "B";
 
-export type TipoEvento = "remate" | "ace" | "bloqueo" | "defensa" | "error" | "ajuste";
+export type TipoEvento = "punto" | "ace" | "saque_fallado" | "bloqueo" | "chilena" | "ajuste";
 
-/**
- * Qué acciones cierran el rally con punto.
- *
- * `defensa` no puntúa: un rally puede llevar varias defensas y exactamente una
- * acción que lo cierra. `ajuste` tampoco — no es un punto, es un saldo de
- * apertura al adoptar un partido que venía llevándose a mano.
- */
-export const PUNTUA: Readonly<Record<TipoEvento, boolean>> = {
-  remate: true,
-  ace: true,
-  bloqueo: true,
-  error: true,
-  defensa: false,
-  ajuste: false
-};
-
-const ETIQUETAS: readonly { clave: TipoEvento; etiqueta: string; ayuda: string }[] = [
-  { clave: "remate", etiqueta: "Remate", ayuda: "Punto de ataque" },
-  { clave: "ace", etiqueta: "Ace", ayuda: "Punto directo de saque" },
-  { clave: "bloqueo", etiqueta: "Bloqueo", ayuda: "Punto en el bloqueo" },
-  { clave: "error", etiqueta: "Error", ayuda: "Falla y el punto es del rival" },
-  { clave: "defensa", etiqueta: "Defensa", ayuda: "Buena defensa, el rally sigue" }
-];
-
-/**
- * Los botones del anotador, con lo que hace falta para predecir el marcador.
- *
- * `puntua` y `alRival` salen de `PUNTUA` y de `ladoDelPunto`, no de una lista
- * escrita otra vez: el anotador pinta el marcador antes de que responda el
- * servidor, y con la regla copiada a mano en el cliente («todo menos defensa
- * puntúa») cualquier tipo nuevo la habría dejado mintiendo. El que decide sigue
- * siendo el servidor; esto solo evita que la predicción discrepe.
- */
-export const TIPOS: readonly {
+export interface Accion {
   clave: TipoEvento;
   etiqueta: string;
-  ayuda: string;
-  puntua: boolean;
-  alRival: boolean;
-}[] = ETIQUETAS.map((tipo) => ({
-  ...tipo,
-  puntua: PUNTUA[tipo.clave],
-  alRival: PUNTUA[tipo.clave] && ladoDelPunto(tipo.clave, "A") === "B"
-}));
-
-/** A qué columna de `estadisticas` suma cada tipo, además de a `puntos`. */
-export const METRICA_DE_TIPO: Readonly<Record<TipoEvento, string | null>> = {
-  remate: "remates",
-  ace: "aces",
-  bloqueo: "bloqueos",
-  defensa: "defensas",
-  error: "errores",
-  ajuste: null
-};
+  /**
+   * Opcional a propósito: su ausencia es una decisión, no un `""` que haya que
+   * interpretar. `bloqueo` y `chilena` no la llevan — ver el porqué junto a
+   * `TIPOS`.
+   */
+  ayuda?: string;
+  /**
+   * `"siempre"`: el tipo ya decide si hubo punto.
+   * `"pregunta"`: lo decide quien anota, rally a rally.
+   */
+  punto: "siempre" | "pregunta";
+  /** El punto cruza la red: se lo lleva el rival de quien hizo la acción. */
+  aRival: boolean;
+}
 
 /**
- * Quién se lleva el punto.
+ * Los botones del anotador, y lo que hace falta para predecir el marcador.
  *
- * El error es el único caso en que no coincide con el lado de quien hizo la
- * acción: fallar da el punto al rival. Es la razón de que el evento guarde los
- * dos lados en vez de uno.
+ * `ajuste` no está: no es una acción que nadie pulse, es el saldo de apertura al
+ * adoptar un partido que venía llevándose a mano.
+ *
+ * Esta lista viaja entera al cliente (`/api/anotacion`) y recortada al público
+ * (`/api/plantilla`, sólo clave y etiqueta). El cliente NO vuelve a escribir la
+ * regla de quién se lleva el punto: la lee de aquí. La tenía copiada a mano
+ * («todo menos defensa puntúa») y era una copia esperando a quedarse vieja.
+ *
+ * `bloqueo` y `chilena` no llevan `ayuda`: de las cinco, son las únicas cuyo
+ * subtítulo se limitaba a repetir la etiqueta («Bloqueo» / «Bloqueo suyo»,
+ * «Chilena» / «Chilena suya»). Las otras tres añaden algo que la etiqueta sola
+ * no dice — a quién beneficia el punto o cómo se hizo—; estas dos, no. Que de
+ * paso el botón vuelva a caber en una línea y devuelva el suelo táctil a 56px
+ * es la confirmación de que sobraba, no el motivo de quitarlo.
  */
-export function ladoDelPunto(tipo: TipoEvento, ladoJugador: Lado): Lado | null {
-  if (!PUNTUA[tipo]) return null;
-  if (tipo === "error") return ladoJugador === "A" ? "B" : "A";
-  return ladoJugador;
+export const TIPOS: readonly Accion[] = [
+  { clave: "punto", etiqueta: "Punto", ayuda: "Gana el rally", punto: "siempre", aRival: false },
+  { clave: "ace", etiqueta: "Ace", ayuda: "Punto directo de saque", punto: "siempre", aRival: false },
+  {
+    clave: "saque_fallado",
+    etiqueta: "Falló saque",
+    ayuda: "El punto es del rival",
+    punto: "siempre",
+    aRival: true
+  },
+  { clave: "bloqueo", etiqueta: "Bloqueo", punto: "pregunta", aRival: false },
+  { clave: "chilena", etiqueta: "Chilena", punto: "pregunta", aRival: false }
+];
+
+/** El catálogo indexado. `ajuste` no está: no se ofrece y no se valida contra él. */
+export const ACCION_POR_CLAVE: ReadonlyMap<TipoEvento, Accion> = new Map(
+  TIPOS.map((accion) => [accion.clave, accion])
+);
+
+/**
+ * Quién se lleva el punto, o nadie.
+ *
+ * Con `bloqueo` y `chilena` no lo dice el tipo sino el propio evento, y por eso
+ * hace falta `puntua`: un bloqueo puede cerrar el rally o sólo levantar la
+ * pelota. Sin respuesta se devuelve `null` — no se adivina, porque adivinar aquí
+ * es inventar marcador.
+ *
+ * Lo llama el servidor y **nunca el cliente**: invertirlo es trivial y el daño
+ * (marcador y estadísticas cruzados) no se vería hasta el final del torneo.
+ */
+export function ladoDelPunto(tipo: TipoEvento, ladoJugador: Lado, puntua?: boolean): Lado | null {
+  const accion = ACCION_POR_CLAVE.get(tipo);
+  if (!accion) return null;
+  if (accion.punto === "pregunta" && puntua !== true) return null;
+  return accion.aRival ? (ladoJugador === "A" ? "B" : "A") : ladoJugador;
 }
 
 export interface EventoFila {
@@ -198,49 +203,4 @@ export function plegarEventos(eventos: readonly EventoFila[], reglas: ReglasPart
   let estado = marcadorInicial();
   for (const evento of eventos) estado = aplicarEvento(estado, evento, reglas);
   return estado;
-}
-
-export interface EstadisticasJugador {
-  puntos: number;
-  remates: number;
-  bloqueos: number;
-  aces: number;
-  defensas: number;
-  errores: number;
-}
-
-const vacias = (): EstadisticasJugador => ({
-  puntos: 0,
-  remates: 0,
-  bloqueos: 0,
-  aces: 0,
-  defensas: 0,
-  errores: 0
-});
-
-/**
- * Lo que cada jugador hizo, según el log.
- *
- * `puntos` cuenta solo las acciones que ganaron el punto **para su propio
- * equipo**: un error suma a `errores` de quien lo comete y no suma `puntos` a
- * nadie. La invariante es «todo punto tiene una acción con un jugador detrás»,
- * no «todo punto suma a la ficha de alguien».
- */
-export function estadisticasDeEventos(eventos: readonly EventoFila[]): Map<number, EstadisticasJugador> {
-  const porJugador = new Map<number, EstadisticasJugador>();
-
-  for (const evento of eventos) {
-    if (evento.jugador_id === null || evento.tipo === "ajuste") continue;
-
-    const fila = porJugador.get(evento.jugador_id) ?? vacias();
-    const metrica = METRICA_DE_TIPO[evento.tipo];
-    if (metrica) fila[metrica as keyof EstadisticasJugador] += 1;
-    if (PUNTUA[evento.tipo] && evento.lado_punto !== null && evento.lado_punto === evento.lado_jugador) {
-      fila.puntos += 1;
-    }
-
-    porJugador.set(evento.jugador_id, fila);
-  }
-
-  return porJugador;
 }
