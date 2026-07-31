@@ -5301,6 +5301,23 @@ button.bracket-match {
   padding: 5px 13px;
 }
 
+/*
+ * El chip pasa a llevar dos siglas («OST–PUL»), más ancho que el marcador de
+ * antes, y a 360px la cabecera ya iba justa con la marca, el chip y «Menú».
+ * Se aprieta el interior antes que quitar la llama, que es lo que dice de un
+ * vistazo que hay partido. Va DESPUÉS de la regla sin media query: mismo
+ * selector, misma especificidad, y quien gana un empate es el que viene
+ * detrás en la hoja — colocarla en el bloque de media queries de más arriba
+ * la dejaba sin efecto a cualquier ancho.
+ */
+@media (max-width: 560px) {
+  .header-directo.is-vivo {
+    gap: 3px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+}
+
 .header-directo.is-vivo:hover,
 .header-directo.is-vivo:focus-visible {
   box-shadow: 5px 6px 0 var(--ink);
