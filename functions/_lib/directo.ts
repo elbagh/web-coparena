@@ -450,7 +450,7 @@ export async function plantillaPublica(db: D1Database, partidoId: string) {
     },
     /*
      * Las etiquetas de las acciones viajan aquí y no en el sondeo: el historial
-     * público necesita escribir «Remate» o «Bloqueo», y esta respuesta se pide
+     * público necesita escribir «Punto» o «Bloqueo», y esta respuesta se pide
      * una vez y se cachea. Mandarlas en cada sondeo serían las mismas cinco
      * palabras cien veces por minuto; copiarlas al cliente sería una lista más
      * que mantener a mano.

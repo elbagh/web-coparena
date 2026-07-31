@@ -988,7 +988,7 @@ describe("cambios de jugador", () => {
 
   /*
    * Sin esto, en cuanto hay un cambio deja de poderse corregir un punto hacia
-   * quien salió de pista — que es justo cuando hace falta («ese remate fue de
+   * quien salió de pista — que es justo cuando hace falta («ese punto fue de
    * Berta, no de Celia»).
    */
   it("se puede corregir un punto hacia quien ya salió de pista", async () => {
