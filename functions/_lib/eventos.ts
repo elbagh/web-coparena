@@ -559,9 +559,20 @@ export async function corregirEvento(
   partido: PartidoAnotable,
   orden: number,
   cambios: { tipo?: TipoEvento; jugadorId?: number; punto?: boolean },
-  alineacion: readonly AlineacionFila[]
+  alineacion: readonly AlineacionFila[],
+  ordenEsperado: number
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
+
+  /*
+   * Mismo control que al anotar, y por lo mismo. Corregir vuelve a plegar el log
+   * entero, así que hacerlo sobre una lectura vieja se lleva por delante lo que
+   * haya entrado en medio: dos correcciones sobre el mismo evento y la segunda
+   * pisaba a la primera sin decir nada.
+   */
+  const siguiente = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
+  if (ordenEsperado !== siguiente) throw new ConflictoDeOrden();
+
   const indice = eventos.findIndex((evento) => evento.orden === orden);
   if (indice === -1) throw new ConflictoDeOrden();
 
@@ -908,25 +919,36 @@ export async function adoptarMarcador(
   };
 
   const { sentencias } = sentenciasDerivadas(db, partido, [...eventos, fila]);
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO partido_eventos
-           (partido_id, orden, set_numero, tipo, puntos_a, puntos_b, sets_a, sets_b, usuario_id)
-         VALUES (?1, ?2, ?3, 'ajuste', ?4, ?5, ?6, ?7, ?8)`
-      )
-      .bind(
-        partido.id,
-        orden,
-        saldo.sets_a + saldo.sets_b + 1,
-        saldo.puntos_a,
-        saldo.puntos_b,
-        saldo.sets_a,
-        saldo.sets_b,
-        usuarioId
-      ),
-    ...sentencias
-  ]);
+  try {
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO partido_eventos
+             (partido_id, orden, set_numero, tipo, puntos_a, puntos_b, sets_a, sets_b, usuario_id)
+           VALUES (?1, ?2, ?3, 'ajuste', ?4, ?5, ?6, ?7, ?8)`
+        )
+        .bind(
+          partido.id,
+          orden,
+          saldo.sets_a + saldo.sets_b + 1,
+          saldo.puntos_a,
+          saldo.puntos_b,
+          saldo.sets_a,
+          saldo.sets_b,
+          usuarioId
+        ),
+      ...sentencias
+    ]);
+  } catch (error) {
+    /*
+     * Mismo cierre que en `registrarEvento`, que aquí faltaba: dos adopciones a
+     * la vez chocan contra el UNIQUE y la perdedora salía como un 500 genérico.
+     * Un fallo del motor con pinta de avería no le dice a quien está a pie de
+     * pista lo único que necesita saber, que es que vuelva a mirar.
+     */
+    if (String(error).includes("UNIQUE")) throw new ConflictoDeOrden();
+    throw error;
+  }
 
   return await leerEstado(db, partido);
 }

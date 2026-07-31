@@ -644,6 +644,7 @@
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "corregir",
         orden: correccion.orden,
+        ordenEsperado: datos.siguienteOrden,
         tipo: correccion.tipo,
         jugadorId: correccion.jugadorId,
         // Sólo con los tipos que preguntan: mandarlo siempre sería decidir por

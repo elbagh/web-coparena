@@ -472,6 +472,9 @@ async function accionCorregir(
   const orden = Number(body.orden);
   if (!Number.isInteger(orden) || orden < 0) return jsonAdmin({ error: "Indica qué evento corregir." }, 400);
 
+  const ordenEsperado = ordenDe(body);
+  if (ordenEsperado === null) return jsonAdmin({ error: "Falta el orden esperado." }, 400);
+
   const alineacion = await leerAlineacion(db, partido.id);
   const cambios: { tipo?: TipoEvento; jugadorId?: number; punto?: boolean } = {};
   if (body.tipo !== undefined) cambios.tipo = String(body.tipo) as TipoEvento;
@@ -480,7 +483,7 @@ async function accionCorregir(
   // `Boolean(undefined)` lo convertiría en «no fue punto» sin que nadie lo pida.
   if (typeof body.punto === "boolean") cambios.punto = body.punto;
 
-  const resultado = await corregirEvento(db, partido, orden, cambios, alineacion);
+  const resultado = await corregirEvento(db, partido, orden, cambios, alineacion, ordenEsperado);
   // Corregir puede cambiar quién ganó, y puede dejarlo sin ganador: el cuadro
   // tiene que seguir a las dos.
   await sincronizarCuadro(db, partido.id);

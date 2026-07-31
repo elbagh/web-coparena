@@ -268,10 +268,12 @@ describe("anotar un punto", () => {
 });
 
 /*
- * Dos anotadores sobre el mismo partido. El UNIQUE(partido_id, orden) es lo que
- * convierte «el segundo pisa al primero» en «el segundo se entera».
+ * Dos pestañas de la misma persona sobre el mismo partido. El reclamo no las
+ * separa —pasan la puerta con el mismo usuario—, así que aquí sigue trabajando
+ * el UNIQUE(partido_id, orden): convierte «la segunda pisa a la primera» en «la
+ * segunda se entera».
  */
-describe("dos anotadores a la vez", () => {
+describe("el mismo anotador desde dos pestañas", () => {
   it("el mismo orden dos veces da 409 y no cambia nada", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
@@ -354,10 +356,17 @@ describe("corregir un evento antiguo", () => {
     for (let i = 0; i < 4; i += 1) await punto(admin, partidoId, carla);
     await punto(admin, partidoId, ana); // 5-4: gana A
 
-    expect((await leer(admin, partidoId)).estado.winner).toBe("A");
+    const antes = await leer(admin, partidoId);
+    expect(antes.estado.winner).toBe("A");
 
     // Aquel primer punto no lo ganó Ana: falló el saque, y el punto era de B.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "saque_fallado", jugadorId: ana });
+    await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "saque_fallado",
+      jugadorId: ana,
+      ordenEsperado: antes.siguienteOrden
+    });
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.winner).toBe("B");
@@ -371,7 +380,8 @@ describe("corregir un evento antiguo", () => {
     const berta = local.jugadores[1]!.id;
 
     await punto(admin, partidoId, ana, "ace");
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta, ordenEsperado: siguienteOrden });
 
     expect(await estadisticasDe(ana)).toBeNull();
     expect(await estadisticasDe(berta)).toMatchObject({ aces: 1, puntos: 1 });
@@ -479,7 +489,13 @@ describe("corregir un bloqueo", () => {
     const ana = local.jugadores[0]!.id;
     await punto(admin, partidoId, ana, "bloqueo", false);
 
-    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, punto: true });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      punto: true,
+      ordenEsperado: siguienteOrden
+    });
     expect(respuesta.status).toBe(200);
     expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
   });
@@ -495,7 +511,13 @@ describe("corregir un bloqueo", () => {
     const berta = local.jugadores[1]!.id;
     await punto(admin, partidoId, ana, "bloqueo", false);
 
-    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: berta,
+      ordenEsperado: siguienteOrden
+    });
     expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 0, B: 0 });
   });
 
@@ -515,7 +537,13 @@ describe("corregir un bloqueo", () => {
     const berta = local.jugadores[1]!.id;
     await punto(admin, partidoId, ana, "bloqueo", true);
 
-    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: berta,
+      ordenEsperado: siguienteOrden
+    });
     expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
     expect(await estadisticasDe(berta)).toMatchObject({ puntos: 1, bloqueos: 1 });
     expect(await estadisticasDe(ana)).toBeNull();
@@ -537,13 +565,15 @@ describe("corregir de un tipo que cruza la red a uno que pregunta", () => {
     const ana = local.jugadores[0]!.id;
 
     await punto(admin, partidoId, ana, "saque_fallado");
-    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 0, B: 1 });
+    const antes = await leer(admin, partidoId);
+    expect(antes.estado.puntos).toEqual({ A: 0, B: 1 });
 
     const respuesta = await anotar(admin, partidoId, {
       accion: "corregir",
       orden: 0,
       tipo: "bloqueo",
-      jugadorId: ana
+      jugadorId: ana,
+      ordenEsperado: antes.siguienteOrden
     });
     expect(respuesta.status).toBe(200);
 
@@ -1035,16 +1065,29 @@ describe("cambios de jugador", () => {
     await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
     await punto(admin, partidoId, suplente.id);
 
-    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: titular.id });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 1,
+      jugadorId: titular.id,
+      ordenEsperado: siguienteOrden
+    });
     expect(respuesta.status).toBe(200);
 
     expect(await estadisticasDe(titular.id)).toMatchObject({ puntos: 2 });
     expect(await estadisticasDe(suplente.id)).toBe(null);
     expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 2, B: 0 });
     // Y quien no ha pisado el partido sigue sin poder recibir puntos.
+    // Corregir no añade eventos: el orden esperado sigue siendo el mismo.
     expect(
-      (await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: local.jugadores[0]!.id + 999 }))
-        .status
+      (
+        await anotar(admin, partidoId, {
+          accion: "corregir",
+          orden: 1,
+          jugadorId: local.jugadores[0]!.id + 999,
+          ordenEsperado: siguienteOrden
+        })
+      ).status
     ).toBe(409);
   });
 });
@@ -1068,5 +1111,72 @@ describe("el cuadro se entera", () => {
       .bind(final)
       .first<{ equipo_a_nombre: string }>();
     expect(arriba!.equipo_a_nombre).toBe("Delfines");
+  });
+});
+
+/*
+ * El reclamo del partido separa a dos personas. A la misma persona con dos
+ * pestañas abiertas la separa esto: las dos pasan la puerta con el mismo
+ * usuario, y lo único que las distingue es el orden que cada una vio.
+ */
+describe("dos pestañas del mismo anotador", () => {
+  it("corregir con un orden desfasado da 409", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 99
+    });
+
+    expect(respuesta.status).toBe(409);
+  });
+
+  it("corregir con el orden al día sí entra", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 1
+    });
+
+    expect(respuesta.status).toBe(200);
+    const { eventos } = await leer(admin, partidoId);
+    expect(eventos[0]!.jugadorId).toBe(local.jugadores[1]!.id);
+  });
+
+  /*
+   * Dos adopciones a la vez. Sin el catch, la que choca contra el UNIQUE sale
+   * como un 500 «No se ha podido guardar»: un fallo del motor con pinta de
+   * avería, en el móvil de quien está a pie de pista.
+   *
+   * Lo que este test prueba es que ninguna de las dos acaba en 500. NO prueba
+   * por cuál de los dos caminos salió el 409: si workerd las serializa, la
+   * segunda ve el ajuste de la primera y responde «ya tiene anotación» sin
+   * llegar al UNIQUE. Las dos salidas son correctas; la que no lo es es el 500,
+   * y esa es la que se vigila.
+   */
+  it("dos adopciones a la vez no dejan nunca un 500", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin, undefined, { puntosA: 8, puntosB: 6 });
+
+    const respuestas = await Promise.all([
+      anotar(admin, partidoId, { accion: "adoptar" }),
+      anotar(admin, partidoId, { accion: "adoptar" })
+    ]);
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([201, 409]);
+    const perdedora = respuestas.find((r) => r.status === 409)!;
+    const { error } = (await perdedora.json()) as Respuesta;
+    expect(error).toBeTruthy();
+    // El texto genérico del 500 no puede aparecer en un 409.
+    expect(error).not.toContain("No se ha podido guardar");
   });
 });

@@ -747,6 +747,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 3,
       punto: true
@@ -790,6 +791,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 1,
       punto: false
@@ -838,6 +840,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 1,
       punto: false
@@ -857,7 +860,13 @@ describe("corregir un punto", () => {
     $("[data-anot-corregir-guardar]").click();
     await respirar();
 
-    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "punto", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      ordenEsperado: 2,
+      tipo: "punto",
+      jugadorId: 1
+    });
     expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
   });
 });

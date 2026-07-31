@@ -316,7 +316,14 @@ describe("el cuadro no se queda con un ganador que ya no lo es", () => {
     expect((await finalDe(finalId))!.equipo_a_id).toBe(visitante.id);
 
     // El primer punto de A no era de A: falló el saque, o sea punto de B.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "saque_fallado" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const corregido = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "saque_fallado",
+      ordenEsperado: siguienteOrden
+    });
+    expect(corregido.status).toBe(200);
 
     const fila = await filaPartido(partidoId);
     expect(fila!.winner).toBe("B");
@@ -478,7 +485,13 @@ describe("entradas hostiles", () => {
     expect(inventado.status).toBe(400);
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-    const corregido = await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "ajuste" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const corregido = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "ajuste",
+      ordenEsperado: siguienteOrden
+    });
     expect(corregido.status).toBe(409);
   });
 
