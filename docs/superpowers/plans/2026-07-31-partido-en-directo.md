@@ -15,8 +15,9 @@
 - **Migración:** el número libre es **0028**. No reutilizar otro.
 - **Idioma:** todo el texto de cara al usuario en español **con tildes** ("Música", "información"). El deporte se escribe **"volley"**, nunca "vóley".
 - **Tono:** frases cortas y seguras, sin chistes. El usuario cura la redacción final.
-- **CSS público:** todo en `src/styles/global.css`, usando las custom properties existentes (`--sea`, `--cream`, `--lime`, `--coral`, `--dune`, `--pine`, `--dusk`, `--ink`, `--sun`, `--muted`, `--line`). Nada de `<style>` con scope en componentes.
-- **CSS del anotador:** tokens `--anot-*` colgados de `body.is-anotador`. El anotador ignora `prefers-color-scheme` a propósito.
+- **CSS público:** todo en `src/styles/global.css`, usando las custom properties existentes (`--sea`, `--cream`, `--lime`, `--coral`, `--dune`, `--pine`, `--dusk`, `--ink`, `--sun`, `--muted`, `--line`). Nada de `<style>` con scope en componentes. Aplica al chip de la cabecera (Task 8) y a la banda de la portada (Task 9).
+- **CSS del anotador:** es la excepción, igual que `/admin/*`. Vive en **`src/styles/anotador/index.css`**, no en `global.css`, con tokens propios colgados de `body.is-anotador`: `--anot-fondo`, `--anot-tinta`, `--anot-superficie`, `--anot-linea`, `--anot-a`, `--anot-b`, `--anot-ok`, `--anot-alerta`, `--anot-apagado`. **No existe `--anot-tenue`.** El anotador ignora `prefers-color-scheme` a propósito: un tema oscuro a pleno sol es ilegible.
+- **Tests de scripts de cliente:** el patrón de la casa es una constante `MARCADO` copiada **a mano** desde el `.astro`, porque esos ficheros se cargan con `<script is:inline>` y no pasan por el bundler. Está documentado en `test/unit/anotador-partido.test.ts`. No es duplicación accidental: es cómo se testean aquí.
 - **Responsive obligatorio:** los valores base de `global.css` son la escala **móvil**; la densidad de escritorio vive en el bloque `@media (min-width: 901px)`. Breakpoints existentes: 900px y 560px.
 - **Tests:** el comportamiento se prueba en `integration`, nunca en `e2e` (ese proyecto solo demuestra que el middleware está cableado). Sembrar con los helpers de `test/helpers/db.ts`, sin SQL suelto en los ficheros de test.
 - **`test/unit/directo-sondeo.test.ts` debe seguir verde sin tocarlo.** Es el presupuesto de peticiones de Cloudflare escrito como test.
