@@ -49,6 +49,8 @@
   let correccion = null;
   /** El suplente al que se ha tocado, esperando por quién entra. */
   let entrante = null;
+  /** El punto que cerraría un set y espera confirmación. Nada se ha guardado. */
+  let porCerrar = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
 
@@ -72,9 +74,7 @@
      *     es contar dos cosas distintas en la misma pantalla.
      */
     const grandes = terminado ? estado.sets : decidir ? datos.marcadorPanel.puntos : estado.puntos;
-    const rotulo = $("[data-anot-rotulo]");
-    rotulo.hidden = !terminado && !decidir;
-    rotulo.textContent = terminado ? "Sets" : "Lo lleva el panel";
+    pintarRotulo(terminado, decidir);
     $("[data-anot-puntos-a]").textContent = String(grandes.A);
     $("[data-anot-puntos-b]").textContent = String(grandes.B);
 
@@ -137,6 +137,72 @@
 
   const objetivo = () =>
     utils.setTarget({ reglas: datos.partido.reglas, setNumber: datos.estado.setNumero }, datos.estado.setNumero);
+
+  /**
+   * El rótulo en el flujo y la pestaña de punto de set, que son dos cosas.
+   *
+   * El rótulo dice qué son los números grandes cuando no son los puntos del set
+   * en juego; la pestaña avisa de que uno cierra. Nunca coinciden —a un punto del
+   * cierre el partido no ha terminado ni lo lleva el panel—, pero van en
+   * elementos distintos porque la pestaña no puede ocupar sitio en el flujo.
+   */
+  function pintarRotulo(terminado, decidir) {
+    const rotulo = $("[data-anot-rotulo]");
+    rotulo.hidden = !terminado && !decidir;
+    texto(rotulo, terminado ? "Sets" : "Lo lleva el panel");
+
+    const pestana = $("[data-anot-punto-set]");
+    const aviso = terminado || decidir ? null : puntoDeSet();
+    pestana.hidden = !aviso;
+    if (!aviso) return pestana.removeAttribute("data-lado");
+
+    const que = aviso.partido ? "Punto de partido" : "Punto de set";
+    // Con dos de ventaja sólo puede estar en punto de set quien va por delante.
+    // Con uno —que es una regla legítima y algún grupo la usa— pueden estarlo los
+    // dos a la vez, y entonces poner un nombre sería mentir.
+    if (aviso.lados.length > 1) {
+      pestana.removeAttribute("data-lado");
+      return texto(pestana, `${que} para los dos`);
+    }
+    pestana.dataset.lado = aviso.lados[0];
+    texto(pestana, `${que} · ${nombreEquipo(aviso.lados[0])}`);
+  }
+
+  /**
+   * ¿A quién le basta un punto para cerrar el set?
+   *
+   * Se resuelve simulando el punto con las reglas del propio partido en vez de
+   * comparar el tanteo contra el objetivo: la ventaja mínima también decide —a
+   * 20–20 no cierra nadie con uno— y esa regla ya vive en `applyPoint`. Escribirla
+   * aquí otra vez sería la tercera copia.
+   */
+  function puntoDeSet() {
+    if (datos.estado.terminado) return null;
+    const lados = ["A", "B"].filter((lado) => cierraSet(utils.applyPoint(partidoFingido(), lado, 1)));
+    if (lados.length === 0) return null;
+    return {
+      lados,
+      partido: lados.every((lado) => utils.applyPoint(partidoFingido(), lado, 1).status === "finished")
+    };
+  }
+
+  /** El estado actual como partido de `match-utils`, para poder simular sobre él. */
+  const partidoFingido = () => ({
+    status: "live",
+    setNumber: datos.estado.setNumero,
+    points: { ...datos.estado.puntos },
+    sets: { ...datos.estado.sets },
+    history: [...datos.estado.historial],
+    reglas: datos.partido.reglas,
+    elapsedMs: 0,
+    startedAt: null,
+    winner: null,
+    teams: { A: { name: "" }, B: { name: "" } }
+  });
+
+  /** El parcial se guarda en `history` justo al cerrarse el set: si creció, cerró. */
+  const cierraSet = (prediccion) =>
+    Boolean(prediccion) && prediccion.history.length > datos.estado.historial.length;
 
   function pintarDecision(decidir) {
     const caja = $("[data-anot-decision]");
@@ -300,10 +366,12 @@
     if (guardando || datos.estado.terminado) return;
     elegido = jugador;
     entrante = null;
+    porCerrar = null;
 
     $("[data-anot-elegido]").textContent = jugador.nombre;
     $("[data-anot-cambio]").hidden = true;
     $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = false;
 
@@ -375,9 +443,11 @@
   function cancelar() {
     elegido = null;
     entrante = null;
+    porCerrar = null;
     $("[data-anot-acciones]").hidden = true;
     $("[data-anot-cambio]").hidden = true;
     $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-reposo]").hidden = false;
   }
 
@@ -392,6 +462,7 @@
     if (guardando || datos.estado.terminado) return;
     entrante = jugador;
     elegido = null;
+    porCerrar = null;
 
     $("[data-anot-entra]").textContent = jugador.nombre;
     $("[data-anot-reposo]").hidden = true;
@@ -404,6 +475,7 @@
      * que existe esta pantalla entera para respetar, roto.
      */
     $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-cambio]").hidden = false;
 
     const caja = $("[data-anot-cambio-opciones]");
@@ -468,24 +540,60 @@
     // Con los que preguntan, sólo hay punto que predecir si la respuesta fue sí.
     if (meta.punto === "pregunta" && punto !== true) return null;
     const ladoPunto = meta.aRival ? otroLado(elegido.lado) : elegido.lado;
-
-    const fingido = {
-      status: "live",
-      setNumber: datos.estado.setNumero,
-      points: { ...datos.estado.puntos },
-      sets: { ...datos.estado.sets },
-      history: [...datos.estado.historial],
-      reglas: datos.partido.reglas,
-      elapsedMs: 0,
-      startedAt: null,
-      winner: null,
-      teams: { A: { name: "" }, B: { name: "" } }
-    };
-    return utils.applyPoint(fingido, ladoPunto, 1);
+    return utils.applyPoint(partidoFingido(), ladoPunto, 1);
   }
 
-  async function anotarPunto(tipo, punto) {
+  /**
+   * El punto cierra un set: se pregunta antes de mandarlo.
+   *
+   * Nada se ha guardado todavía, así que cancelar no deja rastro — ese punto no
+   * llegó a existir. Es lo que separa esto de «deshacer»: deshacer un cierre
+   * devuelve los puntos a 0–0 en la pantalla de todo el mundo y puede haber
+   * movido ya el cuadro.
+   */
+  function pedirCierre(tipo, punto, prediccion) {
+    porCerrar = { tipo, punto };
+    const parcial = prediccion.history[prediccion.history.length - 1];
+    const gana = prediccion.status === "finished";
+    const accion = (datos.tipos.find((t) => t.clave === tipo) || {}).etiqueta || tipo;
+
+    $("[data-anot-reposo]").hidden = true;
+    $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = false;
+
+    texto($("[data-anot-cierre-titulo]"), gana ? "¿Cierras el partido?" : `¿Cierras el set ${datos.estado.setNumero}?`);
+    texto(
+      $("[data-anot-cierre-marcador]"),
+      `${accion} de ${elegido.nombre}. El set quedaría ${parcial.a}–${parcial.b}.`
+    );
+    texto($("[data-anot-cierre-confirmar-texto]"), gana ? "Cerrar el partido" : "Cerrar el set");
+    texto(
+      $("[data-anot-cierre-confirmar-ayuda]"),
+      gana ? `Gana ${nombreEquipo(prediccion.winner)}` : "Se anota el punto y sube el set"
+    );
+  }
+
+  async function anotarPunto(tipo, punto, cierreConfirmado) {
     if (guardando || !elegido) return;
+
+    /*
+     * Un punto que cierra un set se pregunta antes de mandarse. Quien anota está
+     * de pie al sol con tres segundos entre punto y punto: puede haber atribuido
+     * mal el anterior o haber pulsado dos veces, y cerrar un set a destiempo es
+     * lo más caro de deshacer que hay aquí.
+     *
+     * La pregunta va delante de la petición y no después: así cancelar no deja
+     * rastro en ninguna parte. El pliegue del servidor no cambia — para él este
+     * punto sigue siendo el punto que cierra el set.
+     */
+    if (!cierreConfirmado) {
+      const cierre = predecir(tipo, punto);
+      if (cierraSet(cierre)) return pedirCierre(tipo, punto, cierre);
+    }
+    porCerrar = null;
+
     guardando = true;
     setError("");
 
@@ -788,6 +896,10 @@
   $("[data-anot-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-cambio-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-punto-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-cierre-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-cierre-confirmar]").addEventListener("click", () => {
+    if (porCerrar) anotarPunto(porCerrar.tipo, porCerrar.punto, true);
+  });
   $("[data-anot-alineacion]").addEventListener("click", abrirAlineacion);
   $("[data-anot-alineacion-guardar]").addEventListener("click", guardarAlineacion);
   $("[data-anot-alineacion-cancelar]").addEventListener("click", () =>

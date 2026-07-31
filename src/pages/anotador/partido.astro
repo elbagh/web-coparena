@@ -24,6 +24,15 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         los puntos, que el cierre del último set devuelve a cero: un partido
         ganado 2–1 se despedía con un «0 – 0» que no dice nada.
       */}
+      {/*
+        A un punto del cierre, el marcador saca una pestaña sobre su borde de
+        arriba con el color del equipo que puede cerrar.
+
+        Va montada encima y no en el flujo porque aparecer no puede mover un
+        botón: es la regla de la que sale toda esta pantalla. Medido, en el flujo
+        costaba 24px y se los llevaba la botonera de acciones.
+      */}
+      <p class="anot-punto-set" data-anot-punto-set hidden></p>
       <p class="anot-rotulo" data-anot-rotulo hidden>Sets</p>
       <p class="anot-tanteo">
         <span class="anot-puntos anot-puntos--a" data-anot-puntos-a>0</span>
@@ -132,6 +141,32 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <p class="anot-pregunta"><strong data-anot-punto-accion></strong></p>
         <div class="anot-tipos" data-anot-punto-opciones></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-punto-cancelar>Cancelar</button>
+      </div>
+
+      {/*
+        El quinto estado de la franja: el punto que cierra un set no se guarda
+        hasta que se confirma.
+
+        Quien anota es una persona con un móvil al sol y tres segundos entre
+        punto y punto: puede atribuir mal el punto anterior o pulsar dos veces.
+        Cerrar un set a destiempo es lo más caro de deshacer de esta pantalla,
+        porque los puntos vuelven a 0–0 y el cuadro puede haber avanzado ya. Se
+        pregunta ANTES de mandar nada, así que cancelar no deja rastro: ese punto
+        no llegó a existir. Lo que el servidor pliega no cambia.
+      */}
+      <div class="anot-cierre" data-anot-cierre hidden>
+        <p class="anot-cierre-titulo" data-anot-cierre-titulo></p>
+        <p class="anot-cierre-marcador" data-anot-cierre-marcador></p>
+        <div class="anot-tipos">
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--cerrar" data-anot-cierre-confirmar>
+            <span class="anot-tipo-nombre" data-anot-cierre-confirmar-texto>Cerrar el set</span>
+            <span class="anot-tipo-ayuda" data-anot-cierre-confirmar-ayuda></span>
+          </button>
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--no" data-anot-cierre-cancelar>
+            <span class="anot-tipo-nombre">Cancelar</span>
+            <span class="anot-tipo-ayuda">El punto no se guarda</span>
+          </button>
+        </div>
       </div>
 
       {/*

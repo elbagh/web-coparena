@@ -30,7 +30,13 @@ import {
  */
 
 interface Respuesta {
-  partido: { origenMarcador: string; status: string; startedAt: string | null; elapsedMs: number };
+  partido: {
+    origenMarcador: string;
+    status: string;
+    reglas: { sets: number; puntosPorSet: number; puntosSetDecisivo: number; diferencia: number };
+    startedAt: string | null;
+    elapsedMs: number;
+  };
   estado: { puntos: { A: number; B: number }; sets: { A: number; B: number }; setNumero: number; winner: string | null };
   eventos: { orden: number; tipo: string; jugadorId: number | null; ladoPunto: string | null }[];
   siguienteOrden: number;
@@ -271,6 +277,48 @@ describe("anotar un punto", () => {
  * Dos anotadores sobre el mismo partido. El UNIQUE(partido_id, orden) es lo que
  * convierte «el segundo pisa al primero» en «el segundo se entera».
  */
+/*
+ * Las reglas viajan a la pantalla como objeto plano, ya normalizado.
+ *
+ * Es lo único que le dice al anotador a cuántos puntos va el set, y de ahí salen
+ * el «a 15» de la cabecera, el aviso de punto de set y la pregunta de cierre. La
+ * columna de la base es TEXTO (un JSON), así que basta con que alguien mande la
+ * fila tal cual para que `reglasDe` en match-utils no la reconozca como objeto y
+ * caiga a su red de 21/21/15: la pantalla anunciaría «a 21» los días que se juega
+ * a 15, sin error, sin nada roto y sin que ninguna prueba de la pantalla se
+ * enterase — las suyas se montan con un objeto a mano.
+ *
+ * Los tres formatos son los del torneo 2026: grupos de cuatro al mejor de tres a
+ * 15, grupo de cinco a un set de 21, y cuadro a 21 con tercero de 15.
+ */
+describe("las reglas que llegan a la pantalla", () => {
+  const formatos = [
+    { que: "grupos de cuatro", reglas: { sets: 2, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 2 } },
+    { que: "grupo de cinco", reglas: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 } },
+    { que: "cuadro", reglas: { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } }
+  ];
+
+  for (const formato of formatos) {
+    it(`${formato.que}: llegan como objeto, con sus números`, async () => {
+      const admin = await crearAdmin();
+      const { partidoId } = await montarPartido(admin, { partido: formato.reglas });
+
+      const { partido } = await leer(admin, partidoId);
+
+      expect(partido.reglas).toEqual(formato.reglas);
+    });
+  }
+
+  it("un partido sin reglas propias sale con las de serie, no con null", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin);
+
+    const { partido } = await leer(admin, partidoId);
+
+    expect(partido.reglas).toEqual(REGLAS_POR_DEFECTO.partido);
+  });
+});
+
 describe("dos anotadores a la vez", () => {
   it("el mismo orden dos veces da 409 y no cambia nada", async () => {
     const admin = await crearAdmin();
