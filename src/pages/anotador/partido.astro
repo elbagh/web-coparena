@@ -175,6 +175,21 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       <p class="anot-etiqueta">Acción</p>
       <div class="anot-tipos" data-anot-corregir-tipos></div>
 
+      {/*
+        Sólo con bloqueo y chilena: los demás tipos ya deciden solos si hubo
+        punto. Si no se toca, la corrección conserva lo que la fila ya decía —
+        cambiar a quién se atribuye un bloqueo no debe mover el marcador.
+      */}
+      <div data-anot-corregir-punto hidden>
+        <p class="anot-etiqueta">¿Ganó el punto?</p>
+        <div class="anot-tipos">
+          <button type="button" class="anot-btn anot-btn--tipo" data-punto="true">Fue punto</button>
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--no" data-punto="false">
+            No fue punto
+          </button>
+        </div>
+      </div>
+
       <p class="anot-etiqueta">Quién la hizo</p>
       <div class="anot-corregir-quien" data-anot-corregir-jugadores></div>
 

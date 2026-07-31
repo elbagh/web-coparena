@@ -561,7 +561,13 @@
   // ----------------------------------------------------------- corregir ---
 
   function abrirCorreccion(evento) {
-    correccion = { orden: evento.orden, tipo: evento.tipo, jugadorId: evento.jugadorId };
+    correccion = {
+      orden: evento.orden,
+      tipo: evento.tipo,
+      jugadorId: evento.jugadorId,
+      // `ladoPunto` no nulo es exactamente «esta fila puntuó».
+      punto: evento.ladoPunto !== null
+    };
     $("[data-anot-corregir-titulo]").textContent = `Corregir el punto ${evento.orden + 1}`;
 
     const cajaTipos = $("[data-anot-corregir-tipos]");
@@ -605,6 +611,17 @@
     dialogo.querySelectorAll("[data-jugador]").forEach((boton) => {
       boton.setAttribute("aria-pressed", String(Number(boton.dataset.jugador) === correccion.jugadorId));
     });
+
+    /*
+     * El sí/no sólo aparece con los tipos que preguntan. Con los demás, el tipo
+     * ya decide y enseñar la pregunta sugeriría una elección que no existe.
+     */
+    const meta = datos.tipos.find((t) => t.clave === correccion.tipo);
+    const pregunta = Boolean(meta && meta.punto === "pregunta");
+    $("[data-anot-corregir-punto]").hidden = !pregunta;
+    dialogo.querySelectorAll("[data-punto]").forEach((boton) => {
+      boton.setAttribute("aria-pressed", String((boton.dataset.punto === "true") === correccion.punto));
+    });
   }
 
   async function guardarCorreccion() {
@@ -612,11 +629,16 @@
     guardando = true;
     const dialogo = $("[data-anot-dialogo-corregir]");
     try {
+      const meta = datos.tipos.find((t) => t.clave === correccion.tipo);
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "corregir",
         orden: correccion.orden,
         tipo: correccion.tipo,
-        jugadorId: correccion.jugadorId
+        jugadorId: correccion.jugadorId,
+        // Sólo con los tipos que preguntan: mandarlo siempre sería decidir por
+        // el servidor, y con los demás tipos el ausente («no lo toques») es lo
+        // que conserva si la fila puntuó o no.
+        ...(meta && meta.punto === "pregunta" ? { punto: correccion.punto } : {})
       });
       setError("");
     } catch (error) {
@@ -737,6 +759,13 @@
   );
   $("[data-anot-corregir-guardar]").addEventListener("click", guardarCorreccion);
   $("[data-anot-corregir-cancelar]").addEventListener("click", () => $("[data-anot-dialogo-corregir]").close());
+  $("[data-anot-dialogo-corregir]").querySelectorAll("[data-punto]").forEach((boton) => {
+    boton.addEventListener("click", () => {
+      if (!correccion) return;
+      correccion.punto = boton.dataset.punto === "true";
+      marcarElegidos();
+    });
+  });
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));

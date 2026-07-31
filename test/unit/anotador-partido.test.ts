@@ -108,6 +108,10 @@ const MARCADO = `
   <dialog data-anot-dialogo-corregir>
     <h2 data-anot-corregir-titulo></h2>
     <div data-anot-corregir-tipos></div>
+    <div data-anot-corregir-punto hidden>
+      <button type="button" data-punto="true">Fue punto</button>
+      <button type="button" data-punto="false">No fue punto</button>
+    </div>
     <div data-anot-corregir-jugadores></div>
     <button type="button" data-anot-corregir-cancelar>Cancelar</button>
     <button type="button" data-anot-corregir-guardar>Guardar la corrección</button>
@@ -714,7 +718,79 @@ describe("corregir un punto", () => {
     $("[data-anot-corregir-guardar]").click();
     await respirar();
 
-    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "bloqueo", jugadorId: 3 });
+    /*
+     * El evento original era un `punto` (puntuó), así que al pasar a `bloqueo`
+     * —que pregunta— la corrección conserva ese sí sin que se toque el sí/no:
+     * el evento decía «esta fila puntuó» y cambiar sólo la acción y el autor no
+     * debe perder esa afirmación.
+     */
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 3,
+      punto: true
+    });
+  });
+
+  /*
+   * El sí/no del diálogo sólo tiene sentido con los tipos que preguntan
+   * (bloqueo, chilena): con los demás el tipo ya decide y el servidor ignora
+   * `punto` — pedirlo siempre sería sugerir una elección que no existe.
+   */
+  it("corregir enseña el sí/no sólo con los tipos que preguntan", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    const bloque = $("[data-anot-corregir-punto]");
+    // El evento tocado es un «punto», que no pregunta.
+    expect(bloque.hidden).toBe(true);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    expect(bloque.hidden).toBe(false);
+
+    botones("[data-anot-corregir-tipos] [data-tipo='punto']")[0]!.click();
+    expect(bloque.hidden).toBe(true);
+  });
+
+  /*
+   * Con un tipo que pregunta, tocar «No fue punto» tiene que llegar al
+   * servidor como `punto: false` — es el caso que motiva la tarea entera: un
+   * bloqueo anotado como punto que en realidad no lo fue.
+   */
+  it("«No fue punto» en el diálogo manda punto: false", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    botones("[data-anot-corregir-tipos] [data-tipo='bloqueo']")[0]!.click();
+    botones("[data-anot-corregir-punto] [data-punto='false']")[0]!.click();
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      tipo: "bloqueo",
+      jugadorId: 1,
+      punto: false
+    });
+  });
+
+  /*
+   * Con un tipo que no pregunta (`punto`, `ace`, `saque_fallado`) el cuerpo no
+   * debe llevar `punto` en absoluto: mandarlo sería decidir por el servidor
+   * cuando el propio tipo ya lo decide.
+   */
+  it("con un tipo que no pregunta, guardarCorreccion no manda punto", async () => {
+    await montar(conEventos());
+    botones("[data-anot-historial] .anot-historial-linea")[0]!.click();
+
+    // Se queda en «punto», que ya llega marcado desde el evento original.
+    $("[data-anot-corregir-guardar]").click();
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "punto", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
   });
 });
 
