@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  METRICA_DE_TIPO,
-  PUNTUA,
   TIPOS,
   aplicarPunto,
-  estadisticasDeEventos,
   ladoDelPunto,
   marcadorInicial,
   plegarEventos,
@@ -24,7 +21,7 @@ const REGLAS = REGLAS_POR_DEFECTO.partido;
 let orden = 0;
 const evento = (parcial: Partial<EventoFila>): EventoFila => ({
   orden: (orden += 1),
-  tipo: "remate",
+  tipo: "punto",
   lado_jugador: "A",
   jugador_id: 1,
   lado_punto: "A",
@@ -36,40 +33,50 @@ const evento = (parcial: Partial<EventoFila>): EventoFila => ({
 });
 
 /** `veces` puntos seguidos para un lado, ya con el lado_punto resuelto. */
-const puntos = (lado: "A" | "B", veces: number, tipo: TipoEvento = "remate"): EventoFila[] =>
+const puntos = (lado: "A" | "B", veces: number, tipo: TipoEvento = "punto"): EventoFila[] =>
   Array.from({ length: veces }, () => evento({ tipo, lado_jugador: lado, lado_punto: lado }));
 
 describe("ladoDelPunto", () => {
   /*
    * El único caso en que el lado de quien hace la acción y el lado que se lleva
-   * el punto no coinciden. Guardar un solo lado y deducir el otro sería el fallo
-   * más caro de todo esto: no se vería hasta el final del torneo, con el
-   * marcador y las estadísticas cruzados.
+   * el punto no coinciden. Es la razón de que la fila guarde los dos lados: con
+   * uno solo y el otro deducido, el fallo no se vería hasta el final del torneo.
    */
-  it("un error da el punto al rival", () => {
-    expect(ladoDelPunto("error", "A")).toBe("B");
-    expect(ladoDelPunto("error", "B")).toBe("A");
+  it("el saque fallado da el punto al rival", () => {
+    expect(ladoDelPunto("saque_fallado", "A")).toBe("B");
+    expect(ladoDelPunto("saque_fallado", "B")).toBe("A");
   });
 
-  it("un acierto da el punto a quien lo hace", () => {
-    for (const tipo of ["remate", "ace", "bloqueo"] as TipoEvento[]) {
+  it("un punto y un ace son de quien los hace", () => {
+    for (const tipo of ["punto", "ace"] as TipoEvento[]) {
       expect(ladoDelPunto(tipo, "A")).toBe("A");
       expect(ladoDelPunto(tipo, "B")).toBe("B");
     }
   });
 
-  it("una defensa no da punto a nadie: el rally sigue", () => {
-    expect(ladoDelPunto("defensa", "A")).toBeNull();
+  /*
+   * Bloqueo y chilena no las decide el tipo: las decide quien anota, rally a
+   * rally. Sin respuesta no hay punto — no se adivina, porque adivinar aquí es
+   * inventar marcador.
+   */
+  it("bloqueo y chilena puntúan sólo si se dice que sí", () => {
+    for (const tipo of ["bloqueo", "chilena"] as TipoEvento[]) {
+      expect(ladoDelPunto(tipo, "A", true)).toBe("A");
+      expect(ladoDelPunto(tipo, "A", false)).toBeNull();
+      expect(ladoDelPunto(tipo, "A")).toBeNull();
+    }
   });
 
-  it("PUNTUA y METRICA_DE_TIPO cubren todos los tipos, sin huecos", () => {
-    const tipos: TipoEvento[] = ["remate", "ace", "bloqueo", "defensa", "error", "ajuste"];
-    for (const tipo of tipos) {
-      expect(PUNTUA).toHaveProperty(tipo);
-      expect(METRICA_DE_TIPO).toHaveProperty(tipo);
-    }
-    // Los que se ofrecen en el panel son los que se pueden anotar de verdad.
-    expect(TIPOS.every((t) => t.clave !== "ajuste")).toBe(true);
+  it("el ajuste no es un punto", () => {
+    expect(ladoDelPunto("ajuste", "A", true)).toBeNull();
+  });
+
+  /*
+   * El ajuste es un saldo de apertura, no una acción: nadie lo pulsa, así que no
+   * puede salir en la botonera. Es el único tipo que existe sin estar en TIPOS.
+   */
+  it("TIPOS son las cinco acciones que se pueden anotar, y no el ajuste", () => {
+    expect(TIPOS.map((t) => t.clave)).toEqual(["punto", "ace", "saque_fallado", "bloqueo", "chilena"]);
   });
 });
 
@@ -211,57 +218,6 @@ describe("ajuste: adoptar un marcador que venía a mano", () => {
     );
     expect(estado.terminado).toBe(true);
     expect(estado.winner).toBe("A");
-  });
-});
-
-describe("estadísticas desde el log", () => {
-  it("cada tipo suma a su métrica", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "remate", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "ace", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "bloqueo", jugador_id: 7, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "defensa", jugador_id: 7, lado_jugador: "A", lado_punto: null })
-    ]);
-
-    expect(stats.get(7)).toEqual({ puntos: 3, remates: 1, bloqueos: 1, aces: 1, defensas: 1, errores: 0 });
-  });
-
-  /*
-   * La invariante es «todo punto tiene una acción con un jugador detrás», no
-   * «todo punto suma a la ficha de alguien». Un error da punto al rival y suma
-   * a los errores de quien lo comete, sin regalarle puntos a nadie.
-   */
-  it("un error suma a errores y no da puntos a nadie", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "error", jugador_id: 7, lado_jugador: "A", lado_punto: "B" })
-    ]);
-
-    expect(stats.get(7)).toMatchObject({ errores: 1, puntos: 0 });
-    expect(stats.size).toBe(1);
-  });
-
-  it("una defensa no suma puntos, aunque el rally acabe bien", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "defensa", jugador_id: 3, lado_jugador: "B", lado_punto: null })
-    ]);
-    expect(stats.get(3)).toMatchObject({ defensas: 1, puntos: 0 });
-  });
-
-  it("el ajuste no genera estadísticas de nadie", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "ajuste", jugador_id: null, lado_jugador: null, lado_punto: null, puntos_a: 12, puntos_b: 9 })
-    ]);
-    expect(stats.size).toBe(0);
-  });
-
-  it("reparte por jugador", () => {
-    const stats = estadisticasDeEventos([
-      evento({ tipo: "remate", jugador_id: 1, lado_jugador: "A", lado_punto: "A" }),
-      evento({ tipo: "remate", jugador_id: 2, lado_jugador: "B", lado_punto: "B" }),
-      evento({ tipo: "remate", jugador_id: 1, lado_jugador: "A", lado_punto: "A" })
-    ]);
-    expect(stats.get(1)!.puntos).toBe(2);
-    expect(stats.get(2)!.puntos).toBe(1);
   });
 });
 

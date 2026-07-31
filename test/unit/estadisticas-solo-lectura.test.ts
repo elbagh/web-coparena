@@ -7,7 +7,7 @@ import { ejecutarScriptPublico } from "../helpers/dom";
  *
  * El servidor ya ignora `estadisticas` en el PATCH desde la tarea anterior (la
  * garantía de verdad vive ahí). Esto prueba lo que le toca al cliente: que el
- * diálogo pinta las siete métricas como pares dt/dd de solo lectura -- ningún
+ * diálogo pinta las seis métricas como pares dt/dd de solo lectura -- ningún
  * <input> --, que ya no las manda al guardar, y que los atributos 1-5 se
  * mantienen como campos editables normales.
  *
@@ -57,13 +57,12 @@ const MARCADO = `
 `;
 
 const METRICAS = [
-  { clave: "partidosJugados", etiqueta: "Partidos jugados" },
+  { clave: "partidosJugados", etiqueta: "Partidos" },
   { clave: "puntos", etiqueta: "Puntos" },
-  { clave: "remates", etiqueta: "Remates" },
   { clave: "bloqueos", etiqueta: "Bloqueos" },
+  { clave: "chilenas", etiqueta: "Chilenas" },
   { clave: "aces", etiqueta: "Aces" },
-  { clave: "defensas", etiqueta: "Defensas" },
-  { clave: "errores", etiqueta: "Errores" }
+  { clave: "saquesFallados", etiqueta: "Saques fallados" }
 ];
 
 // Como los manda el servidor: con etiqueta y abreviatura, no claves sueltas.
@@ -86,11 +85,10 @@ const jugador = () => ({
   estadisticas: {
     partidosJugados: 3,
     puntos: 12,
-    remates: 5,
     bloqueos: 2,
+    chilenas: 5,
     aces: 1,
-    defensas: 4,
-    errores: 0
+    saquesFallados: 4
   },
   atributos: { saque: 80, remate: null, bloqueo: 60 }
 });
@@ -205,7 +203,7 @@ afterEach(() => {
 });
 
 describe("cifras de juego en /admin/estadisticas/", () => {
-  it("pinta las siete métricas como dt/dd de solo lectura, ningún input", async () => {
+  it("pinta las seis métricas como dt/dd de solo lectura, ningún input", async () => {
     const { dialogo } = await montarYAbrir();
 
     const caja = dialogo.querySelector("[data-stats-metricas]") as HTMLElement;
@@ -213,7 +211,7 @@ describe("cifras de juego en /admin/estadisticas/", () => {
     const valores = Array.from(caja.querySelectorAll("dd")).map((n) => n.textContent);
 
     expect(etiquetas).toEqual(METRICAS.map((m) => m.etiqueta));
-    expect(valores).toEqual(["3", "12", "5", "2", "1", "4", "0"]);
+    expect(valores).toEqual(["3", "12", "2", "5", "1", "4"]);
     expect(caja.querySelectorAll("input")).toHaveLength(0);
   });
 

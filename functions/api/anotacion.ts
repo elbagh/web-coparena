@@ -362,9 +362,12 @@ async function accionCorregir(
   if (!Number.isInteger(orden) || orden < 0) return jsonAdmin({ error: "Indica qué evento corregir." }, 400);
 
   const alineacion = await leerAlineacion(db, partido.id);
-  const cambios: { tipo?: TipoEvento; jugadorId?: number } = {};
+  const cambios: { tipo?: TipoEvento; jugadorId?: number; punto?: boolean } = {};
   if (body.tipo !== undefined) cambios.tipo = String(body.tipo) as TipoEvento;
   if (body.jugadorId !== undefined) cambios.jugadorId = Number(body.jugadorId);
+  // Sólo si viene un booleano de verdad: ausente significa «no lo toques», y
+  // `Boolean(undefined)` lo convertiría en «no fue punto» sin que nadie lo pida.
+  if (typeof body.punto === "boolean") cambios.punto = body.punto;
 
   const resultado = await corregirEvento(db, partido, orden, cambios, alineacion);
   // Corregir puede cambiar quién ganó, y puede dejarlo sin ganador: el cuadro

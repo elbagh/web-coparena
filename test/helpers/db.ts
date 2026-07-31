@@ -424,18 +424,17 @@ export async function crearEstadistica(
 ): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO estadisticas (
-       jugador_id, partido_id, puntos, remates, bloqueos, aces, defensas, errores
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+       jugador_id, partido_id, puntos, bloqueos, chilenas, aces, saques_fallados
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
   )
     .bind(
       jugadorId,
       partidoId,
       valores.puntos ?? 0,
-      valores.remates ?? 0,
       valores.bloqueos ?? 0,
+      valores.chilenas ?? 0,
       valores.aces ?? 0,
-      valores.defensas ?? 0,
-      valores.errores ?? 0
+      valores.saquesFallados ?? 0
     )
     .run();
 }

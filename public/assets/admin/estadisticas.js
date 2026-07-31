@@ -37,7 +37,7 @@
   const nombreCompleto = (j) => `${j.nombre} ${j.apellidos}`.trim();
 
   // Columnas destacadas en la tabla; el resto de cifras se ve en el diálogo.
-  const COLUMNAS_TABLA = ["puntos", "remates", "bloqueos", "aces"];
+  const COLUMNAS_TABLA = ["puntos", "bloqueos", "chilenas", "aces"];
 
   onReady(async () => {
     const datos = await api("/api/admin/estadisticas");
