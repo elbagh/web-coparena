@@ -177,6 +177,24 @@ export class PartidoTerminado extends ErrorDeAnotacion {
   }
 }
 
+/**
+ * El partido no se ha puesto en directo, así que todavía no se anota.
+ *
+ * Sin esto, anotar el primer punto PUBLICABA el partido: `sentenciasDerivadas`
+ * escribe `status = 'live'` en cada pliegue, así que un toque de prueba lo sacaba
+ * en la portada, en el chip de la cabecera y en /directo/ para todo el que
+ * entrara — sin confirmación y sin vuelta atrás desde el anotador.
+ *
+ * El cerrojo vive aquí y no en la pantalla por lo mismo que `MarcadorSinAdoptar`:
+ * entrar por la URL basta para saltarse cualquier aviso del cliente.
+ */
+export class PartidoNoEnDirecto extends ErrorDeAnotacion {
+  constructor() {
+    super("Este partido no está en directo. Ponlo en directo para poder anotar.");
+    this.name = "PartidoNoEnDirecto";
+  }
+}
+
 export interface MarcadorPlano {
   puntos: { A: number; B: number };
   sets: { A: number; B: number };
@@ -393,7 +411,11 @@ export async function registrarEvento(
   const reglas = normalizarReglas(partido.reglas).partido;
   const antes = plegarEventos(eventos, reglas);
 
-  // Antes que nada: si viene con marcador a mano, no se anota encima.
+  // Antes que nada: si no está en directo, no se anota. Publicar es un acto
+  // deliberado y este es el único sitio donde no se puede esquivar.
+  if (partido.status !== "live") throw new PartidoNoEnDirecto();
+
+  // Y si viene con marcador a mano, no se anota encima.
   if (hayMarcadorAMano(partido, antes)) throw new MarcadorSinAdoptar(marcadorPlano(partido));
 
   /*
@@ -789,6 +811,10 @@ export async function adoptarMarcador(
   usuarioId: number,
   desdeCero = false
 ): Promise<ResultadoAnotacion> {
+  // Adoptar escribe por el pliegue, así que publicaría igual: es la otra puerta
+  // al mismo agujero.
+  if (partido.status !== "live") throw new PartidoNoEnDirecto();
+
   const eventos = await leerEventos(db, partido.id);
   const reglas = normalizarReglas(partido.reglas).partido;
 
@@ -886,6 +912,29 @@ export async function leerAlineacion(db: D1Database, partidoId: string): Promise
     .bind(partidoId)
     .all<AlineacionFila>();
   return results;
+}
+
+/**
+ * Saca el partido a la web.
+ *
+ * NO toca el cronómetro: son dos gestos separados a propósito. Un partido puede
+ * estar publicado y con el reloj sin estrenar —es el estado normal entre que se
+ * anuncia y se saca el primer servicio—.
+ */
+export async function ponerEnDirecto(db: D1Database, partido: PartidoAnotable): Promise<void> {
+  if (partido.status === "live") {
+    throw new ErrorDeAnotacion("Este partido ya está en directo.");
+  }
+  if (partido.status === "finished") {
+    throw new ErrorDeAnotacion("Este partido ya ha terminado.");
+  }
+
+  await db
+    .prepare(
+      "UPDATE partidos SET status = 'live', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+    )
+    .bind(new Date().toISOString(), partido.id)
+    .run();
 }
 
 export { PUNTUA };

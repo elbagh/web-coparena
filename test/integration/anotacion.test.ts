@@ -122,6 +122,12 @@ describe("permisos", () => {
   /*
    * Rehacer un partido cerrado ya no es anotar. Quien solo tiene
    * `partidos.anotar` lleva lo que se está jugando.
+   *
+   * El admin sí atraviesa esa puerta —tiene `partidos.editar`—, pero anotar un
+   * punto nuevo exige además que el partido esté en directo, y eso ya no lo
+   * salta ningún permiso: un resultado decidido no se amplía anotando encima,
+   * se corrige con deshacer o corregir. El admin llega más lejos que quien solo
+   * anota (pasa el permiso), pero se encuentra la misma pared que cualquiera.
    */
   it("un partido terminado ya no lo toca quien solo puede anotar", async () => {
     const anotador = await crearUsuarioConPermisos(["partidos.anotar", "jugadores.ver"]);
@@ -130,8 +136,7 @@ describe("permisos", () => {
     await env.DB.prepare("UPDATE partidos SET status = 'finished' WHERE id = ?1").bind(partidoId).run();
 
     expect((await punto(anotador, partidoId, local.jugadores[0]!.id)).status).toBe(403);
-    // El admin sí, porque tiene `partidos.editar`.
-    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(201);
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(409);
   });
 });
 

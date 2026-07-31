@@ -1,6 +1,6 @@
 // /api/anotacion?partido=ID
 //   GET   estado del partido, alineación y log
-//   POST  { accion: "evento" | "deshacer" | "corregir" | "alineacion" | "adoptar" }
+//   POST  { accion: "evento" | "deshacer" | "corregir" | "alineacion" | "adoptar" | "directo" }
 //
 // Vive fuera de functions/api/admin/ a propósito: tiene otro permiso
 // (`partidos.anotar`), otro público (quien está a pie de pista con el móvil) y
@@ -23,6 +23,7 @@ import {
   leerCambios,
   leerEstado,
   marcadorPlano,
+  ponerEnDirecto,
   recalcularPartido,
   registrarCambio,
   registrarEvento,
@@ -275,6 +276,9 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
         return await accionAdoptar(env.DB, partido, acceso.user.id, body.desdeCero === true);
       case "soltar":
         await soltarAnotacion(env.DB, partido.id);
+        return await respuesta(env.DB, partido);
+      case "directo":
+        await ponerEnDirecto(env.DB, partido);
         return await respuesta(env.DB, partido);
       default:
         return jsonAdmin({ error: "La acción no es válida." }, 400);
