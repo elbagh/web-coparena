@@ -49,6 +49,8 @@
   let correccion = null;
   /** El suplente al que se ha tocado, esperando por quién entra. */
   let entrante = null;
+  /** La acción tocada que espera respuesta a «¿fue punto?». */
+  let preguntando = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
 
@@ -272,9 +274,11 @@
     if (guardando || datos.estado.terminado) return;
     elegido = jugador;
     entrante = null;
+    preguntando = null;
 
     $("[data-anot-elegido]").textContent = jugador.nombre;
     $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = false;
 
@@ -303,16 +307,45 @@
     });
   }
 
-  /** Segundo toque. Los tipos que preguntan abren el tercero; el resto anotan. */
+  /**
+   * Segundo toque. Los tipos que preguntan abren el tercero; el resto anotan.
+   *
+   * Quién pregunta lo dice el servidor (`punto: "pregunta"`), no una lista
+   * escrita aquí: con la regla copiada a mano, añadir un tipo la dejaría
+   * mintiendo — que es exactamente lo que ya pasó con «todo menos defensa
+   * puntúa».
+   */
   function elegirAccion(tipo) {
-    anotarPunto(tipo.clave);
+    if (tipo.punto !== "pregunta") return anotarPunto(tipo.clave);
+
+    preguntando = tipo;
+    $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-punto]").hidden = false;
+    $("[data-anot-punto-accion]").textContent = `${tipo.etiqueta} de ${elegido.nombre}`;
+
+    const caja = $("[data-anot-punto-opciones]");
+    caja.textContent = "";
+    const suyo = nombreEquipo(elegido.lado);
+    [
+      { nombre: "Fue punto", ayuda: `Para ${suyo}`, punto: true, clase: "" },
+      { nombre: "No fue punto", ayuda: "El rally siguió", punto: false, clase: " anot-btn--no" }
+    ].forEach((opcion) => {
+      const boton = el("button", `anot-btn anot-btn--tipo${opcion.clase}`);
+      boton.type = "button";
+      boton.append(el("span", "anot-tipo-nombre", opcion.nombre));
+      boton.append(el("span", "anot-tipo-ayuda", opcion.ayuda));
+      boton.addEventListener("click", () => anotarPunto(preguntando.clave, opcion.punto));
+      caja.append(boton);
+    });
   }
 
   function cancelar() {
     elegido = null;
     entrante = null;
+    preguntando = null;
     $("[data-anot-acciones]").hidden = true;
     $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
     $("[data-anot-reposo]").hidden = false;
   }
 
@@ -327,10 +360,12 @@
     if (guardando || datos.estado.terminado) return;
     entrante = jugador;
     elegido = null;
+    preguntando = null;
 
     $("[data-anot-entra]").textContent = jugador.nombre;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
     $("[data-anot-cambio]").hidden = false;
 
     const caja = $("[data-anot-cambio-opciones]");
@@ -385,12 +420,15 @@
    * servidor. Aquí estaba escrito a mano («todo menos defensa puntúa»), que es
    * una copia esperando a quedarse vieja.
    *
-   * Con los tipos que preguntan no hay nada que predecir mientras no haya
-   * respuesta: adivinar aquí sería pintar un punto que puede no existir.
+   * Con los tipos que preguntan sólo hay punto que predecir cuando la respuesta
+   * ya llegó y fue que sí: sin ella, adivinar aquí sería pintar un punto que el
+   * servidor puede no llegar a guardar.
    */
-  function predecir(tipo) {
+  function predecir(tipo, punto) {
     const meta = datos.tipos.find((t) => t.clave === tipo);
-    if (!meta || meta.punto === "pregunta") return null;
+    if (!meta) return null;
+    // Con los que preguntan, sólo hay punto que predecir si la respuesta fue sí.
+    if (meta.punto === "pregunta" && punto !== true) return null;
     const ladoPunto = meta.aRival ? otroLado(elegido.lado) : elegido.lado;
 
     const fingido = {
@@ -408,7 +446,7 @@
     return utils.applyPoint(fingido, ladoPunto, 1);
   }
 
-  async function anotarPunto(tipo) {
+  async function anotarPunto(tipo, punto) {
     if (guardando || !elegido) return;
     guardando = true;
     setError("");
@@ -421,7 +459,7 @@
     // la referencia al viejo basta.
     const confirmado = datos.estado;
 
-    const prediccion = predecir(tipo);
+    const prediccion = predecir(tipo, punto);
     if (prediccion) {
       datos.estado = {
         ...datos.estado,
@@ -440,7 +478,10 @@
         accion: "evento",
         tipo,
         jugadorId,
-        ordenEsperado: ordenEsperado
+        ordenEsperado: ordenEsperado,
+        // Sólo viaja con los tipos que preguntan: el servidor rechaza el evento
+        // si falta, y mandarlo siempre sería decidir por él.
+        ...(punto === undefined ? {} : { punto })
       });
       datos = respuesta;
     } catch (error) {
@@ -678,6 +719,7 @@
   $("[data-anot-deshacer]").addEventListener("click", deshacer);
   $("[data-anot-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-cambio-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-punto-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-alineacion]").addEventListener("click", abrirAlineacion);
   $("[data-anot-alineacion-guardar]").addEventListener("click", guardarAlineacion);
   $("[data-anot-alineacion-cancelar]").addEventListener("click", () =>

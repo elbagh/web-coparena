@@ -113,6 +113,20 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       </div>
 
       {/*
+        El cuarto estado de la franja, y ocupa el mismo hueco que los otros tres.
+        Bloqueo y chilena no dicen por sí solos si el rally acabó en punto, así
+        que se pregunta — con la misma gramática que «¿por quién entra?»: el
+        toque cae donde ya está el pulgar.
+
+        En pasado: aquí se registra lo que pasó, no lo que debería pasar.
+      */}
+      <div class="anot-punto" data-anot-punto hidden>
+        <p class="anot-pregunta"><strong data-anot-punto-accion></strong></p>
+        <div class="anot-tipos" data-anot-punto-opciones></div>
+        <button type="button" class="anot-btn anot-btn--cancelar" data-anot-punto-cancelar>Cancelar</button>
+      </div>
+
+      {/*
         El aviso vive aquí abajo y no en la cabecera de la página: es donde está
         la mirada. Y va en `position: absolute` sobre el hueco que la franja ya
         reserva (150px de alto para una fila de reposo de 56), así que aparecer y

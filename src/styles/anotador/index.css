@@ -574,6 +574,16 @@ body.is-anotador {
   min-height: 56px;
 }
 
+/*
+ * «No fue punto» lleva el mismo borde discontinuo que el grupo del que sale, y
+ * por la misma razón: no mueve el marcador. Ninguno de los dos es `--primario`
+ * — un botón sólido a pleno sol y con prisa sesga el toque, y aquí las dos
+ * respuestas son igual de legítimas.
+ */
+.anot-punto .anot-btn--no {
+  border-style: dashed;
+}
+
 .anot-btn--cancelar {
   margin-top: 8px;
   width: 100%;

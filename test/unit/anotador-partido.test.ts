@@ -80,6 +80,11 @@ const MARCADO = `
         <div data-anot-cambio-opciones></div>
         <button type="button" data-anot-cambio-cancelar>Cancelar</button>
       </div>
+      <div data-anot-punto hidden>
+        <p><strong data-anot-punto-accion></strong></p>
+        <div data-anot-punto-opciones></div>
+        <button type="button" data-anot-punto-cancelar>Cancelar</button>
+      </div>
 
       <p class="anot-alerta anot-alerta--pulgar" role="alert" data-anot-error hidden></p>
     </section>
@@ -551,6 +556,96 @@ describe("los dos toques", () => {
 
     expect(conAyuda).toEqual([true, true, true]);
     expect(sinAyuda).toEqual([false, false]);
+  });
+});
+
+/*
+ * El tercer toque. Bloqueo y chilena no dicen por sí solos si el rally acabó en
+ * punto, así que antes de anotar se pregunta — en la misma zona del pulgar,
+ * con la misma gramática que «¿por quién entra?».
+ */
+describe("el tercer toque: bloqueo y chilena preguntan", () => {
+  it("un bloqueo pregunta si fue punto antes de anotar", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    // El bloqueo vive en el grupo de los que sólo cuentan.
+    const bloqueo = botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!;
+    bloqueo.click();
+
+    expect($("[data-anot-punto]").hidden).toBe(false);
+    expect($("[data-anot-acciones]").hidden).toBe(true);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+
+    const opciones = botones("[data-anot-punto-opciones] button");
+    expect(opciones).toHaveLength(2);
+    expect(opciones.map((b) => b.querySelector(".anot-tipo-nombre")!.textContent)).toEqual([
+      "Fue punto",
+      "No fue punto"
+    ]);
+
+    opciones[1]!.click(); // «No fue punto»
+    await respirar();
+
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "bloqueo", punto: false });
+  });
+
+  it("«Fue punto» manda punto: true y predice el marcador sin esperar al servidor", async () => {
+    await montar(respuesta());
+
+    let resolver: ((valor: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (url: string, opciones?: { body?: string }) =>
+          new Promise<Response>((res) => {
+            peticiones.push({ url, cuerpo: opciones?.body ? JSON.parse(opciones.body) : null });
+            resolver = res;
+          })
+      )
+    );
+
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+    botones("[data-anot-punto-opciones] button")[0]!.click(); // «Fue punto»
+    await respirar();
+
+    expect($("[data-anot-puntos-a]").textContent).toBe("1");
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "bloqueo", punto: true });
+
+    resolver!(
+      new Response(
+        JSON.stringify(
+          respuesta({
+            estado: { setNumero: 1, puntos: { A: 1, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null }
+          })
+        ),
+        { status: 200 }
+      )
+    );
+  });
+
+  it("un punto no pregunta nada: se anota directo, sin `punto` en el cuerpo", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos] .anot-btn--punto")[0]!.click();
+    await respirar();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect(peticiones.at(-1)!.cuerpo).toMatchObject({ accion: "evento", tipo: "punto" });
+    expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
+  });
+
+  it("cancelar la pregunta vuelve al reposo sin mandar nada", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+    botones("[data-anot-tipos-extra] .anot-btn--bloqueo")[0]!.click();
+
+    $("[data-anot-punto-cancelar]").click();
+
+    expect($("[data-anot-punto]").hidden).toBe(true);
+    expect($("[data-anot-reposo]").hidden).toBe(false);
+    expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
   });
 });
 
