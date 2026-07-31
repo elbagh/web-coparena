@@ -1,0 +1,29 @@
+---
+/*
+ * «Estamos en directo» en lo alto de la portada.
+ *
+ * Va EN FLUJO como primer hijo del body, no `fixed`: así el hero, que viene
+ * después, baja solo. Lo que sí hay que apartar son la cabecera y su fondo, que
+ * son `position: fixed` —es la razón por la que la banda de «ver como» se fue
+ * abajo—; de eso se encarga `--banda-directo`, que `directo.js` rellena con el
+ * alto medido de esto.
+ *
+ * Oculta de serie: sin JavaScript no aparece y no mueve nada.
+ */
+---
+
+<a class="banda-directo" data-banda-directo href="/directo/" hidden>
+  <span class="banda-directo-llama" aria-hidden="true">
+    <svg viewBox="0 0 16 20">
+      <path
+        d="M8 0.6c.6 3.2-1.3 4.4-2.9 6C3.2 8.5 2 10.2 2 12.6 2 16.4 4.7 19.4 8 19.4s6-3 6-6.8c0-2.9-1.6-4.6-3.1-6.4-.5.9-1.2 1.5-2 1.8.6-2.7.2-5.4-.9-7.4Z"
+        fill="currentColor"
+      />
+    </svg>
+  </span>
+  <span class="banda-directo-texto">
+    <strong>¡Estamos en directo!</strong>
+    <span class="banda-directo-equipos" data-banda-equipos></span>
+  </span>
+  <span class="banda-directo-cta">Ver el marcador →</span>
+</a>

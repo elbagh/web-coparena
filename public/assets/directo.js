@@ -180,12 +180,47 @@ window.CopaDirecto = (() => {
     );
   }
 
+  // ------------------------------------------------- banda de la portada ---
+
+  /*
+   * Solo existe en la portada. Se mide el alto real en vez de fijar un número
+   * porque en móvil son dos líneas y los nombres largos pueden hacer tres: un
+   * 52px a ojo dejaría la cabecera pisando la banda en cuanto un equipo se
+   * llamara largo.
+   */
+  function pintarBanda(datos) {
+    const banda = document.querySelector("[data-banda-directo]");
+    if (!banda) return;
+
+    const partido = datos?.partidos?.[0] || null;
+    banda.hidden = !partido;
+
+    if (!partido) {
+      document.documentElement.style.setProperty("--banda-directo", "0px");
+      return;
+    }
+
+    const equipos = banda.querySelector("[data-banda-equipos]");
+    const nombres = `${partido.teams.A.name} — ${partido.teams.B.name}`;
+    if (equipos.textContent !== nombres) equipos.textContent = nombres;
+
+    // Después de pintar: el alto depende de lo que se acaba de escribir.
+    const alto = Math.round(banda.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--banda-directo", `${alto}px`);
+  }
+
   /*
    * Solo se sondea si hay algo que pintar. Este fichero se carga en todas las
-   * páginas porque el botón vive en la cabecera, pero el panel no tiene
-   * cabecera: allí no hay botón, nadie se suscribe y no se pide nada.
+   * páginas porque el botón vive en la cabecera; la banda solo existe en la
+   * portada, así que es un suscriptor más del mismo sondeo: cero peticiones
+   * nuevas y cero cambio de cadencia.
    */
-  if (document.querySelector("[data-directo-apagado]")) suscribir(pintarBoton);
+  if (document.querySelector("[data-directo-apagado]") || document.querySelector("[data-banda-directo]")) {
+    suscribir((datos) => {
+      pintarBoton(datos);
+      pintarBanda(datos);
+    });
+  }
 
   return { suscribir, refrescarAhora, mirandoDeCerca, get estado() { return estado; } };
 })();

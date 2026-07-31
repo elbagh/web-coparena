@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import BandaDirecto from "../components/BandaDirecto.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import Hero from "../components/Hero.astro";
@@ -83,6 +84,7 @@ const structuredData = [
 ---
 
 <BaseLayout structuredData={structuredData}>
+  <BandaDirecto />
   <div class="cursor-blob" data-cursor-blob aria-hidden="true"></div>
   <SiteHeader />
   <main>
