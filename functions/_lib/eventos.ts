@@ -565,10 +565,18 @@ export async function corregirEvento(
   const eventos = await leerEventos(db, partido.id);
 
   /*
-   * Mismo control que al anotar, y por lo mismo. Corregir vuelve a plegar el log
-   * entero, así que hacerlo sobre una lectura vieja se lleva por delante lo que
-   * haya entrado en medio: dos correcciones sobre el mismo evento y la segunda
-   * pisaba a la primera sin decir nada.
+   * No es una guarda de «qué se pierde por en medio»: `eventos` se acaba de leer
+   * fresco, así que la corrección siempre pliega sobre el log tal como está en
+   * este instante, con cualquier punto que haya entrado después de que la
+   * pantalla cargara ya incluido. Lo que impide es corregir desde una VISTA
+   * vieja: si la pantalla no se ha recargado desde el último punto anotado,
+   * quien corrige decide sin saber que el marcador ya cambió, y es fácil que
+   * apunte a la fila equivocada. Rechazarlo obliga a recargar antes de decidir.
+   *
+   * Lo que esto NO hace: separar dos correcciones seguidas sobre el MISMO
+   * evento. Corregir no añade filas al log, así que `siguiente` no se mueve
+   * entre la primera corrección y la segunda — la segunda pasa esta guarda
+   * igual que la primera y la pisa sin decir nada.
    */
   const siguiente = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
   if (ordenEsperado !== siguiente) throw new ConflictoDeOrden();
