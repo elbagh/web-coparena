@@ -59,3 +59,145 @@ describe("quién lleva el partido", () => {
     expect(datos.ultimaActividad).toBeTruthy();
   });
 });
+
+/** Deja el partido reclamado por `user`, con los dos equipos alineados. */
+async function montar(user: UsuarioSesion) {
+  const { partidoId, local, visitante } = await partidoLibre();
+  await anotar(user, partidoId, { accion: "alineacion", lado: "A", jugadorIds: local.jugadores.map((j) => j.id) });
+  await anotar(user, partidoId, {
+    accion: "alineacion",
+    lado: "B",
+    jugadorIds: visitante.jugadores.map((j) => j.id)
+  });
+  return { partidoId, local, visitante };
+}
+
+describe("el reclamo", () => {
+  it("la primera escritura reclama el partido", async () => {
+    const ana = await crearAdmin();
+    const { partidoId, local } = await partidoLibre();
+
+    await anotar(ana, partidoId, { accion: "alineacion", lado: "A", jugadorIds: local.jugadores.map((j) => j.id) });
+
+    const datos = await leer(ana, partidoId);
+    expect(datos.anotador.id).toBe(ana.id);
+    expect(datos.anotador.puedeAnotar).toBe(true);
+  });
+
+  it("el GET no reclama nada", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId } = await partidoLibre();
+
+    await leer(ana, partidoId);
+    await leer(berta, partidoId);
+
+    expect((await leer(ana, partidoId)).anotador.id).toBeNull();
+  });
+
+  it("un segundo anotador recibe 409 y el marcador no se mueve", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId, local } = await montar(ana);
+    await anotar(ana, partidoId, {
+      accion: "evento",
+      tipo: "punto",
+      jugadorId: local.jugadores[0]!.id,
+      ordenEsperado: 0
+    });
+
+    const respuesta = await anotar(berta, partidoId, {
+      accion: "evento",
+      tipo: "punto",
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 1
+    });
+
+    expect(respuesta.status).toBe(409);
+    expect((await leer(ana, partidoId)).estado.puntos).toEqual({ A: 1, B: 0 });
+  });
+
+  it("el 409 dice quién lo lleva", async () => {
+    const ana = await crearAdmin({ nombre: "Ana Muros" });
+    const berta = await crearAdmin();
+    const { partidoId } = await montar(ana);
+
+    const respuesta = await anotar(berta, partidoId, { accion: "alineacion", lado: "A", jugadorIds: [] });
+    const cuerpo = (await respuesta.json()) as { error: string; anotador: { id: number; nombre: string } };
+
+    expect(respuesta.status).toBe(409);
+    expect(cuerpo.anotador).toEqual({ id: ana.id, nombre: "Ana Muros" });
+    expect(cuerpo.error).toContain("Ana Muros");
+  });
+
+  it("para quien no lo lleva, puedeAnotar es false", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId } = await montar(ana);
+
+    expect((await leer(berta, partidoId)).anotador.puedeAnotar).toBe(false);
+  });
+
+  /*
+   * La carrera de verdad: dos peticiones sobre un partido que no lleva nadie.
+   * Con un SELECT y un if las dos pasarían. Lo que las separa es que la
+   * condición viaja dentro del UPDATE y la evalúa D1.
+   */
+  it("dos escrituras a la vez sobre un partido libre: sólo una entra", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId } = await partidoLibre();
+
+    const respuestas = await Promise.all([
+      anotar(ana, partidoId, { accion: "alineacion", lado: "A", jugadorIds: [] }),
+      anotar(berta, partidoId, { accion: "alineacion", lado: "A", jugadorIds: [] })
+    ]);
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([200, 409]);
+
+    const dueño = (await leer(ana, partidoId)).anotador.id;
+    expect([ana.id, berta.id]).toContain(dueño);
+  });
+
+  /*
+   * La puerta va antes del switch, así que cubre todas las acciones de
+   * escritura. Ponerla en cada función de _lib sería repetirla siete veces y
+   * olvidarla en la octava.
+   */
+  it("la puerta cubre todas las acciones de escritura", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId, local } = await montar(ana);
+    await anotar(ana, partidoId, {
+      accion: "evento",
+      tipo: "punto",
+      jugadorId: local.jugadores[0]!.id,
+      ordenEsperado: 0
+    });
+
+    const acciones = [
+      { accion: "evento", tipo: "punto", jugadorId: local.jugadores[0]!.id, ordenEsperado: 1 },
+      { accion: "deshacer", ordenEsperado: 0 },
+      { accion: "corregir", orden: 0, jugadorId: local.jugadores[1]!.id, ordenEsperado: 1 },
+      { accion: "alineacion", lado: "A", jugadorIds: [] },
+      { accion: "cambio", entra: local.jugadores[1]!.id, sale: local.jugadores[0]!.id },
+      { accion: "cambio-deshacer" },
+      { accion: "adoptar" },
+      { accion: "soltar" }
+    ];
+
+    for (const cuerpo of acciones) {
+      const respuesta = await anotar(berta, partidoId, cuerpo);
+      expect(respuesta.status, `la acción ${cuerpo.accion} no está protegida`).toBe(409);
+
+      /*
+       * El estado no basta como prueba. Varias de estas acciones responden 409
+       * por su cuenta aunque la puerta no exista: `adoptar` dice «ya tiene
+       * anotación», `cambio-deshacer` dice «no hay ningún cambio». Lo que sólo
+       * pone la puerta es el campo `anotador`, así que es lo que se comprueba.
+       */
+      const cuerpoJson = (await respuesta.json()) as { anotador?: { id: number } };
+      expect(cuerpoJson.anotador?.id, `la acción ${cuerpo.accion} no pasa por la puerta`).toBe(ana.id);
+    }
+  });
+});

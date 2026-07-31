@@ -181,6 +181,46 @@ export class MarcadorSinAdoptar extends ErrorDeAnotacion {
   }
 }
 
+/**
+ * Otra persona lleva la anotación de este partido.
+ *
+ * Es un «no» blando: quien recibe esto puede tomar el relevo y seguir. El
+ * cerrojo duro sería peor —si al anterior anotador se le acaba la batería, el
+ * siguiente tiene que poder entrar sin llamar a nadie—, y es la misma razón por
+ * la que aquí no hay cola de trabajo sin conexión.
+ */
+export class PartidoDeOtroAnotador extends ErrorDeAnotacion {
+  constructor(readonly anotador: { id: number; nombre: string | null }) {
+    super(
+      `Este partido lo lleva ${anotador.nombre || "otra persona"}. Toma el relevo si vas a anotarlo tú.`
+    );
+    this.name = "PartidoDeOtroAnotador";
+  }
+}
+
+/**
+ * Reclama el partido para `usuarioId`, y sólo si no lo lleva nadie.
+ *
+ * La condición va DENTRO del UPDATE a propósito. Un `SELECT` seguido de un `if`
+ * en el servidor no es atómico: dos peticiones simultáneas leerían las dos
+ * `NULL` y las dos se darían por dueñas, que es exactamente el agujero que esto
+ * viene a tapar. Aquí la resuelve D1, igual que el UNIQUE(partido_id, orden)
+ * resuelve la de dos puntos en el mismo hueco.
+ *
+ * Devuelve `true` si lo acaba de reclamar.
+ */
+export async function reclamarPartido(
+  db: D1Database,
+  partidoId: string,
+  usuarioId: number
+): Promise<boolean> {
+  const resultado = await db
+    .prepare("UPDATE partidos SET anotador_usuario_id = ?1 WHERE id = ?2 AND anotador_usuario_id IS NULL")
+    .bind(usuarioId, partidoId)
+    .run();
+  return resultado.meta.changes === 1;
+}
+
 /** El partido ya está decidido: no caben más puntos. */
 export class PartidoTerminado extends ErrorDeAnotacion {
   constructor() {

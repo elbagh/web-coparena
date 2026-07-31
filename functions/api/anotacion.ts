@@ -13,6 +13,7 @@ import { jsonAdmin, requireAlgunPermiso, requirePermiso, type AdminEnv } from ".
 import {
   ErrorDeAnotacion,
   MarcadorSinAdoptar,
+  PartidoDeOtroAnotador,
   adoptarMarcador,
   corregirEvento,
   deshacerCambio,
@@ -23,6 +24,7 @@ import {
   leerCambios,
   leerEstado,
   marcadorPlano,
+  reclamarPartido,
   recalcularPartido,
   registrarCambio,
   registrarEvento,
@@ -263,6 +265,42 @@ async function partidosDeHoy(db: D1Database) {
   }));
 }
 
+/**
+ * Deja el partido reclamado por quien escribe, o dice quién lo lleva.
+ *
+ * Devuelve `null` cuando quien pregunta puede anotar, y el dueño cuando es otra
+ * persona. El orden de las ramas es el coste: el camino que se recorre en cada
+ * punto —ya es suyo— no gasta ninguna consulta extra, y la fila con el nombre ya
+ * viene cargada, así que rechazar tampoco gasta ninguna. Sólo paga el caso raro,
+ * que es perder el CAS.
+ */
+async function asegurarReclamo(
+  db: D1Database,
+  partido: PartidoConAnotador,
+  usuarioId: number
+): Promise<{ id: number; nombre: string | null } | null> {
+  if (partido.anotador_usuario_id === usuarioId) return null;
+
+  if (partido.anotador_usuario_id !== null) {
+    return { id: partido.anotador_usuario_id, nombre: partido.anotador_nombre || partido.anotador_email };
+  }
+
+  if (await reclamarPartido(db, partido.id, usuarioId)) return null;
+
+  // El CAS perdió: alguien lo reclamó entre la carga de la fila y este momento.
+  const fila = await db
+    .prepare(
+      `SELECT p.anotador_usuario_id AS id, u.nombre, u.email
+         FROM partidos p LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
+        WHERE p.id = ?1`
+    )
+    .bind(partido.id)
+    .first<{ id: number | null; nombre: string | null; email: string | null }>();
+
+  if (!fila || fila.id === null || fila.id === usuarioId) return null;
+  return { id: fila.id, nombre: fila.nombre || fila.email };
+}
+
 export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) => {
   const acceso = await requireAlgunPermiso(request, env, ["partidos.anotar", "partidos.editar"]);
   if (acceso instanceof Response) return acceso;
@@ -283,6 +321,29 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
     const edicion = await requirePermiso(request, env, "partidos.editar");
     if (edicion instanceof Response) {
       return jsonAdmin({ error: "Este partido ya ha terminado. Corregirlo necesita permiso de edición." }, 403);
+    }
+  }
+
+  /*
+   * La puerta del reclamo. Una sola, aquí, y no repartida por las funciones de
+   * `_lib`: el mismo criterio que el bloqueo de «ver como», que vive sólo en
+   * `_middleware.ts`. Repartirla sería escribirla siete veces y olvidarla en la
+   * octava.
+   *
+   * Va después de la comprobación de permiso porque son preguntas distintas:
+   * primero quién eres, que no depende del partido; luego si este partido es
+   * tuyo. De ahí que tomar el relevo de un partido terminado herede la exigencia
+   * de `partidos.editar`, que es lo coherente: enmendar un resultado cerrado ya
+   * la pedía.
+   *
+   * `relevo` es la salida, así que no pasa por aquí. `soltar` sí: quien no lo
+   * lleva toma el relevo primero, porque si no sería una puerta trasera para
+   * quitarle el partido a otro sin que quede dicho.
+   */
+  if (accion !== "relevo") {
+    const otro = await asegurarReclamo(env.DB, partido, acceso.user.id);
+    if (otro) {
+      return jsonAdmin({ error: new PartidoDeOtroAnotador(otro).message, anotador: otro }, 409);
     }
   }
 
