@@ -531,6 +531,27 @@ describe("los dos toques", () => {
     expect(suman).toEqual(["Punto", "Ace", "Falló saque"]);
     expect(cuentan).toEqual(["Bloqueo", "Chilena"]);
   });
+
+  /*
+   * `bloqueo` y `chilena` no traen `ayuda` (decisión de diseño: era la única de
+   * las dos que sólo repetía la etiqueta) — si el servidor no la manda, el
+   * cliente no debe fabricar un `<span>` vacío, que ocuparía el mismo alto sin
+   * decir nada.
+   */
+  it("no pinta el subtítulo de ayuda cuando el tipo no lo trae", async () => {
+    await montar(respuesta());
+    botones("[data-anot-mitad-a] .anot-jugador")[0]!.click();
+
+    const conAyuda = botones("[data-anot-tipos] .anot-btn--tipo").map(
+      (b) => b.querySelector(".anot-tipo-ayuda") !== null
+    );
+    const sinAyuda = botones("[data-anot-tipos-extra] .anot-btn--tipo").map(
+      (b) => b.querySelector(".anot-tipo-ayuda") !== null
+    );
+
+    expect(conAyuda).toEqual([true, true, true]);
+    expect(sinAyuda).toEqual([false, false]);
+  });
 });
 
 describe("corregir un punto", () => {

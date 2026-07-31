@@ -20,7 +20,12 @@ export type TipoEvento = "punto" | "ace" | "saque_fallado" | "bloqueo" | "chilen
 export interface Accion {
   clave: TipoEvento;
   etiqueta: string;
-  ayuda: string;
+  /**
+   * Opcional a propósito: su ausencia es una decisión, no un `""` que haya que
+   * interpretar. `bloqueo` y `chilena` no la llevan — ver el porqué junto a
+   * `TIPOS`.
+   */
+  ayuda?: string;
   /**
    * `"siempre"`: el tipo ya decide si hubo punto.
    * `"pregunta"`: lo decide quien anota, rally a rally.
@@ -40,6 +45,13 @@ export interface Accion {
  * (`/api/plantilla`, sólo clave y etiqueta). El cliente NO vuelve a escribir la
  * regla de quién se lleva el punto: la lee de aquí. La tenía copiada a mano
  * («todo menos defensa puntúa») y era una copia esperando a quedarse vieja.
+ *
+ * `bloqueo` y `chilena` no llevan `ayuda`: de las cinco, son las únicas cuyo
+ * subtítulo se limitaba a repetir la etiqueta («Bloqueo» / «Bloqueo suyo»,
+ * «Chilena» / «Chilena suya»). Las otras tres añaden algo que la etiqueta sola
+ * no dice — a quién beneficia el punto o cómo se hizo—; estas dos, no. Que de
+ * paso el botón vuelva a caber en una línea y devuelva el suelo táctil a 56px
+ * es la confirmación de que sobraba, no el motivo de quitarlo.
  */
 export const TIPOS: readonly Accion[] = [
   { clave: "punto", etiqueta: "Punto", ayuda: "Gana el rally", punto: "siempre", aRival: false },
@@ -51,8 +63,8 @@ export const TIPOS: readonly Accion[] = [
     punto: "siempre",
     aRival: true
   },
-  { clave: "bloqueo", etiqueta: "Bloqueo", ayuda: "Bloqueo suyo", punto: "pregunta", aRival: false },
-  { clave: "chilena", etiqueta: "Chilena", ayuda: "Chilena suya", punto: "pregunta", aRival: false }
+  { clave: "bloqueo", etiqueta: "Bloqueo", punto: "pregunta", aRival: false },
+  { clave: "chilena", etiqueta: "Chilena", punto: "pregunta", aRival: false }
 ];
 
 /** El catálogo indexado. `ajuste` no está: no se ofrece y no se valida contra él. */

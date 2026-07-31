@@ -294,7 +294,10 @@
       const boton = el("button", `anot-btn anot-btn--tipo anot-btn--${tipo.clave}`);
       boton.type = "button";
       boton.append(el("span", "anot-tipo-nombre", tipo.etiqueta));
-      boton.append(el("span", "anot-tipo-ayuda", tipo.ayuda));
+      // Sin `ayuda` el botón se queda en una línea: es lo que le devuelve el
+      // suelo de 56px a `bloqueo`/`chilena`, que con las dos líneas de antes
+      // nunca llegaba a aplicarse (el contenido ya pedía más).
+      if (tipo.ayuda) boton.append(el("span", "anot-tipo-ayuda", tipo.ayuda));
       boton.addEventListener("click", () => elegirAccion(tipo));
       cajas[tipo.punto].append(boton);
     });
