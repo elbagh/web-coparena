@@ -523,6 +523,43 @@ describe("corregir un bloqueo", () => {
 });
 
 /*
+ * `saque_fallado` es la única acción cuyo `lado_punto` no coincide con
+ * `lado_jugador`: el punto cruza la red. Corregir HACIA un tipo que pregunta
+ * (`bloqueo`, `chilena`) sin volver a decir `punto` tiene que heredar «lo que
+ * la fila ya afirmaba» —el sí/no de verdad, no la mera presencia de
+ * `lado_punto`— o el marcador se vuelca: el punto que era del rival pasaría a
+ * dárselo a quien falló el saque, dos puntos de golpe.
+ */
+describe("corregir de un tipo que cruza la red a uno que pregunta", () => {
+  it("un saque fallado corregido a bloqueo sin decir punto no vuelca el marcador", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "saque_fallado");
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 0, B: 1 });
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "bloqueo",
+      jugadorId: ana
+    });
+    expect(respuesta.status).toBe(200);
+
+    /*
+     * La fila ya afirmaba «el punto es del rival», que para un tipo que
+     * pregunta no es un sí: al no repetirse, el bloqueo queda sin decidir y no
+     * puntúa para nadie. Lo único que de verdad importa aquí es lo que NO
+     * puede pasar: que el punto de B reaparezca en A.
+     */
+    const despues = (await respuesta.json()) as Respuesta;
+    expect(despues.estado.puntos).toEqual({ A: 0, B: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, bloqueos: 1, saques_fallados: 0 });
+  });
+});
+
+/*
  * Lo que hace segura toda la anotación: da igual cómo se llegue a un estado, el
  * log manda. Si añadir y recalcular pudieran discrepar, un día lo harían.
  */

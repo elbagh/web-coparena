@@ -679,6 +679,26 @@ describe("el tercer toque: bloqueo y chilena preguntan", () => {
     expect($("[data-anot-punto]").hidden).toBe(true);
     expect($("[data-anot-cambio]").hidden).toBe(false);
   });
+
+  /*
+   * Todo lo de arriba prueba `MARCADO`, la copia a mano del `.astro` — el
+   * mismo punto ciego que ya advierte el comentario de cabecera de este
+   * fichero: si el `.astro` real mueve `[data-anot-punto]` fuera de la franja
+   * del pulgar, esta suite seguiría en verde y sería producción la que se
+   * quedara con la pregunta fuera de sitio. La spec pedía «el tercer toque
+   * existe y cae en la franja del pulgar»; esto cierra la segunda mitad,
+   * leyendo el `.astro` como texto, igual que ya hace el test del aviso más
+   * abajo.
+   */
+  it("en el .astro real, la pregunta cae dentro de la franja del pulgar", () => {
+    const pagina = readFileSync(path.resolve(import.meta.dirname, "../../src/pages/anotador/partido.astro"), "utf8");
+    const pulgar = pagina.indexOf('class="anot-pulgar"');
+    const cierre = pagina.indexOf("</section>", pulgar);
+    const punto = pagina.indexOf('class="anot-punto"');
+
+    expect(punto).toBeGreaterThan(pulgar);
+    expect(punto).toBeLessThan(cierre);
+  });
 });
 
 describe("corregir un punto", () => {

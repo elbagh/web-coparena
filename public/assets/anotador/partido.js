@@ -230,9 +230,12 @@
   /**
    * Lo último anotado, en una línea.
    *
-   * Cuando ese punto cerró un set lo dice, con su parcial. Antes ponía «Remate
-   * de X · 0–0» porque el marcador ya se había reiniciado, y leído del tirón
-   * parecía que el remate hubiera dejado el partido a cero.
+   * Cuando ese punto cerró un set lo dice, con su parcial. Antes ponía «Punto
+   * de ataque de X · 0–0» —el tipo que hoy es «punto» se llamaba entonces
+   * «remate»; nada que ver con el atributo del cromo, que es lo único que ese
+   * nombre designa en el resto del sitio— porque el marcador ya se había
+   * reiniciado, y leído del tirón parecía que esa acción hubiera dejado el
+   * partido a cero.
    */
   function resumen(evento) {
     const etiqueta = (datos.tipos.find((t) => t.clave === evento.tipo) || {}).etiqueta || evento.tipo;

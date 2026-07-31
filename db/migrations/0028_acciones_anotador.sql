@@ -20,6 +20,26 @@
 -- y el siguiente intento vuelve a correrlo entero. Por eso `estadisticas` se
 -- reconstruye en vez de usar ALTER TABLE ADD COLUMN, que no es re-ejecutable:
 -- un segundo intento moriria con «duplicate column name».
+--
+-- Tres cosas que esta migracion NO hace, y que hay que saber antes de aplicarla:
+--
+-- 1. La copia de `estadisticas` NO vuelve a derivar las cifras desde el log ya
+--    traducido. Las filas de partidos ya anotados antes de este cambio conservan
+--    sus `remates`/`defensas`/`errores` tal cual estaban, y arrancan con
+--    `chilenas` y `saques_fallados` a 0 aunque el log de `partido_eventos` ya
+--    lleve, gracias al mapeo de arriba, bloqueos y saques fallados de sobra.
+--    La ficha de esos jugadores queda descuadrada respecto a su propio log hasta
+--    que alguien la recalcule.
+-- 2. La via de recalculo es `PATCH /api/anotacion?partido=ID`: vuelve a plegar
+--    el log entero y reescribe `estadisticas` desde cero para ese partido. Hay
+--    que pasarla por cada partido que ya tuviera anotador antes de este
+--    despliegue — no lo hace nadie por su cuenta.
+-- 3. La re-ejecutabilidad del fichero es CONDICIONAL, no incondicional: si D1
+--    corta la conexion despues del `RENAME` de `estadisticas` (mas abajo) y
+--    antes de que la migracion quede registrada, el reintento vuelve a correr el
+--    `INSERT ... SELECT` de `estadisticas_nueva` sobre la tabla ya migrada, y
+--    ese SELECT no lee `chilenas` ni `saques_fallados` de origen: un partido que
+--    ya se hubiera recalculado con el paso 2 volveria a perderlos a 0.
 
 DROP TABLE IF EXISTS partido_eventos_nueva;
 CREATE TABLE partido_eventos_nueva (

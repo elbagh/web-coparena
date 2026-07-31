@@ -538,8 +538,17 @@ export async function corregirEvento(
   /*
    * Si no se dice nada, se conserva lo que la fila ya afirmaba: corregir sólo a
    * quién se atribuye un bloqueo no puede mover el marcador de propina.
+   *
+   * «Lo que la fila ya afirmaba» es «se lo llevó el lado de quien hizo la
+   * acción», no «`lado_punto` no es nulo» — mirar sólo la nulidad es la misma
+   * trampa que costó un Crítico en el cliente (`partido.js`, `abrirCorreccion`).
+   * Con un tipo `aRival` (`saque_fallado`) el punto es del lado CONTRARIO al
+   * del jugador aunque `lado_punto` exista: una corrección que cambia el tipo
+   * a `bloqueo` sin mandar `punto` heredaría ese «sí» y se lo daría al propio
+   * jugador en vez de al rival que lo tenía, volcando el marcador en dos
+   * puntos y sumando uno de más en la ficha de quien corrige.
    */
-  const puntua = cambios.punto ?? actual.lado_punto !== null;
+  const puntua = cambios.punto ?? (actual.lado_punto !== null && actual.lado_punto === actual.lado_jugador);
 
   const corregido: EventoFila = {
     ...actual,
