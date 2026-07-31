@@ -292,12 +292,14 @@
     equipoEnEdicion = {
       id: equipo.id,
       nombre: equipo.nombre,
+      siglas: equipo.siglas ?? "",
       tieneFoto: Boolean(equipo.tieneFoto),
       capitanJugadorId: equipo.capitanJugadorId ?? null,
       jugadores: (equipo.jugadores || []).map((j) => ({ ...j }))
     };
     titulo.textContent = equipo.nombre;
     form.querySelector('[data-team-edit-field="equipo"]').value = equipo.nombre;
+    form.querySelector("[data-team-edit-siglas]").value = equipo.siglas ?? "";
     listaJugadores.innerHTML = "";
     (equipo.jugadores || []).forEach((jugador) => listaJugadores.append(crearFilaJugador(jugador)));
     prepararFotoEquipo(equipo);
@@ -523,6 +525,11 @@
       cambios.push(`Nombre del equipo: «${equipoEnEdicion.nombre}» → «${nombreActual}»`);
     }
 
+    const siglasAhora = form.querySelector("[data-team-edit-siglas]").value.trim().toUpperCase();
+    if (siglasAhora !== (equipoEnEdicion.siglas || "").toUpperCase()) {
+      cambios.push(`Siglas: ${equipoEnEdicion.siglas || "—"} → ${siglasAhora || "se derivan solas"}.`);
+    }
+
     if (fotoEquipoInput()?.files?.[0]) {
       cambios.push(equipoEnEdicion.tieneFoto ? "Cambia la foto del equipo." : "Se añade la foto del equipo.");
     } else if (eliminarFotoEquipo()?.checked && equipoEnEdicion.tieneFoto) {
@@ -669,6 +676,9 @@
     const fotoEquipo = fotoEquipoInput()?.files?.[0];
     if (fotoEquipo) envio.append("fotoEquipo", fotoEquipo);
     if (eliminarFotoEquipo()?.checked) envio.append("eliminarFotoEquipo", "1");
+
+    // Suelto, no dentro de `payload`: ese JSON es el compartido con /inscripcion/.
+    envio.append("siglas", form.querySelector("[data-team-edit-siglas]").value.trim());
 
     btnConfirmar.disabled = true;
     btnConfirmar.setAttribute("aria-busy", "true");
