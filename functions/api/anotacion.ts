@@ -23,6 +23,7 @@ import {
   leerCambios,
   leerEstado,
   marcadorPlano,
+  moverCronometro,
   ponerEnDirecto,
   recalcularPartido,
   registrarCambio,
@@ -157,7 +158,10 @@ async function respuesta(
         status: fresco.status,
         origenMarcador: fresco.origen_marcador,
         reglas: normalizarReglas(fresco.reglas).partido,
-        startedAt: fresco.started_at
+        startedAt: fresco.started_at,
+        // El acumulado viaja para que el navegador pueda pintar el reloj: el
+        // servidor manda el ancla, no el número que se ve girar.
+        elapsedMs: fresco.elapsed_ms
       },
       ...estado,
       /*
@@ -279,6 +283,9 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
         return await respuesta(env.DB, partido);
       case "directo":
         await ponerEnDirecto(env.DB, partido);
+        return await respuesta(env.DB, partido);
+      case "cronometro":
+        await moverCronometro(env.DB, partido, body.marcha === true);
         return await respuesta(env.DB, partido);
       default:
         return jsonAdmin({ error: "La acción no es válida." }, 400);

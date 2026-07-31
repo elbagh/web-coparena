@@ -268,9 +268,18 @@ function sentenciasDerivadas(
   const estado = plegarEventos(eventos, reglas);
   const ahora = new Date().toISOString();
 
+  /*
+   * La duración al cerrar: lo ya acumulado MÁS el tramo en curso.
+   *
+   * Antes era solo `ahora − started_at`, que tira `elapsed_ms` por la ventana.
+   * No se notaba porque nada escribía el acumulado antes del final; con la pausa
+   * del anotador, cada partido que se pare entre sets reportaría solo su último
+   * tramo. `elapsedOnFinish` de functions/api/partidos.ts siempre lo hizo así:
+   * eran dos copias de la misma cuenta y una mentía.
+   */
   const elapsed =
     estado.terminado && partido.started_at
-      ? Math.max(0, Date.now() - new Date(partido.started_at).getTime())
+      ? partido.elapsed_ms + Math.max(0, Date.now() - new Date(partido.started_at).getTime())
       : partido.elapsed_ms;
 
   const sentencias: D1PreparedStatement[] = [
@@ -951,6 +960,55 @@ export async function ponerEnDirecto(db: D1Database, partido: PartidoAnotable): 
       "UPDATE partidos SET status = 'live', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
     )
     .bind(new Date().toISOString(), partido.id)
+    .run();
+}
+
+/**
+ * Arranca o para el reloj del partido.
+ *
+ * `started_at` es el inicio del tramo EN CURSO y `elapsed_ms` el acumulado de los
+ * cerrados, así que arrancar pone el ancla y pausar la recoge. Las dos son
+ * idempotentes: arrancar un reloj que ya corre movería el ancla hacia adelante y
+ * regalaría el tiempo transcurrido, y pausar uno ya parado volvería a sumar el
+ * mismo tramo.
+ */
+export async function moverCronometro(
+  db: D1Database,
+  partido: PartidoAnotable,
+  marcha: boolean
+): Promise<void> {
+  /*
+   * Mismo orden que en registrarEvento y adoptarMarcador, y por la misma razón:
+   * un partido terminado dice que terminó, no que le falta ponerse en directo.
+   * Lo segundo invitaría a pulsar «ponerlo en directo», y ponerEnDirecto lo
+   * rechaza igual por haber terminado — dos avisos que se contradicen y ninguno
+   * lleva a ningún sitio.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+  if (partido.status !== "live") {
+    throw new ErrorDeAnotacion("El cronómetro es del partido en directo. Ponlo en directo primero.");
+  }
+
+  const ahora = new Date().toISOString();
+
+  if (marcha) {
+    if (partido.started_at) return; // ya corre
+    await db
+      .prepare(
+        "UPDATE partidos SET started_at = ?1, log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+      )
+      .bind(ahora, partido.id)
+      .run();
+    return;
+  }
+
+  if (!partido.started_at) return; // ya está parado
+  const acumulado = partido.elapsed_ms + Math.max(0, Date.now() - new Date(partido.started_at).getTime());
+  await db
+    .prepare(
+      "UPDATE partidos SET started_at = NULL, elapsed_ms = ?1, log_version = log_version + 1, updated_at = ?2 WHERE id = ?3"
+    )
+    .bind(acumulado, ahora, partido.id)
     .run();
 }
 
