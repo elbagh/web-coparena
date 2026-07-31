@@ -250,6 +250,10 @@ import SiteFooter from "../components/SiteFooter.astro";
   <script is:inline src="/assets/site-interactions.js" defer></script>
   <script is:inline src="/assets/cromo.js" defer></script>
   <script is:inline src="/assets/perfil.js" defer></script>
+  {/* Sin marcado que le corresponda: el bocadillo de acceso al panel y al
+      anotador lo construye este script solo si /api/me da el permiso, para que
+      quien no lo tiene no lo vea ni en el código fuente de la página. */}
+  <script is:inline src="/assets/herramientas.js" defer></script>
   <script is:inline src="/assets/my-team.js" defer></script>
   <script is:inline src="/assets/shirts.js" defer></script>
 </BaseLayout>
