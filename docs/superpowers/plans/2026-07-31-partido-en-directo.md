@@ -665,12 +665,11 @@ describe("la duración final incluye lo acumulado", () => {
     const cookie = await sesion();
     const equipoA = await crearEquipo({ nombre: "Ostreiros do Pozo" });
     const equipoB = await crearEquipo({ nombre: "Os Pulpos" });
-    const partidoId = await crearPartido({
-      equipoA,
-      equipoB,
-      status: "live",
-      reglas: { sets: 1, puntosPorSet: 2, ventaja: 1 }
-    });
+    // El idioma de la casa para «un partido que se cierra en cuatro puntos».
+    // OJO: lleva el envoltorio `partido:`, `puntosPorSet` tiene un mínimo de 5
+    // en `normalizarReglas`, y la clave es `diferencia`, no `ventaja`.
+    const RAPIDAS = { partido: { sets: 1, puntosPorSet: 5, puntosSetDecisivo: 5, diferencia: 1 } };
+    const partidoId = await crearPartido({ equipoA, equipoB, status: "live", reglas: RAPIDAS });
 
     await postear(partidoId, { accion: "alineacion", lado: "A", jugadorIds: [equipoA.jugadores[0].id] }, cookie);
     await postear(partidoId, { accion: "alineacion", lado: "B", jugadorIds: [equipoB.jugadores[0].id] }, cookie);
@@ -1560,7 +1559,9 @@ const estado = (reloj: { startedAt: string | null; elapsedMs: number }) => ({
     id: "p1",
     status: "live",
     origenMarcador: "eventos",
-    reglas: { sets: 3, puntosPorSet: 21, ventaja: 2 },
+    // La forma que devuelve la API es la INTERIOR: `normalizarReglas(...).partido`.
+    // Claves reales: sets, puntosPorSet, puntosSetDecisivo, diferencia.
+    reglas: { sets: 3, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 },
     ...reloj
   },
   estado: {
