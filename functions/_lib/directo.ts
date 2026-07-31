@@ -188,7 +188,14 @@ export async function versionDirecto(db: D1Database): Promise<string> {
               -- tira un TypeError y deja el directo caído. Se escapa en vez de
               -- limpiarse por lo de siempre: sustituir juntaría dos versiones
               -- distintas y devolvería un 304 con el cuerpo viejo.
-              (SELECT COALESCE(GROUP_CONCAT(s, ''), '')
+              --
+              -- El '|' entre los hex es igual de obligatorio: hex es 2 caracteres
+              -- por byte y sin separador el reparto se pierde. "ABC"+"D" y
+              -- "AB"+"CD" dan el mismo "41424344" pegados a pelo, y esos dos
+              -- estados son alcanzables de verdad (la columna no tiene más límite
+              -- que 2-4 caracteres). Un '|' no puede salir nunca de un hex(),
+              -- así que no hay ambigüedad posible al partir por él.
+              (SELECT COALESCE(GROUP_CONCAT(s, '|'), '')
                  FROM (SELECT hex(e.siglas) AS s
                          FROM equipos e
                          JOIN partidos p2 ON e.id IN (p2.equipo_a_id, p2.equipo_b_id)

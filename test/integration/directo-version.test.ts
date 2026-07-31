@@ -244,21 +244,49 @@ describe("las siglas viajan y mueven la versión", () => {
   });
 
   /*
+   * hex() sin delimitador concatena bytes, no siglas: "ABC"+"D" y "AB"+"CD" dan
+   * el mismo hex "41424344" porque el reparto entre equipos se pierde al pegar
+   * los dos hex seguidos. Dos estados distintos —de verdad alcanzables, la
+   * columna no tiene más límite que 2-4 caracteres— acaban en la misma versión,
+   * y quien ya tenía la vieja se queda con un 304 y el chip sin corregir.
+   */
+  it("dos repartos distintos de las mismas siglas no colisionan en la versión", async () => {
+    const equipoA = await crearEquipo();
+    const equipoB = await crearEquipo();
+    await crearPartido({ equipoA, equipoB, status: "live" });
+
+    await env.DB.prepare("UPDATE equipos SET siglas = 'ABC' WHERE id = ?1").bind(equipoA.id).run();
+    await env.DB.prepare("UPDATE equipos SET siglas = 'D' WHERE id = ?1").bind(equipoB.id).run();
+    const primera = await versionActual();
+
+    await env.DB.prepare("UPDATE equipos SET siglas = 'AB' WHERE id = ?1").bind(equipoA.id).run();
+    await env.DB.prepare("UPDATE equipos SET siglas = 'CD' WHERE id = ?1").bind(equipoB.id).run();
+
+    expect(await versionActual()).not.toBe(primera);
+  });
+
+  /*
    * La versión acaba en una cabecera HTTP, y ahí solo cabe ASCII imprimible: una
    * sigla con tilde metida en crudo tira un TypeError al leer la respuesta y deja
    * el directo entero caído. Por eso van en hex().
+   *
+   * Se comprueba la versión en crudo —sin pasar por `pedir()`— porque el ETag de
+   * la respuesta va por `etagDe`, que YA escapa cualquier cosa no ASCII con
+   * `encodeURIComponent` como resguardo. Comprobar solo el ETag dejaría pasar
+   * este test aunque `hex()` desapareciera del todo: el resguardo lo taparía.
    */
-  it("una sigla con tilde no rompe la cabecera", async () => {
+  it("una sigla con tilde no rompe la cabecera: la versión ya es ASCII antes del resguardo de etagDe", async () => {
     const equipoA = await crearEquipo({ nombre: "Ría de Muros" });
     const equipoB = await crearEquipo({ nombre: "Ñoras" });
     await crearPartido({ equipoA, equipoB, status: "live" });
     await env.DB.prepare("UPDATE equipos SET siglas = 'RÍA' WHERE id = ?1").bind(equipoA.id).run();
     await env.DB.prepare("UPDATE equipos SET siglas = 'ÑOR' WHERE id = ?1").bind(equipoB.id).run();
 
-    const respuesta = await pedir();
-    const etag = respuesta.headers.get("ETag")!;
+    const { versionDirecto } = await import("../../functions/_lib/directo");
+    expect(await versionDirecto(env.DB)).toMatch(/^[\x20-\x7E]*$/);
 
-    expect(etag).toMatch(/^[\x20-\x7E]*$/);
+    const respuesta = await pedir();
+    expect(respuesta.headers.get("ETag")).toMatch(/^[\x20-\x7E]*$/);
     expect(respuesta.status).toBe(200);
   });
 
