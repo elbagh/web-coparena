@@ -66,6 +66,15 @@
   let partidoPintado = null;
   let terminado = false;
   let feedAbiertoUnaVez = false;
+  /**
+   * El partido cuyo reloj corre. Lo deja el pintado y lo lee el tictac.
+   *
+   * El reloj va por su cuenta y no con el sondeo: entre dos sondeos pasan tres
+   * segundos como poco —sesenta si no hay nadie jugando—, y un reloj que salta
+   * de tres en tres se lee como roto. Correrlo aquí no cuesta ni una petición
+   * más, porque `elapsed()` sólo necesita `startedAt` y la hora del navegador.
+   */
+  let partidoDelReloj = null;
 
   // --------------------------------------------------------------- datos ---
 
@@ -302,6 +311,9 @@
       cajaVersus.hidden = true;
       cajaFeed.hidden = true;
       cajaEstado.hidden = false;
+      // Sin nadie jugando no hay reloj que correr: dejarlo apuntando al partido
+      // anterior lo tendría contando un partido que ya acabó.
+      partidoDelReloj = null;
       texto(
         cajaEstado,
         estado && estado.siguiente
@@ -339,6 +351,9 @@
       $("[data-versus-detalle]"),
       `Set ${partido.setNumber} · Sets ${partido.sets.A}–${partido.sets.B} · a ${objetivo}`
     );
+    partidoDelReloj = partido;
+    pintarReloj();
+
     const parciales = $("[data-versus-parciales]");
     parciales.hidden = !partido.history || partido.history.length === 0;
     texto(parciales, (partido.history || []).map((set) => `${set.a}–${set.b}`).join(" · "));
@@ -362,6 +377,23 @@
 
     ultimoEstado = estado;
   }
+
+  /**
+   * El reloj del partido, en la línea de detalle.
+   *
+   * Se esconde entero —separador incluido— cuando no hay hora de inicio: un
+   * «00:00» fijo dice menos que no decir nada, y hasta hace poco era lo único
+   * que se podía enseñar, porque el anotador no marcaba `started_at`.
+   */
+  function pintarReloj() {
+    const nodo = $("[data-versus-reloj]");
+    if (!nodo) return;
+    const corre = Boolean(partidoDelReloj && partidoDelReloj.startedAt);
+    nodo.hidden = !corre;
+    if (corre) texto(nodo, ` · ${utils.formatClock(utils.elapsed(partidoDelReloj))}`);
+  }
+
+  window.setInterval(pintarReloj, 1000);
 
   /*
    * La cadencia rápida solo mientras el versus está de verdad en pantalla. Quien

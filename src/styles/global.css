@@ -5644,6 +5644,12 @@ html.js .directo-off[open] .directo-aviso {
   text-align: center;
 }
 
+/* Cifras de ancho fijo: si no, el reloj cambia de ancho cada segundo y arrastra
+   la línea centrada con él. Mismo motivo que en el anotador. */
+.versus-reloj {
+  font-variant-numeric: tabular-nums;
+}
+
 .versus-parciales {
   font-variant-numeric: tabular-nums;
 }

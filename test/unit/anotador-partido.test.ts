@@ -39,7 +39,7 @@ const MARCADO = `
         <span data-anot-puntos-a>0</span>
         <span data-anot-puntos-b>0</span>
       </p>
-      <p data-anot-detalle></p>
+      <p><span data-anot-detalle></span><span data-anot-reloj hidden></span></p>
       <p data-anot-parciales hidden></p>
     </section>
 
@@ -1359,5 +1359,55 @@ describe("volver a la pantalla", () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(peticiones.length).toBe(antes);
+  });
+});
+
+/*
+ * El reloj sale de `partidos.started_at`, que hasta hace poco sólo escribía el
+ * botón «empezar» del panel: un partido llevado entero desde el anotador no
+ * tenía hora de inicio y el reloj marcaba 00:00 para siempre. Ahora lo pone el
+ * pliegue con el primer punto, y esta pantalla lo enseña.
+ */
+describe("el reloj del partido", () => {
+  it("no se pinta mientras el partido no ha empezado", async () => {
+    await montar(respuesta());
+    expect($("[data-anot-reloj]").hidden).toBe(true);
+  });
+
+  it("cuenta desde la hora de inicio", async () => {
+    const hace90s = new Date(Date.now() - 90_000).toISOString();
+    await montar(
+      respuesta({ partido: { id: "p1", status: "live", origenMarcador: "eventos", reglas: REGLAS, startedAt: hace90s, elapsedMs: 0 } })
+    );
+
+    const reloj = $("[data-anot-reloj]");
+    expect(reloj.hidden).toBe(false);
+    expect(reloj.textContent).toMatch(/01:3\d$/);
+  });
+
+  /*
+   * Al terminar, el servidor congela la duración en `elapsed_ms` y el reloj deja
+   * de correr solo. Sin `elapsedMs` en la respuesta, `elapsed()` devolvía 0 y la
+   * pantalla se despedía marcando 00:00 tras cuarenta minutos de juego.
+   */
+  it("un partido terminado enseña la duración congelada", async () => {
+    await montar(
+      respuesta({
+        partido: { id: "p1", status: "finished", origenMarcador: "eventos", reglas: REGLAS, startedAt: new Date().toISOString(), elapsedMs: 2_400_000 },
+        estado: { setNumero: 2, puntos: { A: 0, B: 0 }, sets: { A: 1, B: 0 }, historial: [{ a: 5, b: 3 }], terminado: true, winner: "A" }
+      })
+    );
+
+    expect($("[data-anot-reloj]").textContent).toBe(" · 40:00");
+  });
+
+  /*
+   * La línea va centrada, así que un reloj de ancho variable la movería una vez
+   * por segundo. `tabular-nums` es lo que lo impide, y sin él el fallo sólo se
+   * ve mirando fijamente la pantalla.
+   */
+  it("el reloj lleva cifras de ancho fijo", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../../src/styles/anotador/index.css"), "utf8");
+    expect(css).toMatch(/\.anot-reloj\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
   });
 });

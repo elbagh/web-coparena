@@ -211,6 +211,17 @@ body.is-anotador {
   margin: 2px 0 0;
 }
 
+/*
+ * Cifras de ancho fijo. Sin esto el reloj cambia de ancho al pasar de «11:11» a
+ * «00:00» —los dígitos de Inter no miden lo mismo— y, como la línea va centrada,
+ * el detalle entero se desplaza una vez por segundo. En esta pantalla eso es
+ * inaceptable: la regla de la que sale todo su diseño es que nada se mueve de
+ * sitio, porque se mira tres segundos entre punto y punto.
+ */
+.anot-reloj {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Terminado, los números grandes son los sets. Sin el rótulo, un 2 – 1 se leería
    como un marcador de puntos absurdo. */
 .anot-rotulo {

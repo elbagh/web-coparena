@@ -269,9 +269,25 @@ function sentenciasDerivadas(
   const sentencias: D1PreparedStatement[] = [
     db
       .prepare(
+        /*
+         * `started_at` con COALESCE, y es la única forma que sirve.
+         *
+         * De esa marca sale el reloj del partido, y hasta ahora sólo la escribía
+         * el botón «empezar» del panel. El anotador es un camino completo hasta
+         * `live` que no pasa por ahí: dejaba la marca en NULL, así que un partido
+         * llevado entero desde aquí no tenía hora de inicio y el reloj marcaba
+         * 00:00 para siempre — en el panel, en el directo y en esta pantalla.
+         *
+         * Y con COALESCE porque este UPDATE se ejecuta en CADA escritura: una
+         * asignación a secas movería el inicio a «ahora» con cada punto y el
+         * reloj se quedaría clavado en cero por el otro lado. Se pone una vez y
+         * no se toca; deshacer hasta vaciar el log tampoco la borra, porque el
+         * partido empezó de verdad.
+         */
         `UPDATE partidos SET
            points_a = ?1, points_b = ?2, sets_a = ?3, sets_b = ?4, set_number = ?5,
            set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9,
+           started_at = COALESCE(started_at, ?10),
            origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?10
          WHERE id = ?11`
       )

@@ -34,6 +34,8 @@ interface Respuesta {
     origenMarcador: string;
     status: string;
     reglas: { sets: number; puntosPorSet: number; puntosSetDecisivo: number; diferencia: number };
+    startedAt: string | null;
+    elapsedMs: number;
   };
   estado: { puntos: { A: number; B: number }; sets: { A: number; B: number }; setNumero: number; winner: string | null };
   eventos: { orden: number; tipo: string; jugadorId: number | null; ladoPunto: string | null }[];
@@ -1114,5 +1116,79 @@ describe("el cuadro se entera", () => {
       .bind(final)
       .first<{ equipo_a_nombre: string }>();
     expect(arriba!.equipo_a_nombre).toBe("Delfines");
+  });
+});
+
+/*
+ * El reloj del partido sale de `partidos.started_at`, y hasta ahora sólo lo
+ * escribía el botón «empezar» del panel (`/api/partidos`). El anotador es un
+ * camino completo hasta `live` que no pasa por ahí: el pliegue ponía el estado
+ * en `live` y dejaba la marca en NULL, así que un partido llevado entero desde
+ * el anotador no tenía hora de inicio y cualquier reloj marcaba 00:00 para
+ * siempre. Es el mismo patrón que ya apareció dos veces en esta zona: varios
+ * caminos al mismo estado y uno se deja algo por el camino.
+ */
+describe("la hora de inicio", () => {
+  const marcaDe = (partidoId: string) =>
+    env.DB.prepare("SELECT started_at FROM partidos WHERE id = ?1")
+      .bind(partidoId)
+      .first<{ started_at: string | null }>();
+
+  it("el primer punto la pone", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    expect((await marcaDe(partidoId))!.started_at).toBeNull();
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const despues = (await marcaDe(partidoId))!.started_at;
+    expect(despues).not.toBeNull();
+    expect(Number.isNaN(Date.parse(despues!))).toBe(false);
+  });
+
+  /*
+   * `COALESCE` y no una asignación a secas: el pliegue se reescribe entero en
+   * CADA punto, así que sin él la marca saltaría a «ahora» con cada anotación y
+   * el reloj se quedaría clavado en cero de otra manera.
+   */
+  it("los puntos siguientes no la mueven", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    const primera = (await marcaDe(partidoId))!.started_at;
+
+    await punto(admin, partidoId, local.jugadores[1]!.id);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+  });
+
+  /*
+   * Deshacer hasta dejar el log vacío no borra la marca: el partido empezó de
+   * verdad, y quitar el último punto no lo devuelve a «sin empezar».
+   */
+  it("deshacerlo todo no la borra", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    const primera = (await marcaDe(partidoId))!.started_at;
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: siguienteOrden - 1 });
+
+    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+  });
+
+  it("el GET la devuelve, junto al tiempo acumulado", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const datos = await leer(admin, partidoId);
+    expect(datos.partido.startedAt).not.toBeNull();
+    expect(datos.partido).toHaveProperty("elapsedMs");
   });
 });

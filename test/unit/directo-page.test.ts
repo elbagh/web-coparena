@@ -42,7 +42,7 @@ const MARCADO = `
         <div>
           <span data-versus-puntos-a>0</span>
           <span data-versus-puntos-b>0</span>
-          <p data-versus-detalle></p>
+          <p><span data-versus-detalle></span><span data-versus-reloj hidden></span></p>
           <p data-versus-parciales hidden></p>
         </div>
         <div data-versus-lado="B">
@@ -448,5 +448,36 @@ describe("el chip de la cabecera", () => {
       "utf8"
     );
     expect(header).toContain('href="/directo/" data-directo-vivo');
+  });
+});
+
+/*
+ * El reloj corre en el cliente desde `startedAt`, sin pedirle nada más al
+ * servidor. Va con su propio intervalo y no con el sondeo: entre dos sondeos
+ * pasan tres segundos como poco —sesenta si no hay nadie jugando—, y un reloj
+ * que salta de tres en tres se lee como estropeado.
+ */
+describe("el reloj del partido", () => {
+  it("no se pinta si el partido no tiene hora de inicio", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    expect($("[data-versus-reloj]").hidden).toBe(true);
+  });
+
+  it("cuenta desde la hora de inicio", async () => {
+    await montar();
+    const base = estadoBase();
+    (base.partidos[0] as Record<string, unknown>).startedAt = new Date(Date.now() - 125_000).toISOString();
+
+    await sondeo(base);
+
+    const reloj = $("[data-versus-reloj]");
+    expect(reloj.hidden).toBe(false);
+    expect(reloj.textContent).toMatch(/02:0\d$/);
+  });
+
+  it("el reloj lleva cifras de ancho fijo", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../../src/styles/global.css"), "utf8");
+    expect(css).toMatch(/\.versus-reloj\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
   });
 });
