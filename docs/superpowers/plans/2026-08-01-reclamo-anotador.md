@@ -455,6 +455,15 @@ describe("el reclamo", () => {
     for (const cuerpo of acciones) {
       const respuesta = await anotar(berta, partidoId, cuerpo);
       expect(respuesta.status, `la acción ${cuerpo.accion} no está protegida`).toBe(409);
+
+      /*
+       * El estado no basta como prueba. Varias de estas acciones responden 409
+       * por su cuenta aunque la puerta no exista: `adoptar` dice «ya tiene
+       * anotación», `cambio-deshacer` dice «no hay ningún cambio». Lo que sólo
+       * pone la puerta es el campo `anotador`, así que es lo que se comprueba.
+       */
+      const cuerpoJson = (await respuesta.json()) as { anotador?: { id: number } };
+      expect(cuerpoJson.anotador?.id, `la acción ${cuerpo.accion} no pasa por la puerta`).toBe(ana.id);
     }
   });
 });
@@ -843,11 +852,17 @@ describe("dos pestañas del mismo anotador", () => {
   });
 
   /*
-   * Dos adopciones a la vez chocan contra el UNIQUE. Sin traducirlo, la segunda
-   * salía como un 500 «No se ha podido guardar»: un fallo del motor con pinta de
+   * Dos adopciones a la vez. Sin el catch, la que choca contra el UNIQUE sale
+   * como un 500 «No se ha podido guardar»: un fallo del motor con pinta de
    * avería, en el móvil de quien está a pie de pista.
+   *
+   * Lo que este test prueba es que ninguna de las dos acaba en 500. NO prueba
+   * por cuál de los dos caminos salió el 409: si workerd las serializa, la
+   * segunda ve el ajuste de la primera y responde «ya tiene anotación» sin
+   * llegar al UNIQUE. Las dos salidas son correctas; la que no lo es es el 500,
+   * y esa es la que se vigila.
    */
-  it("dos adopciones a la vez dan 409 con su motivo, no un 500", async () => {
+  it("dos adopciones a la vez no dejan nunca un 500", async () => {
     const admin = await crearAdmin();
     const { partidoId } = await montarPartido(admin, undefined, { puntosA: 8, puntosB: 6 });
 
@@ -856,10 +871,12 @@ describe("dos pestañas del mismo anotador", () => {
       anotar(admin, partidoId, { accion: "adoptar" })
     ]);
 
-    const estados = respuestas.map((r) => r.status).sort();
-    expect(estados).toEqual([201, 409]);
+    expect(respuestas.map((r) => r.status).sort()).toEqual([201, 409]);
     const perdedora = respuestas.find((r) => r.status === 409)!;
-    expect(((await perdedora.json()) as Respuesta).error).toBeTruthy();
+    const { error } = (await perdedora.json()) as Respuesta;
+    expect(error).toBeTruthy();
+    // El texto genérico del 500 no puede aparecer en un 409.
+    expect(error).not.toContain("No se ha podido guardar");
   });
 });
 ```
@@ -1401,3 +1418,4 @@ La 0029 **no** está en producción hasta que se promueva a `main`, y promover e
 - La firma de `respuesta()` cambia en la tarea 1 y la tocan diez sitios. TypeScript los señala; `npm run test:types` es la comprobación.
 - `crearAdmin({ nombre: ... })` puede no estar soportado en `test/helpers/db.ts`. Comprobarlo en la tarea 2, paso 1.
 - El `describe("dos anotadores a la vez")` que ya existe usa el mismo usuario dos veces, así que **sobrevive** al reclamo y pasa a documentar el caso de las dos pestañas. Se le cambia el nombre en la tarea 4, no antes.
+- `test/integration/anotacion.test.ts:140-147` es el único test que hoy escribe con un usuario distinto del que montó el partido, y espera un **403**. Sobrevive porque la puerta va después de la comprobación de permiso: ese usuario se queda en el 403 sin llegar al reclamo. Si alguien cambia ese orden, este test es el que lo detecta.
