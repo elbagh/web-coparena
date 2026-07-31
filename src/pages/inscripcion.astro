@@ -39,7 +39,16 @@ const structuredData = [breadcrumb([{ name: "Inscripción", path: "/inscripcion/
       </p>
     </section>
 
-    <section class="auth-card reveal" style="--reveal-delay: 40ms" data-auth-logged-out hidden>
+    {/* Aquí entrar es el primer paso de inscribirse, así que con las
+        inscripciones cerradas deja sitio al aviso de arriba. Es la única
+        página que lo pide: en el resto, la tarjeta es la puerta del sitio. */}
+    <section
+      class="auth-card reveal"
+      style="--reveal-delay: 40ms"
+      data-auth-logged-out
+      data-auth-solo-abiertas
+      hidden
+    >
       <h2>Primero entra con Google</h2>
       <p>
         Así buscamos tu equipo por correo y nadie puede crear dos equipos por despiste.
