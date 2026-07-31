@@ -51,6 +51,9 @@
   let entrante = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
+  /** El punto que espera a que arranque el reloj. */
+  let puntoEnEspera = null;
+  let tictac = null;
 
   /** Rehacer un partido cerrado ya no es anotar: pide `partidos.editar`. */
   const puedeEditar = () => Boolean(window.CopaAuth?.state?.acceso?.permisos?.includes("partidos.editar"));
@@ -110,6 +113,44 @@
     setError(mensaje);
   }
 
+  const relojCorriendo = () => Boolean(datos.partido.startedAt);
+  const relojSinEstrenar = () => !datos.partido.startedAt && !datos.partido.elapsedMs;
+
+  /**
+   * El reloj lo pinta el navegador desde el ancla del servidor.
+   *
+   * `elapsed()` de match-utils.js ya sabe la cuenta —acumulado más el tramo en
+   * curso—, así que aquí no se repite: es la misma que usa el panel.
+   */
+  function pintarReloj() {
+    const caja = $("[data-anot-reloj]");
+    const pausa = $("[data-anot-reloj-pausa]");
+    const iniciar = $("[data-anot-reloj-iniciar]");
+    const fuera = datos.partido.status !== "live";
+
+    iniciar.hidden = fuera || !relojSinEstrenar();
+    caja.hidden = fuera || relojSinEstrenar();
+    pausa.hidden = caja.hidden;
+
+    if (caja.hidden) return;
+
+    const ms = utils.elapsed({
+      status: "live",
+      startedAt: datos.partido.startedAt,
+      elapsedMs: datos.partido.elapsedMs
+    });
+    texto(caja, utils.formatClock(ms));
+    pausa.textContent = relojCorriendo() ? "⏸" : "▶";
+    pausa.setAttribute("aria-label", relojCorriendo() ? "Pausar el cronómetro" : "Reanudar el cronómetro");
+  }
+
+  /* Un tick por segundo, y solo mientras corre: parado no hay nada que mover. */
+  function vigilarReloj() {
+    clearInterval(tictac);
+    if (!datos || !relojCorriendo() || document.visibilityState === "hidden") return;
+    tictac = setInterval(pintarReloj, 1000);
+  }
+
   function pintar() {
     if (!datos) return;
     const { estado, alineacion } = datos;
@@ -159,6 +200,8 @@
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
     pintarExtras();
+    pintarReloj();
+    vigilarReloj();
   }
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
@@ -450,6 +493,30 @@
 
   async function anotarPunto(tipo) {
     if (guardando || !elegido) return;
+
+    /*
+     * El reloj sin estrenar para el primer punto. No es un cerrojo de servidor a
+     * propósito: lo único que estropea anotar sin reloj es la duración del
+     * partido, y un 409 más sería otra forma de que la franja del pulgar se
+     * quede muerta a pie de pista.
+     */
+    if (relojSinEstrenar()) {
+      puntoEnEspera = { tipo, jugador: elegido };
+      cancelar();
+      $("[data-anot-dialogo-reloj]").showModal();
+      return;
+    }
+
+    await enviarPunto(tipo);
+  }
+
+  /**
+   * El envío de verdad, sin la comprobación del reloj: al confirmar el diálogo
+   * de arranque se llega aquí directamente, porque esa comprobación ya se hizo
+   * —y repetirla leería el mismo `datos.partido` de antes de arrancar, así que
+   * volvería a preguntar en vez de anotar el punto que la pregunta dejó pendiente—.
+   */
+  async function enviarPunto(tipo) {
     guardando = true;
     mostrarError("");
 
@@ -700,15 +767,23 @@
    * `guardando` también aquí: un doble toque en «Seguir desde 8–6» con la red
    * lenta mandaba dos adopciones, y la segunda contestaba «este partido ya tiene
    * anotación». El anotador veía un error por haberlo hecho bien.
+   *
+   * Devuelve si la petición llegó bien. El arranque del reloj lo usa para saber
+   * si toca anotar el punto que lo disparó: mirar `datos.partido.startedAt` tras
+   * la respuesta no vale, porque nada garantiza que el cuerpo devuelto refleje
+   * ese arranque concreto y no otro cambio de por medio. Que la petición no haya
+   * lanzado es la señal directa.
    */
   async function accionSimple(cuerpo) {
-    if (guardando) return;
+    if (guardando) return false;
     guardando = true;
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", cuerpo);
       mostrarError("");
+      return true;
     } catch (error) {
       mostrarError(error.message);
+      return false;
     } finally {
       guardando = false;
       pintar();
@@ -756,6 +831,35 @@
     $("[data-anot-dialogo-directo]").close();
     await accionSimple({ accion: "directo" });
   });
+
+  $("[data-anot-reloj-iniciar]").addEventListener("click", () =>
+    accionSimple({ accion: "cronometro", marcha: true })
+  );
+  $("[data-anot-reloj-pausa]").addEventListener("click", () =>
+    accionSimple({ accion: "cronometro", marcha: !relojCorriendo() })
+  );
+  $("[data-anot-reloj-cancelar]").addEventListener("click", () => {
+    puntoEnEspera = null;
+    $("[data-anot-dialogo-reloj]").close();
+  });
+  $("[data-anot-reloj-confirmar]").addEventListener("click", async () => {
+    $("[data-anot-dialogo-reloj]").close();
+    const espera = puntoEnEspera;
+    puntoEnEspera = null;
+    const arrancado = await accionSimple({ accion: "cronometro", marcha: true });
+    // El punto que abrió el diálogo se anota: descartarlo sería perderlo. Pero
+    // solo si el reloj arrancó de verdad — si la petición falló, anotar encima
+    // dejaría un punto guardado con el reloj todavía sin estrenar, y el aviso ya
+    // dicho por `accionSimple` sería lo único que quedara sin explicar por qué.
+    // Va a `enviarPunto` y no a `anotarPunto`: la comprobación del reloj ya se
+    // hizo aquí, y volver a pasar por ella preguntaría otra vez.
+    if (arrancado && espera) {
+      elegido = espera.jugador;
+      await enviarPunto(espera.tipo);
+    }
+  });
+
+  document.addEventListener("visibilitychange", vigilarReloj);
 
   /*
    * Al volver a la pantalla, releer una vez.

@@ -40,6 +40,11 @@ const MARCADO = `
       </p>
       <p data-anot-detalle></p>
       <p data-anot-parciales hidden></p>
+      <p class="anot-reloj-fila">
+        <span data-anot-reloj hidden></span>
+        <button type="button" data-anot-reloj-pausa hidden></button>
+        <button type="button" data-anot-reloj-iniciar hidden>Iniciar cronómetro</button>
+      </p>
     </section>
 
     <section class="anot-decision" data-anot-decision hidden>
@@ -119,6 +124,11 @@ const MARCADO = `
     <button type="button" data-anot-directo-cancelar>Cancelar</button>
     <button type="button" data-anot-directo-confirmar disabled>Sí, en directo</button>
   </dialog>
+
+  <dialog data-anot-dialogo-reloj>
+    <button type="button" data-anot-reloj-cancelar>Cancelar</button>
+    <button type="button" data-anot-reloj-confirmar>Arrancar</button>
+  </dialog>
 `;
 
 const REGLAS = { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 };
@@ -153,9 +163,15 @@ const EQUIPOS = {
   B: { nombre: "Os Pulpos Bravos", jugadores: [enPlantilla(3, "Iago", "García Hermida")] }
 };
 
+/*
+ * El reloj por defecto está PAUSADO (con algo acumulado), no sin estrenar: la
+ * mayoría de estos tests anotan un punto y esperan la petición al instante, y
+ * el reloj sin estrenar abriría el diálogo de arranque en su lugar. Solo los
+ * tests de `anotador-cronometro.test.ts` ejercitan ese cerrojo a propósito.
+ */
 /** La respuesta de `/api/anotacion`, con lo mínimo para pintar. */
 const respuesta = (extra: Record<string, unknown> = {}) => ({
-  partido: { id: "p1", status: "live", origenMarcador: "manual", reglas: REGLAS, startedAt: null },
+  partido: { id: "p1", status: "live", origenMarcador: "manual", reglas: REGLAS, startedAt: null, elapsedMs: 90000 },
   estado: { setNumero: 1, puntos: { A: 0, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null },
   eventos: [],
   siguienteOrden: 0,

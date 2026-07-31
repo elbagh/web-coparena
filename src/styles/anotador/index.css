@@ -225,6 +225,51 @@ body.is-anotador {
   margin: 4px 0 0;
 }
 
+/* -------------------------------------------------------------- reloj --- */
+
+.anot-reloj-fila {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 4px 0 0;
+  min-height: 34px;
+}
+
+/* Tabular para que los dígitos no bailen al pasar de 9 a 10. */
+.anot-reloj {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Objetivo cómodo aunque el glifo sea pequeño: se toca con el pulgar de refilón. */
+.anot-reloj-btn {
+  background: none;
+  border: 2px solid var(--anot-linea);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  min-height: 34px;
+  min-width: 42px;
+}
+
+/*
+ * A la escala de la propia fila (34px), no a la de un `.anot-btn` normal
+ * (56px): el presupuesto de alto de esta pantalla ya está gastado (746px en
+ * un móvil de 844, medido), y este botón se toca una vez, al principio del
+ * partido — no está en la zona del pulgar, que es la que necesita objetivos
+ * grandes porque se toca entre puntos, a ciegas.
+ *
+ * Compuesto con `.anot-btn` y no solo `.anot-btn--reloj`: misma especificidad
+ * que la regla base, y esta sale antes en la hoja — sin el compuesto, el
+ * `min-height: 56px` de más abajo gana por orden de aparición.
+ */
+.anot-btn.anot-btn--reloj {
+  min-height: 34px;
+  padding: 4px 14px;
+}
+
 /* --------------------------------------------------------------- decisión --- */
 
 /*

@@ -32,6 +32,20 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
       </p>
       <p class="anot-detalle" data-anot-detalle></p>
       <p class="anot-parciales" data-anot-parciales hidden></p>
+      {/*
+        El reloj va ARRIBA, lejos del pulgar: la zona de anotar está abajo, así que la
+        pausa no se toca sin querer. El número lo pinta el navegador desde el ancla que
+        manda el servidor, no viaja hecho.
+      */}
+      <p class="anot-reloj-fila">
+        <span class="anot-reloj" data-anot-reloj hidden></span>
+        <button type="button" class="anot-reloj-btn" data-anot-reloj-pausa hidden aria-label="Pausar el cronómetro">
+          ⏸
+        </button>
+        <button type="button" class="anot-btn anot-btn--reloj" data-anot-reloj-iniciar hidden>
+          Iniciar cronómetro
+        </button>
+      </p>
     </section>
 
     {/*
@@ -215,6 +229,21 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn anot-btn--primario" data-anot-directo-confirmar disabled>
           Sí, en directo
         </button>
+      </div>
+    </form>
+  </dialog>
+
+  {/*
+    Sale al tocar un punto con el reloj sin estrenar. Al confirmar se anota el punto
+    que lo disparó: un toque descartado a pie de pista es un punto perdido.
+  */}
+  <dialog class="anot-dialogo" data-anot-dialogo-reloj>
+    <form method="dialog">
+      <h2>¿Arrancamos el cronómetro?</h2>
+      <p class="anot-hint">El partido ya está en directo. Al arrancarlo se anota este punto.</p>
+      <div class="anot-dialogo-pie">
+        <button type="button" class="anot-btn" data-anot-reloj-cancelar>Cancelar</button>
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-reloj-confirmar>Arrancar</button>
       </div>
     </form>
   </dialog>
