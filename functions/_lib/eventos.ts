@@ -411,8 +411,18 @@ export async function registrarEvento(
   const reglas = normalizarReglas(partido.reglas).partido;
   const antes = plegarEventos(eventos, reglas);
 
-  // Antes que nada: si no está en directo, no se anota. Publicar es un acto
-  // deliberado y este es el único sitio donde no se puede esquivar.
+  /*
+   * Lo específico primero. Un partido ya decidido dice que ha terminado, no
+   * que «no está en directo»: ese segundo aviso invita a pulsar «ponerlo en
+   * directo», y `ponerEnDirecto` lo rechaza igual por haber terminado — dos
+   * mensajes que se contradicen entre sí y ninguno lleva a ningún sitio. Sólo
+   * un `scheduled` de verdad —nunca se ha publicado— cae en el segundo aviso.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+
+  // Antes que nada (ya descartado que esté decidido): si no está en directo,
+  // no se anota. Publicar es un acto deliberado y este es el único sitio
+  // donde no se puede esquivar.
   if (partido.status !== "live") throw new PartidoNoEnDirecto();
 
   // Y si viene con marcador a mano, no se anota encima.
@@ -811,8 +821,15 @@ export async function adoptarMarcador(
   usuarioId: number,
   desdeCero = false
 ): Promise<ResultadoAnotacion> {
+  /*
+   * Mismo orden que en `registrarEvento`, y por la misma razón: lo específico
+   * primero. Un partido terminado dice que ha terminado, no que le falta
+   * publicarse.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+
   // Adoptar escribe por el pliegue, así que publicaría igual: es la otra puerta
-  // al mismo agujero.
+  // al mismo agujero que registrarEvento.
   if (partido.status !== "live") throw new PartidoNoEnDirecto();
 
   const eventos = await leerEventos(db, partido.id);

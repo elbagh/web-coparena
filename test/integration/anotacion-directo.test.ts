@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { onRequestPost, onRequestGet } from "../../functions/api/anotacion";
 import { ctx } from "../helpers/ctx";
-import { cookieSesion, crearEquipo, crearPartido, crearUsuarioConPermisos, peticion } from "../helpers/db";
+import { cookieSesion, crearAdmin, crearEquipo, crearPartido, crearUsuarioConPermisos, peticion } from "../helpers/db";
 
 /*
  * El agujero que esto cierra: `sentenciasDerivadas` escribe `status = 'live'` en
@@ -66,6 +66,10 @@ describe("no se anota sobre un partido que no está en directo", () => {
       .bind(partidoId)
       .first<{ n: number }>();
     expect(eventos!.n).toBe(0);
+    // Un `scheduled` de verdad nunca se ha publicado: el aviso lo dice así, no
+    // que haya terminado.
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("no está en directo");
   });
 
   /*
@@ -82,6 +86,8 @@ describe("no se anota sobre un partido que no está en directo", () => {
 
     expect(respuesta.status).toBe(409);
     expect((await estadoDe(partidoId)).status).toBe("scheduled");
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("no está en directo");
   });
 
   it("fijar la alineación SÍ se puede antes del pitido: es preparación", async () => {
@@ -135,6 +141,71 @@ describe("poner en directo", () => {
 
     // Sin `partidos.editar`, un partido terminado ya se rechaza antes.
     expect((await postear(partidoId, { accion: "directo" }, cookie)).status).toBe(403);
+  });
+});
+
+/*
+ * `PartidoNoEnDirecto` y `PartidoTerminado` cubren estados distintos —«no se ha
+ * publicado» y «ya se decidió»— y hay que revisarlos primero para no
+ * confundirlos: antes de este fix, `partido.status !== "live"` se comprobaba
+ * antes que `partido.status === "finished"`, así que un partido terminado
+ * también caía en «no está en directo». El aviso invitaba a pulsar «ponlo en
+ * directo», y `ponerEnDirecto` lo rechazaba igual por haber terminado — dos
+ * mensajes contradictorios para quien solo intentaba corregir un resultado ya
+ * cerrado. Sólo alcanza este código quien tiene `partidos.editar`: sin él, el
+ * partido terminado ya se rechaza antes con 403 (ver arriba), así que un
+ * `admin` es quien hace falta aquí para llegar hasta el aviso.
+ */
+describe("un partido terminado no se confunde con uno sin publicar", () => {
+  /** Set corto para cerrar un partido de verdad en pocas peticiones. */
+  const RAPIDAS = { partido: { sets: 1, puntosPorSet: 5, puntosSetDecisivo: 5, diferencia: 1 } };
+
+  it("anotar en un partido terminado dice que terminó, no que le falta publicarse", async () => {
+    const admin = await crearAdmin();
+    const cookie = await cookieSesion(admin);
+    const equipoA = await crearEquipo({ nombre: "Ostreiros do Pozo" });
+    const equipoB = await crearEquipo({ nombre: "Os Pulpos" });
+    const partidoId = await crearPartido({ equipoA, equipoB, status: "scheduled", reglas: RAPIDAS });
+
+    await postear(partidoId, { accion: "alineacion", lado: "A", jugadorIds: [equipoA.jugadores[0].id] }, cookie);
+    await postear(partidoId, { accion: "alineacion", lado: "B", jugadorIds: [equipoB.jugadores[0].id] }, cookie);
+    await postear(partidoId, { accion: "directo" }, cookie);
+
+    // Cinco puntos seguidos para A cierran el set único y con él el partido.
+    for (let orden = 0; orden < 5; orden += 1) {
+      const punto = await postear(
+        partidoId,
+        { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
+        cookie
+      );
+      expect(punto.status).toBe(201);
+    }
+    expect((await estadoDe(partidoId)).status).toBe("finished");
+
+    const respuesta = await postear(
+      partidoId,
+      { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 5 },
+      cookie
+    );
+
+    expect(respuesta.status).toBe(409);
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("terminado");
+    expect(cuerpo.error).not.toContain("no está en directo");
+  });
+
+  it("adoptar un partido terminado dice que terminó, no que le falta publicarse", async () => {
+    const admin = await crearAdmin();
+    const cookie = await cookieSesion(admin);
+    const partidoId = await crearPartido({ status: "finished", winner: "A", puntosA: 21, puntosB: 15 });
+
+    const respuesta = await postear(partidoId, { accion: "adoptar" }, cookie);
+
+    expect(respuesta.status).toBe(409);
+    expect((await estadoDe(partidoId)).status).toBe("finished");
+    const cuerpo = (await respuesta.json()) as { error: string };
+    expect(cuerpo.error).toContain("terminado");
+    expect(cuerpo.error).not.toContain("no está en directo");
   });
 });
 
