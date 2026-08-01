@@ -1,4 +1,4 @@
--- Migration number: 0028 	 equipos_siglas
+-- Migration number: 0030 	 equipos_siglas
 -- Las siglas con las que el chip de la cabecera dice quién está jugando.
 --
 -- Anulable y SIN backfill a propósito: NULL significa «derívalas del nombre»
