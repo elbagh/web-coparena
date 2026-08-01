@@ -52,6 +52,7 @@ interface PartidoDirectoRow {
   set_number: number;
   set_history: string;
   started_at: string | null;
+  elapsed_ms: number;
   scheduled_at: string | null;
   reglas: string;
   siglas_a: string | null;
@@ -139,8 +140,8 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
  *
  * Y lleva `log_version` desde que el payload trae también quién está en pista y
  * el historial: fijar una alineación, registrar un cambio de jugador o anotar
- * una defensa no mueven el marcador, así que sin ese contador el espectador se
- * quedaba con un 304 y el cuerpo viejo.
+ * un bloqueo que no puntúa no mueven el marcador, así que sin ese contador el
+ * espectador se quedaba con un 304 y el cuerpo viejo.
  *
  * Y lleva los ajustes y el próximo partido por el mismo motivo, visto del revés:
  * lo que viaja en el cuerpo y no está en la versión es información que el
@@ -493,7 +494,7 @@ export async function plantillaPublica(db: D1Database, partidoId: string) {
     },
     /*
      * Las etiquetas de las acciones viajan aquí y no en el sondeo: el historial
-     * público necesita escribir «Remate» o «Bloqueo», y esta respuesta se pide
+     * público necesita escribir «Punto» o «Bloqueo», y esta respuesta se pide
      * una vez y se cachea. Mandarlas en cada sondeo serían las mismas cinco
      * palabras cien veces por minuto; copiarlas al cliente sería una lista más
      * que mantener a mano.
@@ -513,6 +514,16 @@ function mapDirecto(partido: PartidoDirectoRow) {
     sets: { A: partido.sets_a, B: partido.sets_b },
     history: leerHistorial(partido.set_history),
     startedAt: partido.started_at,
+    /*
+     * El acumulado viaja igual que en `/api/anotacion`: `elapsed()` de
+     * match-utils.js necesita `elapsedMs` además de `startedAt` para pintar el
+     * reloj público, y sin él el chip volvería a leer mal tras cada pausa —el
+     * tramo en curso se sumaría sobre un acumulado que el cliente no tiene.
+     * Cambia con `moverCronometro`, que sube `log_version` en la misma fila
+     * que agrega `versionDirecto`: una pausa o un arranque sin puntos de por
+     * medio también mueve el ETag.
+     */
+    elapsedMs: partido.elapsed_ms,
     scheduledAt: partido.scheduled_at,
     reglas: normalizarReglas(partido.reglas).partido,
     /*

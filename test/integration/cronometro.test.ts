@@ -169,7 +169,7 @@ describe("la duración final incluye lo acumulado", () => {
     for (let orden = 0; orden < 5; orden += 1) {
       const punto = await postear(
         partidoId,
-        { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
+        { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
         cookie
       );
       expect(punto.status).toBe(201);
@@ -221,7 +221,7 @@ describe("deshacer el punto que cierra el partido no reactiva un ancla vieja", (
     for (let orden = 0; orden < 5; orden += 1) {
       const punto = await postear(
         partidoId,
-        { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
+        { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
         cookie
       );
       expect(punto.status).toBe(201);

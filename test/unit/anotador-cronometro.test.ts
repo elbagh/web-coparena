@@ -13,12 +13,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const MARCADO = `
   <div class="anot-panel" data-anot-panel hidden>
+    <p data-anot-punto-set hidden></p>
     <p data-anot-rotulo hidden></p>
     <span data-anot-puntos-a>0</span><span data-anot-puntos-b>0</span>
     <p data-anot-detalle></p><p data-anot-parciales hidden></p>
     <span data-anot-reloj hidden></span>
     <button data-anot-reloj-pausa hidden></button>
     <button data-anot-reloj-iniciar hidden>Iniciar cronómetro</button>
+    <section data-anot-relevo hidden>
+      <h2 data-anot-relevo-titulo></h2>
+      <p data-anot-relevo-texto></p>
+      <button data-anot-relevo-tomar></button>
+      <p data-anot-error-relevo hidden></p>
+    </section>
     <section data-anot-decision hidden>
       <h2 data-anot-decision-titulo></h2>
       <button data-anot-adoptar></button><button data-anot-cero></button>
@@ -35,9 +42,18 @@ const MARCADO = `
     <section data-anot-pulgar>
       <div data-anot-reposo><p data-anot-ultimo></p><button data-anot-deshacer></button></div>
       <div data-anot-acciones hidden><strong data-anot-elegido></strong><div data-anot-tipos></div>
-        <button data-anot-cancelar></button></div>
+        <div data-anot-tipos-extra></div><button data-anot-cancelar></button></div>
       <div data-anot-cambio hidden><strong data-anot-entra></strong><div data-anot-cambio-opciones></div>
         <button data-anot-cambio-cancelar></button></div>
+      <div data-anot-punto hidden><strong data-anot-punto-accion></strong><div data-anot-punto-opciones></div>
+        <button data-anot-punto-cancelar></button></div>
+      <div data-anot-cierre hidden>
+        <p data-anot-cierre-titulo></p><p data-anot-cierre-marcador></p>
+        <button data-anot-cierre-confirmar>
+          <span data-anot-cierre-confirmar-texto></span><span data-anot-cierre-confirmar-ayuda></span>
+        </button>
+        <button data-anot-cierre-cancelar></button>
+      </div>
       <p data-anot-error hidden></p>
     </section>
     <details><button data-anot-alineacion></button><button data-anot-soltar hidden></button>
@@ -47,7 +63,11 @@ const MARCADO = `
   <dialog data-anot-dialogo-alineacion><div data-anot-plantillas></div>
     <button data-anot-alineacion-cancelar></button><button data-anot-alineacion-guardar></button></dialog>
   <dialog data-anot-dialogo-corregir><h2 data-anot-corregir-titulo></h2>
-    <div data-anot-corregir-tipos></div><div data-anot-corregir-jugadores></div>
+    <div data-anot-corregir-tipos></div>
+    <div data-anot-corregir-punto hidden>
+      <button data-punto="true"></button><button data-punto="false"></button>
+    </div>
+    <div data-anot-corregir-jugadores></div>
     <button data-anot-corregir-cancelar></button><button data-anot-corregir-guardar></button></dialog>
   <dialog data-anot-dialogo-directo><p data-anot-directo-cruce></p>
     <input type="checkbox" data-anot-directo-acepto />
@@ -86,7 +106,7 @@ const estado = (reloj: { startedAt: string | null; elapsedMs: number }) => ({
     A: { nombre: "Ostreiros do Pozo", jugadores: [{ id: 1, nombre: "Ana", apellidos: "Ruiz", dorsal: 4, nivel: "oro", media: 80, tieneFoto: false, esSuplente: false }] },
     B: { nombre: "Os Pulpos", jugadores: [] }
   },
-  tipos: [{ clave: "remate", etiqueta: "Remate", ayuda: "Punto directo", puntua: true, alRival: false }]
+  tipos: [{ clave: "punto", etiqueta: "Punto", ayuda: "Gana el rally", punto: "siempre", aRival: false }]
 });
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -153,7 +173,7 @@ describe("el reloj sin estrenar bloquea el primer punto", () => {
 
     const cuerpos = fetchMock.mock.calls.map((llamada) => JSON.parse(llamada[1].body));
     expect(cuerpos[0]).toMatchObject({ accion: "cronometro", marcha: true });
-    expect(cuerpos[1]).toMatchObject({ accion: "evento", tipo: "remate" });
+    expect(cuerpos[1]).toMatchObject({ accion: "evento", tipo: "punto" });
   });
 
   it("cancelar no manda nada: el punto se pierde a propósito", async () => {

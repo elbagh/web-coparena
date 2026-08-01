@@ -29,7 +29,13 @@
 
     const meta = el("div", "anot-partido-meta");
     meta.append(el("span", "", partido.ronda));
-    meta.append(el("span", "", partido.pista || hora(partido.scheduledAt)));
+    /*
+     * La hora, no la pista. Enseñaba `pista || hora`, y como todos los partidos
+     * del torneo se juegan en la misma pista, los treinta ponían «Pista central»:
+     * una columna idéntica en todas las tarjetas, ocupando el sitio del único dato
+     * que distingue un partido del siguiente.
+     */
+    meta.append(el("span", "", hora(partido.scheduledAt)));
     if (partido.status === "live") meta.append(el("span", "anot-vivo", "En juego"));
     enlace.append(meta);
 
@@ -41,8 +47,13 @@
     );
     enlace.append(cruce);
 
-    // Que ya lo lleve alguien no lo bloquea, pero conviene saberlo antes de entrar.
-    if (partido.origenMarcador === "eventos") {
+    // Que ya lo lleve alguien no lo bloquea, pero conviene saberlo antes de
+    // entrar: dentro habrá que pedir el relevo. Nada de esto se pinta cuando el
+    // dueño es quien pregunta: es su propio partido, y es exactamente el aviso
+    // que existe para avisar de que lo lleva otra persona.
+    if (partido.anotador && partido.anotador.nombre && !partido.anotador.puedeAnotar) {
+      enlace.append(el("p", "anot-partido-nota", `Lo lleva ${partido.anotador.nombre}`));
+    } else if ((!partido.anotador || !partido.anotador.puedeAnotar) && partido.origenMarcador === "eventos") {
       enlace.append(el("p", "anot-partido-nota", "Ya se está anotando"));
     }
     return enlace;

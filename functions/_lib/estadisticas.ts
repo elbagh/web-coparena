@@ -22,11 +22,10 @@ export interface Metrica {
 export const METRICAS: Metrica[] = [
   { clave: "partidosJugados", columna: "partidos_jugados", etiqueta: "Partidos", derivada: true },
   { clave: "puntos", columna: "puntos", etiqueta: "Puntos" },
-  { clave: "remates", columna: "remates", etiqueta: "Remates" },
   { clave: "bloqueos", columna: "bloqueos", etiqueta: "Bloqueos" },
+  { clave: "chilenas", columna: "chilenas", etiqueta: "Chilenas" },
   { clave: "aces", columna: "aces", etiqueta: "Aces" },
-  { clave: "defensas", columna: "defensas", etiqueta: "Defensas" },
-  { clave: "errores", columna: "errores", etiqueta: "Errores" }
+  { clave: "saquesFallados", columna: "saques_fallados", etiqueta: "Saques fallados" }
 ];
 
 export type Estadisticas = Record<string, number>;

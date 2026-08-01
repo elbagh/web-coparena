@@ -49,6 +49,8 @@
   let correccion = null;
   /** El suplente al que se ha tocado, esperando por quién entra. */
   let entrante = null;
+  /** El punto que cerraría un set y espera confirmación. Nada se ha guardado. */
+  let porCerrar = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
   /** El punto que espera a que arranque el reloj. */
@@ -61,43 +63,61 @@
   // ------------------------------------------------------------- pintado ---
 
   /*
-   * `fuera` gana sobre `decidir`, y no por convención: así decide el propio
-   * servidor. Un `scheduled` con marcador a mano responde «no está en
-   * directo» (`PartidoNoEnDirecto`), no «hay un marcador por decidir»
-   * (`MarcadorSinAdoptar`) — `registrarEvento` en `_lib/eventos.ts` comprueba
-   * el status antes que el marcador. Pintar los dos avisos a la vez ofrecería
-   * dos salidas cuando solo una lleva a algún sitio: publicarlo primero. Un
-   * partido `finished` no entra aquí: ya se publicó, y el servidor le
-   * contesta con un aviso distinto («ya ha terminado»), no este.
+   * `relevo` gana a todos, y `fuera` gana a `decidir` — por este orden, y no
+   * por convención: así decide el propio servidor. `asegurarReclamo` en
+   * `api/anotacion.ts` corre delante de cualquier acción salvo la propia
+   * «relevo», así que un partido que ya lleva otra persona no se puede ni
+   * publicar («directo») ni decidir su marcador de a mano todavía — hay que
+   * tomarlo primero. Descartado eso, un `scheduled` con marcador a mano
+   * responde «no está en directo» (`PartidoNoEnDirecto`), no «hay un
+   * marcador por decidir» (`MarcadorSinAdoptar`) — `registrarEvento` en
+   * `_lib/eventos.ts` comprueba el status antes que el marcador. Pintar dos
+   * avisos a la vez ofrecería dos salidas cuando solo una lleva a algún
+   * sitio. Un partido `finished` no entra en `fuera`: ya se publicó, y el
+   * servidor le contesta con un aviso distinto («ya ha terminado»), no este.
    *
-   * Una sola función y no dos cálculos sueltos: `pintar()` la usa para saber
-   * qué bloque enseñar y `mostrarError()` para saber a cuál de los tres avisos
+   * Una sola función y no cálculos sueltos: `pintar()` la usa para saber qué
+   * bloque enseñar y `mostrarError()` para saber a cuál de los cuatro avisos
    * le toca un fallo. Que puedan desacoplarse es justo el bug de esta ronda.
    */
   function estadoBloque() {
-    const fuera = datos.partido.status === "scheduled";
-    const decidir = Boolean(datos.pendienteDeAdoptar) && !fuera;
-    return { fuera, decidir };
+    const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
+    const fuera = !relevo && datos.partido.status === "scheduled";
+    const decidir = !relevo && !fuera && Boolean(datos.pendienteDeAdoptar);
+    return { relevo, fuera, decidir };
   }
 
   /**
-   * El aviso de un fallo vive en tres sitios, uno por bloque que puede estar
+   * El aviso de un fallo vive en cuatro sitios, uno por bloque que puede estar
    * en pantalla, no en uno: `[data-anot-error]` (el de siempre, en
    * `core.js`) cuelga de `.anot-pulgar`, que `pintar()` oculta durante
-   * `fuera` y `decidir` — un fallo que cae ahí no se ve, que es justo lo que
-   * este aviso existe para evitar («Poner en directo» y «Adoptar»/«Empezar en
-   * 0–0» respondían 409 en silencio). Se elige con la misma cuenta que decide
-   * qué bloque se pinta, no mirando qué anda `hidden` en el DOM: así no puede
-   * desacoplarse de `pintar()` el día que cambie el orden de estados.
+   * `relevo`, `fuera` y `decidir` — un fallo que cae ahí no se ve, que es
+   * justo lo que este aviso existe para evitar («Tomar el relevo», «Poner en
+   * directo» y «Adoptar»/«Empezar en 0–0» respondían 409 en silencio). Se
+   * elige con la misma cuenta que decide qué bloque se pinta, no mirando qué
+   * anda `hidden` en el DOM: así no puede desacoplarse de `pintar()` el día
+   * que cambie el orden de estados.
    *
-   * Los otros dos huecos se limpian siempre, para que un aviso de un estado
+   * Los otros tres huecos se limpian siempre, para que un aviso de un estado
    * anterior no sobreviva al cambio que lo dejó sin sitio.
    */
   function mostrarError(mensaje) {
-    const { fuera, decidir } = datos ? estadoBloque() : { fuera: false, decidir: false };
-    const propio = fuera ? $("[data-anot-error-fuera]") : decidir ? $("[data-anot-error-decision]") : null;
+    const { relevo, fuera, decidir } = datos
+      ? estadoBloque()
+      : { relevo: false, fuera: false, decidir: false };
+    const propio = relevo
+      ? $("[data-anot-error-relevo]")
+      : fuera
+        ? $("[data-anot-error-fuera]")
+        : decidir
+          ? $("[data-anot-error-decision]")
+          : null;
 
-    for (const otro of [$("[data-anot-error-fuera]"), $("[data-anot-error-decision]")]) {
+    for (const otro of [
+      $("[data-anot-error-relevo]"),
+      $("[data-anot-error-fuera]"),
+      $("[data-anot-error-decision]")
+    ]) {
       if (otro && otro !== propio) {
         otro.textContent = "";
         otro.hidden = true;
@@ -155,7 +175,7 @@
     if (!datos) return;
     const { estado, alineacion } = datos;
     const terminado = estado.terminado;
-    const { fuera, decidir } = estadoBloque();
+    const { relevo, fuera, decidir } = estadoBloque();
 
     /*
      * Los números grandes son los puntos del set, salvo en dos casos:
@@ -166,9 +186,7 @@
      *     es contar dos cosas distintas en la misma pantalla.
      */
     const grandes = terminado ? estado.sets : decidir ? datos.marcadorPanel.puntos : estado.puntos;
-    const rotulo = $("[data-anot-rotulo]");
-    rotulo.hidden = !terminado && !decidir;
-    rotulo.textContent = terminado ? "Sets" : "Lo lleva el panel";
+    pintarRotulo(terminado, decidir);
     $("[data-anot-puntos-a]").textContent = String(grandes.A);
     $("[data-anot-puntos-b]").textContent = String(grandes.B);
 
@@ -188,14 +206,21 @@
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
 
     /*
-     * Tres estados excluyentes: fuera de directo, decidiendo el marcador de a
-     * mano, o anotando. La pista solo se pinta en el tercero y en el segundo
-     * no: en los dos, sus botones responderían 409.
+     * Cuatro estados excluyentes, por este orden de prioridad: el relevo, fuera
+     * de directo, decidiendo el marcador de a mano, o anotando. La pista solo se
+     * pinta en el último: en los otros tres sus botones responderían 409.
+     *
+     * El relevo gana incluso a «fuera»: `asegurarReclamo` en `api/anotacion.ts`
+     * corre delante de cualquier acción salvo la propia «relevo» —incluida
+     * «directo»—, así que un partido que ya lleva otra persona no se puede ni
+     * publicar todavía sin tomarlo primero. `estadoBloque()` deja `fuera` y
+     * `decidir` ya excluyentes entre sí.
      */
+    pintarRelevo(relevo);
     pintarDecision(decidir);
-    $("[data-anot-fuera]").hidden = !fuera;
-    $("[data-anot-pista]").hidden = decidir || fuera;
-    $("[data-anot-pulgar]").hidden = decidir || fuera;
+    $("[data-anot-fuera]").hidden = relevo || !fuera;
+    $("[data-anot-pista]").hidden = relevo || decidir || fuera;
+    $("[data-anot-pulgar]").hidden = relevo || decidir || fuera;
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
@@ -217,6 +242,72 @@
   const objetivo = () =>
     utils.setTarget({ reglas: datos.partido.reglas, setNumber: datos.estado.setNumero }, datos.estado.setNumero);
 
+  /**
+   * El rótulo en el flujo y la pestaña de punto de set, que son dos cosas.
+   *
+   * El rótulo dice qué son los números grandes cuando no son los puntos del set
+   * en juego; la pestaña avisa de que uno cierra. Nunca coinciden —a un punto del
+   * cierre el partido no ha terminado ni lo lleva el panel—, pero van en
+   * elementos distintos porque la pestaña no puede ocupar sitio en el flujo.
+   */
+  function pintarRotulo(terminado, decidir) {
+    const rotulo = $("[data-anot-rotulo]");
+    rotulo.hidden = !terminado && !decidir;
+    texto(rotulo, terminado ? "Sets" : "Lo lleva el panel");
+
+    const pestana = $("[data-anot-punto-set]");
+    const aviso = terminado || decidir ? null : puntoDeSet();
+    pestana.hidden = !aviso;
+    if (!aviso) return pestana.removeAttribute("data-lado");
+
+    const que = aviso.partido ? "Punto de partido" : "Punto de set";
+    // Con dos de ventaja sólo puede estar en punto de set quien va por delante.
+    // Con uno —que es una regla legítima y algún grupo la usa— pueden estarlo los
+    // dos a la vez, y entonces poner un nombre sería mentir.
+    if (aviso.lados.length > 1) {
+      pestana.removeAttribute("data-lado");
+      return texto(pestana, `${que} para los dos`);
+    }
+    pestana.dataset.lado = aviso.lados[0];
+    texto(pestana, `${que} · ${nombreEquipo(aviso.lados[0])}`);
+  }
+
+  /**
+   * ¿A quién le basta un punto para cerrar el set?
+   *
+   * Se resuelve simulando el punto con las reglas del propio partido en vez de
+   * comparar el tanteo contra el objetivo: la ventaja mínima también decide —a
+   * 20–20 no cierra nadie con uno— y esa regla ya vive en `applyPoint`. Escribirla
+   * aquí otra vez sería la tercera copia.
+   */
+  function puntoDeSet() {
+    if (datos.estado.terminado) return null;
+    const lados = ["A", "B"].filter((lado) => cierraSet(utils.applyPoint(partidoFingido(), lado, 1)));
+    if (lados.length === 0) return null;
+    return {
+      lados,
+      partido: lados.every((lado) => utils.applyPoint(partidoFingido(), lado, 1).status === "finished")
+    };
+  }
+
+  /** El estado actual como partido de `match-utils`, para poder simular sobre él. */
+  const partidoFingido = () => ({
+    status: "live",
+    setNumber: datos.estado.setNumero,
+    points: { ...datos.estado.puntos },
+    sets: { ...datos.estado.sets },
+    history: [...datos.estado.historial],
+    reglas: datos.partido.reglas,
+    elapsedMs: 0,
+    startedAt: null,
+    winner: null,
+    teams: { A: { name: "" }, B: { name: "" } }
+  });
+
+  /** El parcial se guarda en `history` justo al cerrarse el set: si creció, cerró. */
+  const cierraSet = (prediccion) =>
+    Boolean(prediccion) && prediccion.history.length > datos.estado.historial.length;
+
   function pintarDecision(decidir) {
     const caja = $("[data-anot-decision]");
     caja.hidden = !decidir;
@@ -227,6 +318,42 @@
     const sets = mano.sets.A + mano.sets.B > 0 ? `, sets ${mano.sets.A}–${mano.sets.B}` : "";
     $("[data-anot-decision-titulo]").textContent = `Este partido va ${marcador}${sets} a mano`;
     $("[data-anot-adoptar]").textContent = `Seguir desde ${marcador}`;
+  }
+
+  /**
+   * La hora de una marca de tiempo del servidor.
+   *
+   * `updated_at` llega de dos sitios: `new Date().toISOString()` desde el código
+   * y `datetime('now')` desde el DEFAULT de SQLite, que no lleva ni «T» ni «Z» y
+   * es UTC. Sin normalizarla, el segundo caso da «Invalid Date» en unos motores
+   * y una hora local equivocada en otros.
+   */
+  const horaDe = (marca) => {
+    if (!marca) return "";
+    const fecha = new Date(/[TZ]/.test(marca) ? marca : `${marca.replace(" ", "T")}Z`);
+    if (Number.isNaN(fecha.getTime())) return "";
+    return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(fecha);
+  };
+
+  function pintarRelevo(relevo) {
+    const caja = $("[data-anot-relevo]");
+    caja.hidden = !relevo;
+    if (!relevo) return;
+
+    const quien = datos.anotador.nombre || "otra persona";
+    const hora = horaDe(datos.ultimaActividad);
+    $("[data-anot-relevo-titulo]").textContent = `Lo lleva ${quien}`;
+    /*
+     * La hora no se le atribuye a nadie. `ultimaActividad` es
+     * `partidos.updated_at`, que mueve cualquier escritura sobre el partido; el
+     * relevo, que no la toca, dejaba a esta frase diciendo «su último punto» de
+     * una hora que era del anotador anterior. Se dice lo que la marca sabe: la
+     * última vez que este partido se movió. Es lo que hace falta para decidir si
+     * quien lo lleva sigue ahí.
+     */
+    $("[data-anot-relevo-texto]").textContent = hora
+      ? `Este partido se movió por última vez a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
+      : `Si tomas el relevo, ${quien} dejará de poder anotar este partido.`;
   }
 
   /** El retrato de alguien, creado una vez y reutilizado siempre. */
@@ -334,9 +461,12 @@
   /**
    * Lo último anotado, en una línea.
    *
-   * Cuando ese punto cerró un set lo dice, con su parcial. Antes ponía «Remate
-   * de X · 0–0» porque el marcador ya se había reiniciado, y leído del tirón
-   * parecía que el remate hubiera dejado el partido a cero.
+   * Cuando ese punto cerró un set lo dice, con su parcial. Antes ponía «Punto
+   * de ataque de X · 0–0» —el tipo que hoy es «punto» se llamaba entonces
+   * «remate»; nada que ver con el atributo del cromo, que es lo único que ese
+   * nombre designa en el resto del sitio— porque el marcador ya se había
+   * reiniciado, y leído del tirón parecía que esa acción hubiera dejado el
+   * partido a cero.
    */
   function resumen(evento) {
     const etiqueta = (datos.tipos.find((t) => t.clave === evento.tipo) || {}).etiqueta || evento.tipo;
@@ -376,20 +506,76 @@
     if (guardando || datos.estado.terminado) return;
     elegido = jugador;
     entrante = null;
+    porCerrar = null;
 
     $("[data-anot-elegido]").textContent = jugador.nombre;
     $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = false;
 
-    const caja = $("[data-anot-tipos]");
-    caja.textContent = "";
+    /*
+     * Quién va en cada grupo lo dice el servidor (`punto: "pregunta"`), no una
+     * lista escrita aquí: es la misma razón por la que la predicción lee
+     * `aRival` en vez de repetir la regla.
+     */
+    const cajas = {
+      siempre: $("[data-anot-tipos]"),
+      pregunta: $("[data-anot-tipos-extra]")
+    };
+    cajas.siempre.textContent = "";
+    cajas.pregunta.textContent = "";
+
     datos.tipos.forEach((tipo) => {
       const boton = el("button", `anot-btn anot-btn--tipo anot-btn--${tipo.clave}`);
       boton.type = "button";
       boton.append(el("span", "anot-tipo-nombre", tipo.etiqueta));
-      boton.append(el("span", "anot-tipo-ayuda", tipo.ayuda));
-      boton.addEventListener("click", () => anotarPunto(tipo.clave));
+      // Sin `ayuda` el botón se queda en una línea: es lo que le devuelve el
+      // suelo de 56px a `bloqueo`/`chilena`, que con las dos líneas de antes
+      // nunca llegaba a aplicarse (el contenido ya pedía más).
+      if (tipo.ayuda) boton.append(el("span", "anot-tipo-ayuda", tipo.ayuda));
+      boton.addEventListener("click", () => elegirAccion(tipo));
+      cajas[tipo.punto].append(boton);
+    });
+  }
+
+  /**
+   * Segundo toque. Los tipos que preguntan abren el tercero; el resto anotan.
+   *
+   * Quién pregunta lo dice el servidor (`punto: "pregunta"`), no una lista
+   * escrita aquí: con la regla copiada a mano, añadir un tipo la dejaría
+   * mintiendo — que es exactamente lo que ya pasó con «todo menos defensa
+   * puntúa».
+   *
+   * Los dos botones del tercer toque cierran sobre `tipo`, el parámetro de esta
+   * misma llamada — no sobre una variable compartida que otro gesto pudiera
+   * vaciar entretanto. Antes existía `preguntando` con ese papel y un
+   * `TypeError` esperaba agazapado detrás: tocar un suplente mientras la
+   * pregunta seguía abierta la ponía a `null` sin cerrar los botones, y pulsar
+   * «Fue punto» después reventaba leyendo `.clave` de `null` — en silencio,
+   * porque la promesa rechazada no la recogía nadie. Cerrar sobre el parámetro
+   * hace ese fallo irrepresentable en vez de vigilarlo con un test.
+   */
+  function elegirAccion(tipo) {
+    if (tipo.punto !== "pregunta") return anotarPunto(tipo.clave);
+
+    $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-punto]").hidden = false;
+    $("[data-anot-punto-accion]").textContent = `${tipo.etiqueta} de ${elegido.nombre}`;
+
+    const caja = $("[data-anot-punto-opciones]");
+    caja.textContent = "";
+    const suyo = nombreEquipo(elegido.lado);
+    [
+      { nombre: "Fue punto", ayuda: `Para ${suyo}`, punto: true, clase: "" },
+      { nombre: "No fue punto", ayuda: "El rally siguió", punto: false, clase: " anot-btn--no" }
+    ].forEach((opcion) => {
+      const boton = el("button", `anot-btn anot-btn--tipo${opcion.clase}`);
+      boton.type = "button";
+      boton.append(el("span", "anot-tipo-nombre", opcion.nombre));
+      boton.append(el("span", "anot-tipo-ayuda", opcion.ayuda));
+      boton.addEventListener("click", () => anotarPunto(tipo.clave, opcion.punto));
       caja.append(boton);
     });
   }
@@ -397,8 +583,11 @@
   function cancelar() {
     elegido = null;
     entrante = null;
+    porCerrar = null;
     $("[data-anot-acciones]").hidden = true;
     $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-reposo]").hidden = false;
   }
 
@@ -413,10 +602,20 @@
     if (guardando || datos.estado.terminado) return;
     entrante = jugador;
     elegido = null;
+    porCerrar = null;
 
     $("[data-anot-entra]").textContent = jugador.nombre;
     $("[data-anot-reposo]").hidden = true;
     $("[data-anot-acciones]").hidden = true;
+    /*
+     * La pregunta «¿fue punto?» vive en el mismo hueco del pulgar que este
+     * cambio. Sin ocultarla aquí, tocar a un suplente con la pregunta todavía
+     * abierta dejaba dos bloques del pulgar apilados a la vez — el mismo hueco
+     * reclamado por dos preguntas contradictorias, y el presupuesto de alto
+     * que existe esta pantalla entera para respetar, roto.
+     */
+    $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = true;
     $("[data-anot-cambio]").hidden = false;
 
     const caja = $("[data-anot-cambio-opciones]");
@@ -467,56 +666,99 @@
   /**
    * Predice el marcador con las reglas del partido para que el número se mueva
    * al instante. No duplica lógica: `applyPoint` es el mismo que usa el panel, y
-   * quién se lleva el punto sale de `tipos`, que el servidor construye desde
-   * `PUNTUA` y `ladoDelPunto`. Aquí estaba escrito a mano («todo menos defensa
-   * puntúa»), que es una copia esperando a quedarse vieja.
+   * quién se lleva el punto sale de `tipos`, que lo trae del catálogo del
+   * servidor. Aquí estaba escrito a mano («todo menos defensa puntúa»), que es
+   * una copia esperando a quedarse vieja.
+   *
+   * Con los tipos que preguntan sólo hay punto que predecir cuando la respuesta
+   * ya llegó y fue que sí: sin ella, adivinar aquí sería pintar un punto que el
+   * servidor puede no llegar a guardar.
    */
-  function predecir(tipo) {
+  function predecir(tipo, punto) {
     const meta = datos.tipos.find((t) => t.clave === tipo);
-    if (!meta || !meta.puntua) return null;
-    const ladoPunto = meta.alRival ? otroLado(elegido.lado) : elegido.lado;
-
-    const fingido = {
-      status: "live",
-      setNumber: datos.estado.setNumero,
-      points: { ...datos.estado.puntos },
-      sets: { ...datos.estado.sets },
-      history: [...datos.estado.historial],
-      reglas: datos.partido.reglas,
-      elapsedMs: 0,
-      startedAt: null,
-      winner: null,
-      teams: { A: { name: "" }, B: { name: "" } }
-    };
-    return utils.applyPoint(fingido, ladoPunto, 1);
+    if (!meta) return null;
+    // Con los que preguntan, sólo hay punto que predecir si la respuesta fue sí.
+    if (meta.punto === "pregunta" && punto !== true) return null;
+    const ladoPunto = meta.aRival ? otroLado(elegido.lado) : elegido.lado;
+    return utils.applyPoint(partidoFingido(), ladoPunto, 1);
   }
 
-  async function anotarPunto(tipo) {
+  /**
+   * El punto cierra un set: se pregunta antes de mandarlo.
+   *
+   * Nada se ha guardado todavía, así que cancelar no deja rastro — ese punto no
+   * llegó a existir. Es lo que separa esto de «deshacer»: deshacer un cierre
+   * devuelve los puntos a 0–0 en la pantalla de todo el mundo y puede haber
+   * movido ya el cuadro.
+   */
+  function pedirCierre(tipo, punto, prediccion) {
+    porCerrar = { tipo, punto };
+    const parcial = prediccion.history[prediccion.history.length - 1];
+    const gana = prediccion.status === "finished";
+    const accion = (datos.tipos.find((t) => t.clave === tipo) || {}).etiqueta || tipo;
+
+    $("[data-anot-reposo]").hidden = true;
+    $("[data-anot-acciones]").hidden = true;
+    $("[data-anot-cambio]").hidden = true;
+    $("[data-anot-punto]").hidden = true;
+    $("[data-anot-cierre]").hidden = false;
+
+    texto($("[data-anot-cierre-titulo]"), gana ? "¿Cierras el partido?" : `¿Cierras el set ${datos.estado.setNumero}?`);
+    texto(
+      $("[data-anot-cierre-marcador]"),
+      `${accion} de ${elegido.nombre}. El set quedaría ${parcial.a}–${parcial.b}.`
+    );
+    texto($("[data-anot-cierre-confirmar-texto]"), gana ? "Cerrar el partido" : "Cerrar el set");
+    texto(
+      $("[data-anot-cierre-confirmar-ayuda]"),
+      gana ? `Gana ${nombreEquipo(prediccion.winner)}` : "Se anota el punto y sube el set"
+    );
+  }
+
+  async function anotarPunto(tipo, punto, cierreConfirmado) {
     if (guardando || !elegido) return;
 
     /*
      * El reloj sin estrenar para el primer punto. No es un cerrojo de servidor a
      * propósito: lo único que estropea anotar sin reloj es la duración del
      * partido, y un 409 más sería otra forma de que la franja del pulgar se
-     * quede muerta a pie de pista.
+     * quede muerta a pie de pista. Va antes que la pregunta de cierre: el
+     * primer punto del partido nunca puede ser el que cierra un set.
      */
     if (relojSinEstrenar()) {
-      puntoEnEspera = { tipo, jugador: elegido };
+      puntoEnEspera = { tipo, punto, jugador: elegido };
       cancelar();
       $("[data-anot-dialogo-reloj]").showModal();
       return;
     }
 
-    await enviarPunto(tipo);
+    /*
+     * Un punto que cierra un set se pregunta antes de mandarse. Quien anota está
+     * de pie al sol con tres segundos entre punto y punto: puede haber atribuido
+     * mal el anterior o haber pulsado dos veces, y cerrar un set a destiempo es
+     * lo más caro de deshacer que hay aquí.
+     *
+     * La pregunta va delante de la petición y no después: así cancelar no deja
+     * rastro en ninguna parte. El pliegue del servidor no cambia — para él este
+     * punto sigue siendo el punto que cierra el set.
+     */
+    if (!cierreConfirmado) {
+      const cierre = predecir(tipo, punto);
+      if (cierraSet(cierre)) return pedirCierre(tipo, punto, cierre);
+    }
+    porCerrar = null;
+
+    await enviarPunto(tipo, punto);
   }
 
   /**
-   * El envío de verdad, sin la comprobación del reloj: al confirmar el diálogo
-   * de arranque se llega aquí directamente, porque esa comprobación ya se hizo
-   * —y repetirla leería el mismo `datos.partido` de antes de arrancar, así que
-   * volvería a preguntar en vez de anotar el punto que la pregunta dejó pendiente—.
+   * El envío de verdad, sin la comprobación del reloj ni la del cierre: al
+   * confirmar el diálogo de arranque se llega aquí directamente, porque esa
+   * comprobación ya se hizo —y repetirla leería el mismo `datos.partido` de
+   * antes de arrancar, así que volvería a preguntar en vez de anotar el punto
+   * que la pregunta dejó pendiente—.
    */
-  async function enviarPunto(tipo) {
+  async function enviarPunto(tipo, punto) {
     guardando = true;
     mostrarError("");
 
@@ -528,7 +770,7 @@
     // la referencia al viejo basta.
     const confirmado = datos.estado;
 
-    const prediccion = predecir(tipo);
+    const prediccion = predecir(tipo, punto);
     if (prediccion) {
       datos.estado = {
         ...datos.estado,
@@ -547,7 +789,10 @@
         accion: "evento",
         tipo,
         jugadorId,
-        ordenEsperado: ordenEsperado
+        ordenEsperado: ordenEsperado,
+        // Sólo viaja con los tipos que preguntan: el servidor rechaza el evento
+        // si falta, y mandarlo siempre sería decidir por él.
+        ...(punto === undefined ? {} : { punto })
       });
       datos = respuesta;
     } catch (error) {
@@ -617,7 +862,21 @@
   // ----------------------------------------------------------- corregir ---
 
   function abrirCorreccion(evento) {
-    correccion = { orden: evento.orden, tipo: evento.tipo, jugadorId: evento.jugadorId };
+    correccion = {
+      orden: evento.orden,
+      tipo: evento.tipo,
+      jugadorId: evento.jugadorId,
+      /*
+       * «Fue punto» significa «se lo llevó el lado de quien hizo la acción»,
+       * no «`ladoPunto` no es nulo». Con un tipo `aRival` (`saque_fallado`) el
+       * punto es del lado CONTRARIO al del jugador aunque exista: comparar
+       * sólo con `null` marcaría «Fue punto» al corregir un saque fallado
+       * hacia un bloqueo sin tocar el sí/no, y el punto —que era del
+       * rival— se lo llevaría el propio jugador. `ladoJugador` viaja en el
+       * evento (`EventoPublico`) exactamente para esta cuenta.
+       */
+      punto: evento.ladoPunto !== null && evento.ladoPunto === evento.ladoJugador
+    };
     $("[data-anot-corregir-titulo]").textContent = `Corregir el punto ${evento.orden + 1}`;
 
     const cajaTipos = $("[data-anot-corregir-tipos]");
@@ -661,6 +920,17 @@
     dialogo.querySelectorAll("[data-jugador]").forEach((boton) => {
       boton.setAttribute("aria-pressed", String(Number(boton.dataset.jugador) === correccion.jugadorId));
     });
+
+    /*
+     * El sí/no sólo aparece con los tipos que preguntan. Con los demás, el tipo
+     * ya decide y enseñar la pregunta sugeriría una elección que no existe.
+     */
+    const meta = datos.tipos.find((t) => t.clave === correccion.tipo);
+    const pregunta = Boolean(meta && meta.punto === "pregunta");
+    $("[data-anot-corregir-punto]").hidden = !pregunta;
+    dialogo.querySelectorAll("[data-punto]").forEach((boton) => {
+      boton.setAttribute("aria-pressed", String((boton.dataset.punto === "true") === correccion.punto));
+    });
   }
 
   async function guardarCorreccion() {
@@ -668,11 +938,17 @@
     guardando = true;
     const dialogo = $("[data-anot-dialogo-corregir]");
     try {
+      const meta = datos.tipos.find((t) => t.clave === correccion.tipo);
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "corregir",
         orden: correccion.orden,
+        ordenEsperado: datos.siguienteOrden,
         tipo: correccion.tipo,
-        jugadorId: correccion.jugadorId
+        jugadorId: correccion.jugadorId,
+        // Sólo con los tipos que preguntan: mandarlo siempre sería decidir por
+        // el servidor, y con los demás tipos el ausente («no lo toques») es lo
+        // que conserva si la fila puntuó o no.
+        ...(meta && meta.punto === "pregunta" ? { punto: correccion.punto } : {})
       });
       mostrarError("");
     } catch (error) {
@@ -812,6 +1088,11 @@
   $("[data-anot-deshacer]").addEventListener("click", deshacer);
   $("[data-anot-cancelar]").addEventListener("click", cancelar);
   $("[data-anot-cambio-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-punto-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-cierre-cancelar]").addEventListener("click", cancelar);
+  $("[data-anot-cierre-confirmar]").addEventListener("click", () => {
+    if (porCerrar) anotarPunto(porCerrar.tipo, porCerrar.punto, true);
+  });
   $("[data-anot-alineacion]").addEventListener("click", abrirAlineacion);
   $("[data-anot-alineacion-guardar]").addEventListener("click", guardarAlineacion);
   $("[data-anot-alineacion-cancelar]").addEventListener("click", () =>
@@ -819,6 +1100,13 @@
   );
   $("[data-anot-corregir-guardar]").addEventListener("click", guardarCorreccion);
   $("[data-anot-corregir-cancelar]").addEventListener("click", () => $("[data-anot-dialogo-corregir]").close());
+  $("[data-anot-dialogo-corregir]").querySelectorAll("[data-punto]").forEach((boton) => {
+    boton.addEventListener("click", () => {
+      if (!correccion) return;
+      correccion.punto = boton.dataset.punto === "true";
+      marcarElegidos();
+    });
+  });
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
@@ -855,11 +1143,13 @@
     // hizo aquí, y volver a pasar por ella preguntaría otra vez.
     if (arrancado && espera) {
       elegido = espera.jugador;
-      await enviarPunto(espera.tipo);
+      await enviarPunto(espera.tipo, espera.punto);
     }
   });
 
   document.addEventListener("visibilitychange", vigilarReloj);
+
+  $("[data-anot-relevo-tomar]").addEventListener("click", () => accionSimple({ accion: "relevo" }));
 
   /*
    * Al volver a la pantalla, releer una vez.
@@ -867,11 +1157,11 @@
    * Esta pantalla no sondea, y no va a empezar: un partido solo cambia cuando lo
    * toca quien lo está anotando, así que pedir cada pocos segundos durante seis
    * horas sería gastar por gastar. Lo que sí pasa es que el móvil se bloquea
-   * entre sets, o que dos personas anotan el mismo partido sin saberlo: al
-   * volver, lo que hay en pantalla puede ser de hace diez minutos y el primer
-   * toque se lo lleva un conflicto de orden. Una lectura al reaparecer cuesta
-   * una petición y se ahorra ese toque perdido, que es el que duele porque llega
-   * justo cuando hay tres segundos para anotar.
+   * entre sets, o que alguien ha tomado el relevo mientras tanto: al volver, lo
+   * que hay en pantalla puede ser de hace diez minutos y el primer toque se lo
+   * lleva un 409. Una lectura al reaparecer cuesta una petición y se ahorra ese
+   * toque perdido, que es el que duele porque llega justo cuando hay tres
+   * segundos para anotar.
    */
   document.addEventListener("visibilitychange", async () => {
     // `panel.isConnected`: el oyente cuelga de `document`, que sobrevive a su

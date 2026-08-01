@@ -24,6 +24,15 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         los puntos, que el cierre del último set devuelve a cero: un partido
         ganado 2–1 se despedía con un «0 – 0» que no dice nada.
       */}
+      {/*
+        A un punto del cierre, el marcador saca una pestaña sobre su borde de
+        arriba con el color del equipo que puede cerrar.
+
+        Va montada encima y no en el flujo porque aparecer no puede mover un
+        botón: es la regla de la que sale toda esta pantalla. Medido, en el flujo
+        costaba 24px y se los llevaba la botonera de acciones.
+      */}
+      <p class="anot-punto-set" data-anot-punto-set hidden></p>
       <p class="anot-rotulo" data-anot-rotulo hidden>Sets</p>
       <p class="anot-tanteo">
         <span class="anot-puntos anot-puntos--a" data-anot-puntos-a>0</span>
@@ -46,6 +55,29 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
           Iniciar cronómetro
         </button>
       </p>
+    </section>
+
+    {/*
+      Otra persona lleva este partido. Ocupa el sitio de la pista por lo mismo
+      que la caja de decisión: no se pintan botones que van a responder 409.
+
+      El relevo siempre se puede tomar. Si al anterior anotador se le acabó la
+      batería, el siguiente tiene que poder entrar sin llamar a nadie.
+    */}
+    <section class="anot-relevo" data-anot-relevo hidden>
+      <h2 class="anot-relevo-titulo" data-anot-relevo-titulo></h2>
+      <p class="anot-relevo-texto" data-anot-relevo-texto></p>
+      <div class="anot-relevo-botones">
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-relevo-tomar>
+          Tomar el relevo
+        </button>
+      </div>
+      {/*
+        Mismo motivo que en `.anot-decision` y `.anot-fuera`: si «Tomar el
+        relevo» falla (otra persona se adelantó, o se cae la red) este bloque
+        sigue en pantalla y necesita su propio aviso.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-relevo hidden></p>
     </section>
 
     {/*
@@ -128,13 +160,20 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 
       <div class="anot-acciones" data-anot-acciones hidden>
         <p class="anot-pregunta"><strong data-anot-elegido></strong> · ¿qué hizo?</p>
+        {/*
+          Dos grupos y ningún rótulo. Dos encabezados costarían ~36px en la
+          pantalla cuyo presupuesto de alto ya está gastado; la separación la
+          llevan los propios botones — el filete, el borde discontinuo del
+          segundo grupo y el ancho completo de «Falló saque», que es la única
+          acción cuyo punto cruza la red.
+        */}
         <div class="anot-tipos" data-anot-tipos></div>
+        <div class="anot-tipos anot-tipos--extra" data-anot-tipos-extra></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cancelar>Cancelar</button>
       </div>
 
       {/*
-      {/*
-        El tercer estado de la franja, y ocupa el mismo hueco que los otros dos:
+        El tercer estado de la franja, y ocupa el mismo hueco que las otras tres:
         el segundo toque de un cambio cae donde ya está el pulgar, igual que el
         de un punto.
       */}
@@ -142,6 +181,46 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <p class="anot-pregunta">¿Por quién entra <strong data-anot-entra></strong>?</p>
         <div class="anot-tipos" data-anot-cambio-opciones></div>
         <button type="button" class="anot-btn anot-btn--cancelar" data-anot-cambio-cancelar>Cancelar</button>
+      </div>
+
+      {/*
+        El cuarto estado de la franja, y ocupa el mismo hueco que los otros tres.
+        Bloqueo y chilena no dicen por sí solos si el rally acabó en punto, así
+        que se pregunta — con la misma gramática que «¿por quién entra?»: el
+        toque cae donde ya está el pulgar.
+
+        En pasado: aquí se registra lo que pasó, no lo que debería pasar.
+      */}
+      <div class="anot-punto" data-anot-punto hidden>
+        <p class="anot-pregunta"><strong data-anot-punto-accion></strong></p>
+        <div class="anot-tipos" data-anot-punto-opciones></div>
+        <button type="button" class="anot-btn anot-btn--cancelar" data-anot-punto-cancelar>Cancelar</button>
+      </div>
+
+      {/*
+        El quinto estado de la franja: el punto que cierra un set no se guarda
+        hasta que se confirma.
+
+        Quien anota es una persona con un móvil al sol y tres segundos entre
+        punto y punto: puede atribuir mal el punto anterior o pulsar dos veces.
+        Cerrar un set a destiempo es lo más caro de deshacer de esta pantalla,
+        porque los puntos vuelven a 0–0 y el cuadro puede haber avanzado ya. Se
+        pregunta ANTES de mandar nada, así que cancelar no deja rastro: ese punto
+        no llegó a existir. Lo que el servidor pliega no cambia.
+      */}
+      <div class="anot-cierre" data-anot-cierre hidden>
+        <p class="anot-cierre-titulo" data-anot-cierre-titulo></p>
+        <p class="anot-cierre-marcador" data-anot-cierre-marcador></p>
+        <div class="anot-tipos">
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--cerrar" data-anot-cierre-confirmar>
+            <span class="anot-tipo-nombre" data-anot-cierre-confirmar-texto>Cerrar el set</span>
+            <span class="anot-tipo-ayuda" data-anot-cierre-confirmar-ayuda></span>
+          </button>
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--no" data-anot-cierre-cancelar>
+            <span class="anot-tipo-nombre">Cancelar</span>
+            <span class="anot-tipo-ayuda">El punto no se guarda</span>
+          </button>
+        </div>
       </div>
 
       {/*
@@ -192,6 +271,21 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
 
       <p class="anot-etiqueta">Acción</p>
       <div class="anot-tipos" data-anot-corregir-tipos></div>
+
+      {/*
+        Sólo con bloqueo y chilena: los demás tipos ya deciden solos si hubo
+        punto. Si no se toca, la corrección conserva lo que la fila ya decía —
+        cambiar a quién se atribuye un bloqueo no debe mover el marcador.
+      */}
+      <div data-anot-corregir-punto hidden>
+        <p class="anot-etiqueta">¿Ganó el punto?</p>
+        <div class="anot-tipos">
+          <button type="button" class="anot-btn anot-btn--tipo" data-punto="true">Fue punto</button>
+          <button type="button" class="anot-btn anot-btn--tipo anot-btn--no" data-punto="false">
+            No fue punto
+          </button>
+        </div>
+      </div>
 
       <p class="anot-etiqueta">Quién la hizo</p>
       <div class="anot-corregir-quien" data-anot-corregir-jugadores></div>

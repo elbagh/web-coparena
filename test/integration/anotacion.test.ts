@@ -22,14 +22,21 @@ import {
  * escritura. Aquí se comprueba justamente eso, y los dos invariantes que
  * sostienen el diseño:
  *
- *   - Un error da el punto al RIVAL y suma a los errores de quien lo comete, sin
- *     regalar puntos a nadie.
+ *   - El saque fallado da el punto al RIVAL y suma a los saques fallados de quien
+ *     lo comete, sin regalar puntos a nadie. Es la única acción cuyo punto cruza
+ *     la red, y por eso la fila guarda los dos lados.
  *   - Mientras un anotador lleva el partido, el panel no puede tocar el
  *     marcador: si pudieran los dos, uno perdería en silencio.
  */
 
 interface Respuesta {
-  partido: { origenMarcador: string; status: string };
+  partido: {
+    origenMarcador: string;
+    status: string;
+    reglas: { sets: number; puntosPorSet: number; puntosSetDecisivo: number; diferencia: number };
+    startedAt: string | null;
+    elapsedMs: number;
+  };
   estado: { puntos: { A: number; B: number }; sets: { A: number; B: number }; setNumero: number; winner: string | null };
   eventos: { orden: number; tipo: string; jugadorId: number | null; ladoPunto: string | null }[];
   siguienteOrden: number;
@@ -51,7 +58,7 @@ const leer = async (user: UsuarioSesion, partidoId: string): Promise<Respuesta> 
 
 const estadisticasDe = async (jugadorId: number) =>
   await env.DB
-    .prepare("SELECT puntos, remates, bloqueos, aces, defensas, errores FROM estadisticas WHERE jugador_id = ?1")
+    .prepare("SELECT puntos, bloqueos, chilenas, aces, saques_fallados FROM estadisticas WHERE jugador_id = ?1")
     .bind(jugadorId)
     .first<Record<string, number>>();
 
@@ -92,15 +99,27 @@ async function montarPartido(
   return { partidoId, local, visitante };
 }
 
-/** Manda un punto y devuelve la respuesta, leyendo antes el orden esperado. */
+/**
+ * Manda una acción y devuelve la respuesta, leyendo antes el orden esperado.
+ *
+ * `gano` sólo viaja con los tipos que preguntan (bloqueo y chilena): mandarlo
+ * siempre sería decidir por el servidor, y omitirlo con ellos es un 400.
+ */
 async function punto(
   user: UsuarioSesion,
   partidoId: string,
   jugadorId: number,
-  tipo = "remate"
+  tipo = "punto",
+  gano?: boolean
 ): Promise<Response> {
   const { siguienteOrden } = await leer(user, partidoId);
-  return anotar(user, partidoId, { accion: "evento", tipo, jugadorId, ordenEsperado: siguienteOrden });
+  return anotar(user, partidoId, {
+    accion: "evento",
+    tipo,
+    jugadorId,
+    ordenEsperado: siguienteOrden,
+    ...(gano === undefined ? {} : { punto: gano })
+  });
 }
 
 describe("permisos", () => {
@@ -145,11 +164,17 @@ describe("anotar un punto", () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
 
-    expect((await punto(admin, partidoId, local.jugadores[0]!.id, "remate")).status).toBe(201);
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id, "punto")).status).toBe(201);
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.puntos).toEqual({ A: 1, B: 0 });
-    expect(await estadisticasDe(local.jugadores[0]!.id)).toMatchObject({ puntos: 1, remates: 1 });
+    expect(await estadisticasDe(local.jugadores[0]!.id)).toMatchObject({
+      puntos: 1,
+      aces: 0,
+      bloqueos: 0,
+      chilenas: 0,
+      saques_fallados: 0
+    });
   });
 
   it("cada tipo suma a su métrica", async () => {
@@ -157,16 +182,22 @@ describe("anotar un punto", () => {
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    for (const tipo of ["remate", "ace", "bloqueo", "defensa"]) await punto(admin, partidoId, ana, tipo);
+    await punto(admin, partidoId, ana, "punto");
+    await punto(admin, partidoId, ana, "ace");
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    await punto(admin, partidoId, ana, "chilena", false);
 
     expect(await estadisticasDe(ana)).toMatchObject({
       puntos: 3,
-      remates: 1,
       aces: 1,
       bloqueos: 1,
-      defensas: 1
+      chilenas: 1
     });
-    // La defensa no puntúa: el rally sigue.
+    /*
+     * Cuatro acciones y tres puntos: la chilena que no ganó el rally cuenta en
+     * la ficha y no en el marcador. Es lo que ya no sabía decir un mapa fijo por
+     * tipo, y lo que dice `lado_punto` fila a fila.
+     */
     expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 3, B: 0 });
   });
 
@@ -175,16 +206,16 @@ describe("anotar un punto", () => {
    * tuerce, el marcador y las estadísticas quedan cruzados y no se ve hasta el
    * final del torneo.
    */
-  it("un error de A da el punto a B y suma a los errores de quien lo comete", async () => {
+  it("un saque fallado de A da el punto a B y no suma puntos a quien lo falla", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    await punto(admin, partidoId, ana, "error");
+    await punto(admin, partidoId, ana, "saque_fallado");
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.puntos).toEqual({ A: 0, B: 1 });
-    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, puntos: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ saques_fallados: 1, puntos: 0 });
   });
 
   it("cierra el set y el partido cuando toca", async () => {
@@ -209,7 +240,7 @@ describe("anotar un punto", () => {
 
     const respuesta = await anotar(admin, partidoId, {
       accion: "evento",
-      tipo: "remate",
+      tipo: "punto",
       jugadorId: equipo.jugadores[0]!.id,
       ordenEsperado: 0
     });
@@ -224,7 +255,7 @@ describe("anotar un punto", () => {
     const { siguienteOrden } = await leer(admin, partidoId);
     const respuesta = await anotar(admin, partidoId, {
       accion: "evento",
-      tipo: "remate",
+      tipo: "punto",
       jugadorId: fuera.jugadores[0]!.id,
       ordenEsperado: siguienteOrden
     });
@@ -248,16 +279,60 @@ describe("anotar un punto", () => {
 });
 
 /*
- * Dos anotadores sobre el mismo partido. El UNIQUE(partido_id, orden) es lo que
- * convierte «el segundo pisa al primero» en «el segundo se entera».
+ * Las reglas viajan a la pantalla como objeto plano, ya normalizado.
+ *
+ * Es lo único que le dice al anotador a cuántos puntos va el set, y de ahí salen
+ * el «a 15» de la cabecera, el aviso de punto de set y la pregunta de cierre. La
+ * columna de la base es TEXTO (un JSON), así que basta con que alguien mande la
+ * fila tal cual para que `reglasDe` en match-utils no la reconozca como objeto y
+ * caiga a su red de 21/21/15: la pantalla anunciaría «a 21» los días que se juega
+ * a 15, sin error, sin nada roto y sin que ninguna prueba de la pantalla se
+ * enterase — las suyas se montan con un objeto a mano.
+ *
+ * Los tres formatos son los del torneo 2026: grupos de cuatro al mejor de tres a
+ * 15, grupo de cinco a un set de 21, y cuadro a 21 con tercero de 15.
  */
-describe("dos anotadores a la vez", () => {
+describe("las reglas que llegan a la pantalla", () => {
+  const formatos = [
+    { que: "grupos de cuatro", reglas: { sets: 2, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 2 } },
+    { que: "grupo de cinco", reglas: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 } },
+    { que: "cuadro", reglas: { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } }
+  ];
+
+  for (const formato of formatos) {
+    it(`${formato.que}: llegan como objeto, con sus números`, async () => {
+      const admin = await crearAdmin();
+      const { partidoId } = await montarPartido(admin, { partido: formato.reglas });
+
+      const { partido } = await leer(admin, partidoId);
+
+      expect(partido.reglas).toEqual(formato.reglas);
+    });
+  }
+
+  it("un partido sin reglas propias sale con las de serie, no con null", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin);
+
+    const { partido } = await leer(admin, partidoId);
+
+    expect(partido.reglas).toEqual(REGLAS_POR_DEFECTO.partido);
+  });
+});
+
+/*
+ * Dos pestañas de la misma persona sobre el mismo partido. El reclamo no las
+ * separa —pasan la puerta con el mismo usuario—, así que aquí sigue trabajando
+ * el UNIQUE(partido_id, orden): convierte «la segunda pisa a la primera» en «la
+ * segunda se entera».
+ */
+describe("el mismo anotador desde dos pestañas", () => {
   it("el mismo orden dos veces da 409 y no cambia nada", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
     const ana = local.jugadores[0]!.id;
 
-    const cuerpo = { accion: "evento", tipo: "remate", jugadorId: ana, ordenEsperado: 0 };
+    const cuerpo = { accion: "evento", tipo: "punto", jugadorId: ana, ordenEsperado: 0 };
     expect((await anotar(admin, partidoId, cuerpo)).status).toBe(201);
 
     const segunda = await anotar(admin, partidoId, cuerpo);
@@ -334,14 +409,21 @@ describe("corregir un evento antiguo", () => {
     for (let i = 0; i < 4; i += 1) await punto(admin, partidoId, carla);
     await punto(admin, partidoId, ana); // 5-4: gana A
 
-    expect((await leer(admin, partidoId)).estado.winner).toBe("A");
+    const antes = await leer(admin, partidoId);
+    expect(antes.estado.winner).toBe("A");
 
-    // Aquel primer punto no lo hizo Ana: fue un error suyo, y el punto era de B.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "error", jugadorId: ana });
+    // Aquel primer punto no lo ganó Ana: falló el saque, y el punto era de B.
+    await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "saque_fallado",
+      jugadorId: ana,
+      ordenEsperado: antes.siguienteOrden
+    });
 
     const despues = await leer(admin, partidoId);
     expect(despues.estado.winner).toBe("B");
-    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, puntos: 4 });
+    expect(await estadisticasDe(ana)).toMatchObject({ saques_fallados: 1, puntos: 4 });
   });
 
   it("cambiar solo el autor mueve la estadística de sitio", async () => {
@@ -351,10 +433,212 @@ describe("corregir un evento antiguo", () => {
     const berta = local.jugadores[1]!.id;
 
     await punto(admin, partidoId, ana, "ace");
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "corregir", orden: 0, jugadorId: berta, ordenEsperado: siguienteOrden });
 
     expect(await estadisticasDe(ana)).toBeNull();
     expect(await estadisticasDe(berta)).toMatchObject({ aces: 1, puntos: 1 });
+  });
+});
+
+/*
+ * Bloqueo y chilena no llevan el punto grabado en el tipo: lo decide quien
+ * anota, rally a rally. Sin respuesta no se adivina —adivinar aquí es inventar
+ * marcador— así que el servidor rechaza el evento en vez de asumir un lado.
+ */
+describe("bloqueo y chilena: el punto lo decide quien anota", () => {
+  it("sin decir si ganó el punto, no se anota", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    const respuesta = await punto(admin, partidoId, local.jugadores[0]!.id, "bloqueo");
+    expect(respuesta.status).toBe(400);
+    expect(((await respuesta.json()) as { campos: Record<string, string> }).campos).toHaveProperty("punto");
+  });
+
+  it("un bloqueo sin punto no mueve el marcador, pero cuenta en la ficha", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    const respuesta = await punto(admin, partidoId, ana, "bloqueo", false);
+    expect(respuesta.status).toBe(201);
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 0, B: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, bloqueos: 1 });
+  });
+
+  it("un bloqueo con punto suma las dos cosas", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 1, bloqueos: 1 });
+  });
+
+  /*
+   * La chilena va por su columna, no por la del bloqueo: comparten el gesto de
+   * la pregunta, no la métrica.
+   */
+  it("la chilena tiene columna propia", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "chilena", true);
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 1, chilenas: 1, bloqueos: 0 });
+  });
+
+  /*
+   * Esta sentencia agregada es la única implementación del reparto desde que se
+   * borró su espejo en TS, así que un tipo que no llegue a su columna sólo se
+   * ve aquí: cada acción con su cifra, en una sola pasada.
+   */
+  it("cada acción llega a su columna", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "punto");
+    await punto(admin, partidoId, ana, "ace");
+    await punto(admin, partidoId, ana, "bloqueo", true);
+    await punto(admin, partidoId, ana, "chilena", false);
+    await punto(admin, partidoId, ana, "saque_fallado");
+
+    // Tres puntos: el punto, el ace y el bloqueo que ganó. Ni la chilena que no
+    // ganó ni el saque fallado, que se lo lleva el rival.
+    expect(await estadisticasDe(ana)).toEqual({
+      puntos: 3,
+      bloqueos: 1,
+      chilenas: 1,
+      aces: 1,
+      saques_fallados: 1
+    });
+  });
+});
+
+describe("saque fallado", () => {
+  it("da el punto al rival y no suma puntos a quien lo falla", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    const respuesta = await punto(admin, partidoId, ana, "saque_fallado");
+    const cuerpo = (await respuesta.json()) as Respuesta;
+    expect(cuerpo.estado.puntos).toEqual({ A: 0, B: 1 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, saques_fallados: 1 });
+  });
+});
+
+/*
+ * Corregir un bloqueo o una chilena tiene que poder cambiar también el sí/no,
+ * porque ese sí/no no vive en el tipo del evento sino en `lado_punto`. Sin este
+ * camino, arreglar «no fue punto» sólo se podía deshaciendo todo lo posterior.
+ */
+describe("corregir un bloqueo", () => {
+  it("de «no fue punto» a «sí» mueve el marcador", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", false);
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      punto: true,
+      ordenEsperado: siguienteOrden
+    });
+    expect(respuesta.status).toBe(200);
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
+  });
+
+  /*
+   * Corregir a quién se atribuye no puede mover el marcador de propina: sin
+   * `punto` en el cuerpo, la fila conserva lo que ya afirmaba.
+   */
+  it("cambiar sólo el autor conserva si puntuaba o no", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    const berta = local.jugadores[1]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", false);
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: berta,
+      ordenEsperado: siguienteOrden
+    });
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 0, B: 0 });
+  });
+
+  /*
+   * El caso simétrico, y el que de verdad protege el guardia del endpoint. Con
+   * `punto: false` de arriba, `cambios.punto = Boolean(body.punto)` (sin el
+   * `typeof`) da el mismo resultado que la versión correcta, porque
+   * `false ?? x` y `undefined ?? x` coinciden cuando `x` también es `false` —
+   * ese test pasaría igual con la implementación rota. Arrancando de un
+   * bloqueo que SÍ puntuó, `Boolean(undefined)` colapsa a `false` y el punto
+   * se borraría en silencio del marcador y de la ficha: aquí sí distingue.
+   */
+  it("cambiar sólo el autor conserva el punto cuando sí lo hubo", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+    const berta = local.jugadores[1]!.id;
+    await punto(admin, partidoId, ana, "bloqueo", true);
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: berta,
+      ordenEsperado: siguienteOrden
+    });
+    expect(((await respuesta.json()) as Respuesta).estado.puntos).toEqual({ A: 1, B: 0 });
+    expect(await estadisticasDe(berta)).toMatchObject({ puntos: 1, bloqueos: 1 });
+    expect(await estadisticasDe(ana)).toBeNull();
+  });
+});
+
+/*
+ * `saque_fallado` es la única acción cuyo `lado_punto` no coincide con
+ * `lado_jugador`: el punto cruza la red. Corregir HACIA un tipo que pregunta
+ * (`bloqueo`, `chilena`) sin volver a decir `punto` tiene que heredar «lo que
+ * la fila ya afirmaba» —el sí/no de verdad, no la mera presencia de
+ * `lado_punto`— o el marcador se vuelca: el punto que era del rival pasaría a
+ * dárselo a quien falló el saque, dos puntos de golpe.
+ */
+describe("corregir de un tipo que cruza la red a uno que pregunta", () => {
+  it("un saque fallado corregido a bloqueo sin decir punto no vuelca el marcador", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "saque_fallado");
+    const antes = await leer(admin, partidoId);
+    expect(antes.estado.puntos).toEqual({ A: 0, B: 1 });
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "bloqueo",
+      jugadorId: ana,
+      ordenEsperado: antes.siguienteOrden
+    });
+    expect(respuesta.status).toBe(200);
+
+    /*
+     * La fila ya afirmaba «el punto es del rival», que para un tipo que
+     * pregunta no es un sí: al no repetirse, el bloqueo queda sin decidir y no
+     * puntúa para nadie. Lo único que de verdad importa aquí es lo que NO
+     * puede pasar: que el punto de B reaparezca en A.
+     */
+    const despues = (await respuesta.json()) as Respuesta;
+    expect(despues.estado.puntos).toEqual({ A: 0, B: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ puntos: 0, bloqueos: 1, saques_fallados: 0 });
   });
 });
 
@@ -373,10 +657,22 @@ describe("el log es la fuente de verdad", () => {
     const admin = await crearAdmin();
     const { partidoId, local, visitante } = await montarPartido(admin);
     const jugadores = [...local.jugadores, ...visitante.jugadores].map((j) => j.id);
-    const tipos = ["remate", "ace", "bloqueo", "error", "defensa"];
+    /*
+     * Las cinco acciones, incluidas las dos que preguntan y una que dice que no:
+     * si el recálculo se saltara `lado_punto` y volviera a decidir por el tipo,
+     * la chilena de aquí abajo aparecería puntuando después del PATCH.
+     */
+    const acciones: { tipo: string; gano?: boolean }[] = [
+      { tipo: "punto" },
+      { tipo: "ace" },
+      { tipo: "bloqueo", gano: true },
+      { tipo: "saque_fallado" },
+      { tipo: "chilena", gano: false }
+    ];
 
     for (let i = 0; i < 24; i += 1) {
-      await punto(admin, partidoId, jugadores[i % jugadores.length]!, tipos[i % tipos.length]!);
+      const accion = acciones[i % acciones.length]!;
+      await punto(admin, partidoId, jugadores[i % jugadores.length]!, accion.tipo, accion.gano);
     }
 
     const anotando = await leer(admin, partidoId);
@@ -395,8 +691,8 @@ describe("el log es la fuente de verdad", () => {
     const { partidoId, local, visitante } = await montarPartido(admin);
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-    await punto(admin, partidoId, visitante.jugadores[0]!.id, "error");
-    await punto(admin, partidoId, local.jugadores[1]!.id, "bloqueo");
+    await punto(admin, partidoId, visitante.jugadores[0]!.id, "saque_fallado");
+    await punto(admin, partidoId, local.jugadores[1]!.id, "bloqueo", true);
 
     const { results } = await env.DB
       .prepare(
@@ -812,7 +1108,7 @@ describe("cambios de jugador", () => {
 
   /*
    * Sin esto, en cuanto hay un cambio deja de poderse corregir un punto hacia
-   * quien salió de pista — que es justo cuando hace falta («ese remate fue de
+   * quien salió de pista — que es justo cuando hace falta («ese punto fue de
    * Berta, no de Celia»).
    */
   it("se puede corregir un punto hacia quien ya salió de pista", async () => {
@@ -822,16 +1118,29 @@ describe("cambios de jugador", () => {
     await anotar(admin, partidoId, { accion: "cambio", entra: suplente.id, sale: titular.id });
     await punto(admin, partidoId, suplente.id);
 
-    const respuesta = await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: titular.id });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 1,
+      jugadorId: titular.id,
+      ordenEsperado: siguienteOrden
+    });
     expect(respuesta.status).toBe(200);
 
     expect(await estadisticasDe(titular.id)).toMatchObject({ puntos: 2 });
     expect(await estadisticasDe(suplente.id)).toBe(null);
     expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 2, B: 0 });
     // Y quien no ha pisado el partido sigue sin poder recibir puntos.
+    // Corregir no añade eventos: el orden esperado sigue siendo el mismo.
     expect(
-      (await anotar(admin, partidoId, { accion: "corregir", orden: 1, jugadorId: local.jugadores[0]!.id + 999 }))
-        .status
+      (
+        await anotar(admin, partidoId, {
+          accion: "corregir",
+          orden: 1,
+          jugadorId: local.jugadores[0]!.id + 999,
+          ordenEsperado: siguienteOrden
+        })
+      ).status
     ).toBe(409);
   });
 });
@@ -855,5 +1164,127 @@ describe("el cuadro se entera", () => {
       .bind(final)
       .first<{ equipo_a_nombre: string }>();
     expect(arriba!.equipo_a_nombre).toBe("Delfines");
+  });
+});
+
+/*
+ * El reclamo del partido separa a dos personas. A la misma persona con dos
+ * pestañas abiertas la separa esto: las dos pasan la puerta con el mismo
+ * usuario, y lo único que las distingue es el orden que cada una vio.
+ */
+describe("dos pestañas del mismo anotador", () => {
+  it("corregir con un orden desfasado da 409", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 99
+    });
+
+    expect(respuesta.status).toBe(409);
+  });
+
+  it("corregir con el orden al día sí entra", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const respuesta = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      jugadorId: local.jugadores[1]!.id,
+      ordenEsperado: 1
+    });
+
+    expect(respuesta.status).toBe(200);
+    const { eventos } = await leer(admin, partidoId);
+    expect(eventos[0]!.jugadorId).toBe(local.jugadores[1]!.id);
+  });
+
+  /*
+   * Dos adopciones a la vez. Sin el catch, la que choca contra el UNIQUE sale
+   * como un 500 «No se ha podido guardar»: un fallo del motor con pinta de
+   * avería, en el móvil de quien está a pie de pista.
+   *
+   * Lo que este test prueba es que ninguna de las dos acaba en 500. NO prueba
+   * por cuál de los dos caminos salió el 409: si workerd las serializa, la
+   * segunda ve el ajuste de la primera y responde «ya tiene anotación» sin
+   * llegar al UNIQUE. Las dos salidas son correctas; la que no lo es es el 500,
+   * y esa es la que se vigila.
+   */
+  it("dos adopciones a la vez no dejan nunca un 500", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin, undefined, { puntosA: 8, puntosB: 6 });
+
+    const respuestas = await Promise.all([
+      anotar(admin, partidoId, { accion: "adoptar" }),
+      anotar(admin, partidoId, { accion: "adoptar" })
+    ]);
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([201, 409]);
+    const perdedora = respuestas.find((r) => r.status === 409)!;
+    const { error } = (await perdedora.json()) as Respuesta;
+    expect(error).toBeTruthy();
+    // El texto genérico del 500 no puede aparecer en un 409.
+    expect(error).not.toContain("No se ha podido guardar");
+  });
+});
+
+/*
+ * El reloj del partido es cosa del cronómetro (`accion: "cronometro"`, ver
+ * cronometro.test.ts para el ciclo completo de arrancar/pausar/reanudar), no
+ * del pliegue de puntos.
+ *
+ * Una versión de este pliegue lo ponía con `COALESCE(started_at, ?)` en CADA
+ * escritura: el primer punto arrancaba el reloj solo, sin pausa posible. Con
+ * la pausa ya en el anotador (`started_at = NULL` es también «en pausa», no
+ * solo «sin estrenar»), ese COALESCE habría reactivado el reloj con un ancla
+ * vieja en el primer punto tras cada pausa. Anotar y cronometrar quedan como
+ * dos gestos separados a propósito.
+ */
+describe("el reloj no lo mueve anotar", () => {
+  const marcaDe = (partidoId: string) =>
+    env.DB.prepare("SELECT started_at, elapsed_ms FROM partidos WHERE id = ?1")
+      .bind(partidoId)
+      .first<{ started_at: string | null; elapsed_ms: number }>();
+
+  it("anotar puntos no arranca ni mueve el reloj", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    expect((await marcaDe(partidoId))!.started_at).toBeNull();
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    await punto(admin, partidoId, local.jugadores[1]!.id);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const fila = (await marcaDe(partidoId))!;
+    expect(fila.started_at).toBeNull();
+    expect(fila.elapsed_ms).toBe(0);
+  });
+
+  it("deshacer tampoco lo toca", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: siguienteOrden - 1 });
+
+    expect((await marcaDe(partidoId))!.started_at).toBeNull();
+  });
+
+  it("el GET siempre lleva startedAt y elapsedMs, aunque el reloj no se haya estrenado", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const datos = await leer(admin, partidoId);
+    expect(datos.partido.startedAt).toBeNull();
+    expect(datos.partido).toHaveProperty("elapsedMs");
   });
 });

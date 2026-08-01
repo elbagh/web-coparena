@@ -42,7 +42,7 @@ const MARCADO = `
         <div>
           <span data-versus-puntos-a>0</span>
           <span data-versus-puntos-b>0</span>
-          <p data-versus-detalle></p>
+          <p><span data-versus-detalle></span><span data-versus-reloj hidden></span></p>
           <p data-versus-parciales hidden></p>
         </div>
         <div data-versus-lado="B">
@@ -85,11 +85,11 @@ const PLANTILLA = {
     B: { id: 2, nombre: "Gaviotas", jugadores: [jugador(4, "Carla"), jugador(5, "Diana")] }
   },
   tipos: [
-    { clave: "remate", etiqueta: "Remate" },
+    { clave: "punto", etiqueta: "Punto" },
     { clave: "ace", etiqueta: "Ace" },
+    { clave: "saque_fallado", etiqueta: "Falló saque" },
     { clave: "bloqueo", etiqueta: "Bloqueo" },
-    { clave: "error", etiqueta: "Error" },
-    { clave: "defensa", etiqueta: "Defensa" }
+    { clave: "chilena", etiqueta: "Chilena" }
   ]
 };
 
@@ -110,8 +110,8 @@ const estadoBase = (extra: Record<string, unknown> = {}) => ({
   ],
   enPista: { A: [1, 2], B: [4, 5] },
   feed: [
-    { o: 0, t: "remate", j: 1, l: "A", p: "A", s: 1 },
-    { o: 1, t: "remate", j: 4, l: "B", p: "B", s: 1 },
+    { o: 0, t: "punto", j: 1, l: "A", p: "A", s: 1 },
+    { o: 1, t: "punto", j: 4, l: "B", p: "B", s: 1 },
     { o: 2, t: "ace", j: 2, l: "A", p: "A", s: 1 }
   ],
   feedTotal: 3,
@@ -317,7 +317,7 @@ describe("el historial", () => {
     await sondeo(estadoBase());
 
     const lineas = todos(".feed-linea .feed-que").map((n) => n.textContent);
-    expect(lineas).toEqual(["Ace de Berta", "Remate de Carla", "Remate de Ana"]);
+    expect(lineas).toEqual(["Ace de Berta", "Punto de Carla", "Punto de Ana"]);
 
     // El marcador se anda hacia atrás desde el actual (2–1).
     const cuando = todos(".feed-linea .feed-cuando").map((n) => n.textContent);
@@ -361,7 +361,7 @@ describe("el historial", () => {
     await montar();
     const estado = estadoBase();
     estado.feed = [
-      { o: 0, t: "remate", j: 1, l: "A", p: "A", s: 1 },
+      { o: 0, t: "punto", j: 1, l: "A", p: "A", s: 1 },
       { o: 0, c: 4, t: "cambio", j: 3, x: 2, l: "A", s: 1 } as never
     ];
     await sondeo(estado);
@@ -448,5 +448,56 @@ describe("el chip de la cabecera", () => {
       "utf8"
     );
     expect(header).toContain('href="/directo/" data-directo-vivo');
+  });
+});
+
+/*
+ * El reloj corre en el cliente desde `startedAt`, sin pedirle nada más al
+ * servidor. Va con su propio intervalo y no con el sondeo: entre dos sondeos
+ * pasan tres segundos como poco —sesenta si no hay nadie jugando—, y un reloj
+ * que salta de tres en tres se lee como estropeado.
+ */
+describe("el reloj del partido", () => {
+  it("no se pinta si el partido no tiene hora de inicio", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    expect($("[data-versus-reloj]").hidden).toBe(true);
+  });
+
+  it("cuenta desde la hora de inicio", async () => {
+    await montar();
+    const base = estadoBase();
+    (base.partidos[0] as Record<string, unknown>).startedAt = new Date(Date.now() - 125_000).toISOString();
+
+    await sondeo(base);
+
+    const reloj = $("[data-versus-reloj]");
+    expect(reloj.hidden).toBe(false);
+    expect(reloj.textContent).toMatch(/02:0\d$/);
+  });
+
+  /*
+   * El cronómetro del anotador pone `startedAt` a `null` al PAUSAR, no solo
+   * antes de empezar — con `Boolean(startedAt)` a secas el reloj público
+   * desaparecía en cada pausa en vez de quedarse quieto en lo acumulado.
+   * `elapsedMs` es lo que distingue «en pausa con algo acumulado» de «nunca
+   * estrenado», y por eso viaja en `/api/directo` además de `startedAt`.
+   */
+  it("en pausa se queda quieto en lo acumulado, no desaparece", async () => {
+    await montar();
+    const base = estadoBase();
+    (base.partidos[0] as Record<string, unknown>).startedAt = null;
+    (base.partidos[0] as Record<string, unknown>).elapsedMs = 90_000;
+
+    await sondeo(base);
+
+    const reloj = $("[data-versus-reloj]");
+    expect(reloj.hidden).toBe(false);
+    expect(reloj.textContent).toBe(" · 01:30");
+  });
+
+  it("el reloj lleva cifras de ancho fijo", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../../src/styles/global.css"), "utf8");
+    expect(css).toMatch(/\.versus-reloj\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
   });
 });

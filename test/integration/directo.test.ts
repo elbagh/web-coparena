@@ -14,7 +14,14 @@ import { crearAdmin, crearEdicion, crearEquipo, crearPartido, peticion } from ".
 
 interface Estado {
   hayDirecto: boolean;
-  partidos: { id: string; ronda: string; points: { A: number; B: number }; teams: { A: { name: string } } }[];
+  partidos: {
+    id: string;
+    ronda: string;
+    points: { A: number; B: number };
+    teams: { A: { name: string } };
+    startedAt: string | null;
+    elapsedMs: number;
+  }[];
   enPista: { A: number[]; B: number[] } | null;
   feed: { o: number; c?: number; t: string; j?: number | null; x?: number; l?: string | null; s: number }[];
   feedTotal: number;
@@ -63,6 +70,36 @@ describe("es público y minúsculo", () => {
     expect(estado.partidos).toHaveLength(1);
     expect(estado.partidos[0]).toMatchObject({ ronda: "Final", points: { A: 12, B: 0 } });
     expect(estado.partidos[0]!.teams.A.name).toBe("Delfines");
+  });
+
+  /*
+   * `elapsedMs` tiene que viajar junto a `startedAt`: `elapsed()` de
+   * match-utils.js los necesita a los dos para pintar el reloj público, y sin
+   * el acumulado el chip leería mal en cuanto el cronómetro se pausara — el
+   * tramo en curso se sumaría sobre un acumulado que el cliente no tiene.
+   */
+  it("el marcador lleva el reloj: el ancla y lo ya acumulado", async () => {
+    const a = await crearEquipo({ nombre: "Delfines" });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+
+    const { moverCronometro } = await import("../../functions/_lib/eventos");
+    const leerAnotable = () =>
+      env.DB
+        .prepare(
+          `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id, points_a, points_b,
+                  sets_a, sets_b, reglas, started_at, elapsed_ms
+             FROM partidos WHERE id = ?1`
+        )
+        .bind(id)
+        .first<Parameters<typeof moverCronometro>[1]>();
+
+    await moverCronometro(env.DB, (await leerAnotable())!, true); // arranca
+    await moverCronometro(env.DB, (await leerAnotable())!, false); // pausa
+
+    const { estado } = await leer();
+    expect(estado.partidos[0]!.startedAt).toBeNull();
+    expect(estado.partidos[0]!.elapsedMs).toBeGreaterThanOrEqual(0);
   });
 
   // Sirve para que el botón del nav diga algo cuando no hay nadie en pista.
@@ -235,7 +272,7 @@ describe("el versus y el historial", () => {
     orden: number,
     jugadorId: number,
     lado: string,
-    tipo = "remate",
+    tipo = "punto",
     setNumero = 1
   ) => {
     await env.DB
@@ -243,7 +280,16 @@ describe("el versus y el historial", () => {
         `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
       )
-      .bind(partidoId, orden, setNumero, tipo, lado, jugadorId, tipo === "error" ? (lado === "A" ? "B" : "A") : lado)
+      .bind(
+        partidoId,
+        orden,
+        setNumero,
+        tipo,
+        lado,
+        jugadorId,
+        // El saque fallado es el único cuyo punto cruza la red.
+        tipo === "saque_fallado" ? (lado === "A" ? "B" : "A") : lado
+      )
       .run();
     await env.DB.prepare("UPDATE partidos SET log_version = log_version + 1 WHERE id = ?1").bind(partidoId).run();
   };
@@ -268,13 +314,13 @@ describe("el versus y el historial", () => {
   it("el historial trae los puntos, sin un solo nombre", async () => {
     const { id, a } = await enJuegoConGente();
     await anotarEvento(id, 0, a.jugadores[0]!.id, "A");
-    await anotarEvento(id, 1, a.jugadores[1]!.id, "A", "error");
+    await anotarEvento(id, 1, a.jugadores[1]!.id, "A", "saque_fallado");
 
     const { estado } = await leer();
     expect(estado.feed).toHaveLength(2);
-    expect(estado.feed[0]).toMatchObject({ o: 0, t: "remate", j: a.jugadores[0]!.id, l: "A", s: 1 });
-    // El error cruza la red: quien lo hace es de A y el punto es de B.
-    expect(estado.feed[1]).toMatchObject({ o: 1, t: "error", l: "A" });
+    expect(estado.feed[0]).toMatchObject({ o: 0, t: "punto", j: a.jugadores[0]!.id, l: "A", s: 1 });
+    // El saque fallado cruza la red: quien lo hace es de A y el punto es de B.
+    expect(estado.feed[1]).toMatchObject({ o: 1, t: "saque_fallado", l: "A" });
     expect(JSON.stringify(estado.feed)).not.toContain("Ana");
   });
 
@@ -304,7 +350,7 @@ describe("el versus y el historial", () => {
     await anotarEvento(id, 1, a.jugadores[1]!.id, "A");
 
     const { estado } = await leer();
-    expect(estado.feed.map((linea) => linea.t)).toEqual(["remate", "cambio", "remate"]);
+    expect(estado.feed.map((linea) => linea.t)).toEqual(["punto", "cambio", "punto"]);
     expect(estado.feed[1]).toMatchObject({ o: 0, t: "cambio", j: a.jugadores[1]!.id, x: a.jugadores[0]!.id });
   });
 });
@@ -352,7 +398,7 @@ describe("el ETag cubre lo que no es el marcador", () => {
   });
 
   /*
-   * La defensa no puntúa, así que el marcador sumado no se mueve; antes solo la
+   * Un bloqueo que no ganó el rally no mueve el marcador sumado; antes solo la
    * salvaba `updated_at`, y dos escrituras en el mismo milisegundo dan la misma
    * marca.
    */
@@ -365,7 +411,7 @@ describe("el ETag cubre lo que no es el marcador", () => {
     await env.DB
       .prepare(
         `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, jugador_id, lado_punto)
-         VALUES (?1, 0, 1, 'defensa', 'A', ?2, NULL)`
+         VALUES (?1, 0, 1, 'bloqueo', 'A', ?2, NULL)`
       )
       .bind(id, a.jugadores[0]!.id)
       .run();
@@ -375,5 +421,37 @@ describe("el ETag cubre lo que no es el marcador", () => {
       .run();
 
     expect((await pedir(etag)).status).toBe(200);
+  });
+
+  /*
+   * Arrancar o pausar el reloj no toca puntos ni sets, pero sí `started_at`/
+   * `elapsed_ms` — y el espectador que ya tenía el reloj a la vista necesita
+   * enterarse. `moverCronometro` sube `log_version` en la misma fila que
+   * agrega `versionDirecto`, así que un cambio de marcha por sí solo también
+   * mueve el ETag.
+   */
+  it("cambia al arrancar o pausar el cronómetro, sin puntos de por medio", async () => {
+    const a = await crearEquipo({ nombre: "Delfines" });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+
+    const { moverCronometro } = await import("../../functions/_lib/eventos");
+    const leerAnotable = () =>
+      env.DB
+        .prepare(
+          `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id, points_a, points_b,
+                  sets_a, sets_b, reglas, started_at, elapsed_ms
+             FROM partidos WHERE id = ?1`
+        )
+        .bind(id)
+        .first<Parameters<typeof moverCronometro>[1]>();
+
+    const { etag: etagAntesDeArrancar } = await leer();
+    await moverCronometro(env.DB, (await leerAnotable())!, true);
+    expect((await pedir(etagAntesDeArrancar)).status).toBe(200);
+
+    const { etag: etagAntesDePausar } = await leer();
+    await moverCronometro(env.DB, (await leerAnotable())!, false);
+    expect((await pedir(etagAntesDePausar)).status).toBe(200);
   });
 });

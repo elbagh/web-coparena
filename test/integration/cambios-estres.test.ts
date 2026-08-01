@@ -68,9 +68,16 @@ async function montar(user: UsuarioSesion) {
   return { partidoId, local, visitante };
 }
 
-async function punto(user: UsuarioSesion, partidoId: string, jugadorId: number, tipo = "remate") {
+/** `gano` sólo viaja con los tipos que preguntan (bloqueo y chilena). */
+async function punto(user: UsuarioSesion, partidoId: string, jugadorId: number, tipo = "punto", gano?: boolean) {
   const { siguienteOrden } = await leer(user, partidoId);
-  return anotar(user, partidoId, { accion: "evento", tipo, jugadorId, ordenEsperado: siguienteOrden });
+  return anotar(user, partidoId, {
+    accion: "evento",
+    tipo,
+    jugadorId,
+    ordenEsperado: siguienteOrden,
+    ...(gano === undefined ? {} : { punto: gano })
+  });
 }
 
 const cambiosDe = async (partidoId: string) =>
@@ -140,7 +147,22 @@ describe("un cambio no pierde su set porque se deshaga un punto", () => {
     const { eventos } = await leer(admin, partidoId);
     await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: eventos[eventos.length - 1]!.orden });
     // ...y ahora una corrección cualquiera recalcula los sets de todo.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "ace" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const correccion = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "ace",
+      ordenEsperado: siguienteOrden
+    });
+
+    /*
+     * La corrección es lo único que dispara el recálculo, así que si se rechaza
+     * no queda nada que medir: el 3 de abajo ya valía 3 antes (lo fija el test
+     * de arriba) y la comprobación pasaría igual. Desde que `corregir` exige
+     * `ordenEsperado`, esta petición puede contestar 409 — y sin esta línea lo
+     * haría en silencio.
+     */
+    expect(correccion.status).toBe(200);
 
     expect((await cambiosDe(partidoId))[0]!.set_numero).toBe(3);
   });
@@ -178,9 +200,15 @@ describe("un cambio no pierde su set porque se deshaga un punto", () => {
     });
     expect((await cambiosDe(partidoId))[0]!.set_numero).toBe(2);
 
-    // El quinto punto era en realidad una defensa: no puntuaba, así que el set
-    // nunca se cerró y el cambio pasa a ser del primero.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 4, tipo: "defensa" });
+    // El quinto punto era en realidad un saque fallado: se lo llevó el rival, así
+    // que el set nunca se cerró y el cambio pasa a ser del primero.
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 4,
+      tipo: "saque_fallado",
+      ordenEsperado: siguienteOrden
+    });
 
     expect((await leer(admin, partidoId)).estado.setNumero).toBe(1);
     expect((await cambiosDe(partidoId))[0]!.set_numero).toBe(1);
@@ -188,14 +216,19 @@ describe("un cambio no pierde su set porque se deshaga un punto", () => {
 });
 
 describe("el cambio no descuadra lo que ya estaba cuadrado", () => {
-  /** Puntos y errores de las fichas contra los puntos que marca el marcador. */
+  /**
+   * Puntos y saques fallados de las fichas contra los puntos que marca el
+   * marcador: los saques fallados son la única acción cuyo punto se lo lleva el
+   * rival, así que son los que faltan para que las dos cifras coincidan.
+   */
   async function cuadra(user: UsuarioSesion, partidoId: string) {
     const { estado } = await leer(user, partidoId);
     const jugados =
       estado.historial.reduce((s, set) => s + set.a + set.b, 0) + estado.puntos.A + estado.puntos.B;
     const fila = await env.DB
       .prepare(
-        "SELECT COALESCE(SUM(puntos), 0) AS p, COALESCE(SUM(errores), 0) AS e FROM estadisticas WHERE partido_id = ?1"
+        `SELECT COALESCE(SUM(puntos), 0) AS p, COALESCE(SUM(saques_fallados), 0) AS e
+           FROM estadisticas WHERE partido_id = ?1`
       )
       .bind(partidoId)
       .first<{ p: number; e: number }>();
@@ -324,13 +357,14 @@ describe("el cuerpo del directo sigue siendo pequeño", () => {
     const { partidoId, local, visitante } = await montar(admin);
     const gente = [...local.jugadores.slice(0, 2), ...visitante.jugadores.slice(0, 2)].map((j) => j.id);
 
-    for (let i = 0; i < 5; i += 1) await punto(admin, partidoId, gente[i % gente.length]!, "defensa");
+    // Bloqueos que no ganaron el rally: el log crece y el partido no se acaba.
+    for (let i = 0; i < 5; i += 1) await punto(admin, partidoId, gente[i % gente.length]!, "bloqueo", false);
     await anotar(admin, partidoId, {
       accion: "cambio",
       entra: local.jugadores[2]!.id,
       sale: local.jugadores[1]!.id
     });
-    for (let i = 0; i < 40; i += 1) await punto(admin, partidoId, gente[i % gente.length]!, "defensa");
+    for (let i = 0; i < 40; i += 1) await punto(admin, partidoId, gente[i % gente.length]!, "bloqueo", false);
 
     const respuesta = await getDirecto(ctx(await peticion("/api/directo"), env));
     const bytes = new TextEncoder().encode(await respuesta.text()).length;

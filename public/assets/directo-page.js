@@ -66,6 +66,16 @@
   let partidoPintado = null;
   let terminado = false;
   let feedAbiertoUnaVez = false;
+  /**
+   * El partido cuyo reloj corre. Lo deja el pintado y lo lee el tictac.
+   *
+   * El reloj va por su cuenta y no con el sondeo: entre dos sondeos pasan tres
+   * segundos como poco —sesenta si no hay nadie jugando—, y un reloj que salta
+   * de tres en tres se lee como roto. Correrlo aquí no cuesta ni una petición
+   * más, porque `elapsed()` sólo necesita `startedAt`, `elapsedMs` y la hora
+   * del navegador — nada que no viaje ya en el propio partido.
+   */
+  let partidoDelReloj = null;
 
   // --------------------------------------------------------------- datos ---
 
@@ -302,6 +312,9 @@
       cajaVersus.hidden = true;
       cajaFeed.hidden = true;
       cajaEstado.hidden = false;
+      // Sin nadie jugando no hay reloj que correr: dejarlo apuntando al partido
+      // anterior lo tendría contando un partido que ya acabó.
+      partidoDelReloj = null;
       texto(
         cajaEstado,
         estado && estado.siguiente
@@ -339,6 +352,9 @@
       $("[data-versus-detalle]"),
       `Set ${partido.setNumber} · Sets ${partido.sets.A}–${partido.sets.B} · a ${objetivo}`
     );
+    partidoDelReloj = partido;
+    pintarReloj();
+
     const parciales = $("[data-versus-parciales]");
     parciales.hidden = !partido.history || partido.history.length === 0;
     texto(parciales, (partido.history || []).map((set) => `${set.a}–${set.b}`).join(" · "));
@@ -362,6 +378,29 @@
 
     ultimoEstado = estado;
   }
+
+  /**
+   * El reloj del partido, en la línea de detalle.
+   *
+   * Se esconde entero —separador incluido— mientras el reloj no se ha
+   * estrenado: un «00:00» fijo dice menos que no decir nada.
+   *
+   * No basta con mirar `startedAt`: el cronómetro del anotador lo pone a
+   * `null` también al PAUSAR, no solo antes de empezar — con `Boolean(startedAt)`
+   * el reloj público desaparecía en cada pausa en vez de quedarse quieto en lo
+   * acumulado, que es lo que sí hace `/anotador/`. `elapsedMs` es lo que
+   * distingue «parado con algo acumulado» de «nunca estrenado», y `elapsed()`
+   * ya sabe devolver ese acumulado quieto cuando no hay ancla.
+   */
+  function pintarReloj() {
+    const nodo = $("[data-versus-reloj]");
+    if (!nodo) return;
+    const empezado = Boolean(partidoDelReloj && (partidoDelReloj.startedAt || partidoDelReloj.elapsedMs));
+    nodo.hidden = !empezado;
+    if (empezado) texto(nodo, ` · ${utils.formatClock(utils.elapsed(partidoDelReloj))}`);
+  }
+
+  window.setInterval(pintarReloj, 1000);
 
   /*
    * La cadencia rápida solo mientras el versus está de verdad en pantalla. Quien

@@ -50,7 +50,10 @@
     const cerradas = !state.inscripcionesAbiertas;
 
     setHidden("[data-auth-loading]", !state.loading);
-    setHidden("[data-auth-logged-out]", state.loading || loggedIn || cerradas);
+    // La tarjeta de entrar es la misma en todo el sitio (Mi zona, camisetas, el
+    // panel, el anotador), así que no depende de las inscripciones: cerrarlas
+    // dejaba el sitio entero sin forma de iniciar sesión.
+    setHidden("[data-auth-logged-out]", state.loading || loggedIn);
     setHidden("[data-auth-logged-in]", state.loading || !loggedIn);
     setHidden("[data-auth-no-team]", state.loading || !loggedIn || hasTeam || cerradas);
     setHidden("[data-auth-team]", state.loading || !loggedIn || !hasTeam);
@@ -58,6 +61,12 @@
     // Solo se enseña a quien todavía no tiene equipo: quien ya está inscrito
     // sigue viendo su flujo normal para gestionarlo, cerradas o no.
     setHidden("[data-auth-cerradas]", state.loading || !cerradas || hasTeam);
+
+    // Quien solo tenga sentido con las inscripciones abiertas se marca así y se
+    // oculta encima de lo que ya haya decidido su propio estado. Esta pasada
+    // solo esconde, nunca enseña: al revés reabriría una tarjeta que su estado
+    // acaba de cerrar.
+    if (cerradas) setHidden("[data-auth-solo-abiertas]", true);
 
     setText("[data-auth-user-name]", state.user?.nombre || state.user?.email || "");
     setText("[data-auth-user-email]", state.user?.email || "");

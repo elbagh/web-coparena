@@ -157,8 +157,8 @@
     if (!stats) return "";
     const partes = [
       [stats.puntos, "puntos"],
-      [stats.remates, "remates"],
       [stats.bloqueos, "bloqueos"],
+      [stats.chilenas, "chilenas"],
       [stats.aces, "aces"]
     ]
       .filter(([valor]) => valor > 0)

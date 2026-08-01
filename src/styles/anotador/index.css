@@ -161,8 +161,14 @@ body.is-anotador {
    * 8px de aire abajo, no 12: la fila del reloj es la que ahora cierra esta
    * tarjeta, y esos 4px son parte de lo que devuelve el presupuesto de alto
    * al añadirla (ver «reloj» más abajo).
+   *
+   * `position: relative` es el ancla de la pestaña de punto de set, que se
+   * monta sobre el borde de arriba. El aire que necesita por encima lo pone
+   * ya el `padding-bottom` de la barra de título: añadir margen aquí costaba
+   * 8px de alto a toda la pantalla.
    */
   padding: 10px 14px 8px;
+  position: relative;
   text-align: center;
 }
 
@@ -212,6 +218,17 @@ body.is-anotador {
   margin: 2px 0 0;
 }
 
+/*
+ * Cifras de ancho fijo. Sin esto el reloj cambia de ancho al pasar de «11:11» a
+ * «00:00» —los dígitos de Inter no miden lo mismo— y, como la línea va centrada,
+ * el detalle entero se desplaza una vez por segundo. En esta pantalla eso es
+ * inaceptable: la regla de la que sale todo su diseño es que nada se mueve de
+ * sitio, porque se mira tres segundos entre punto y punto.
+ */
+.anot-reloj {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Terminado, los números grandes son los sets. Sin el rótulo, un 2 – 1 se leería
    como un marcador de puntos absurdo. */
 .anot-rotulo {
@@ -221,6 +238,49 @@ body.is-anotador {
   letter-spacing: 0.14em;
   margin: 4px 0 -4px;
   text-transform: uppercase;
+}
+
+/*
+ * El aviso de punto de set, como una pestaña montada sobre el borde de arriba
+ * del marcador.
+ *
+ * Va en `absolute` y no en el flujo por la regla de la que sale toda esta
+ * pantalla: aparecer no puede mover un botón. En el flujo reservaba 24px, y
+ * medidos en un móvil de 390×844 esos 24 eran los que llevaban la botonera de
+ * acciones de 870 a 894 — justo el estado en el que se toca deprisa.
+ *
+ * Relleno macizo del color del equipo que puede cerrar, los mismos
+ * `--anot-a`/`--anot-b` de las bandas de la pista y del directo: dice de quién es
+ * antes de leerse. Al sol, un color de letra sobre la crema no se lee.
+ */
+.anot-punto-set {
+  background: var(--anot-punto-set, var(--anot-tinta));
+  border: 2px solid var(--anot-superficie);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  left: 50%;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 2px 12px;
+  position: absolute;
+  text-transform: uppercase;
+  top: -12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.anot-punto-set[hidden] {
+  display: none;
+}
+
+.anot-punto-set[data-lado="A"] {
+  --anot-punto-set: var(--anot-a);
+}
+
+.anot-punto-set[data-lado="B"] {
+  --anot-punto-set: var(--anot-b);
 }
 
 .anot-parciales {
@@ -306,6 +366,61 @@ body.is-anotador {
   content: "";
   inset: -10px;
   position: absolute;
+}
+
+/* ----------------------------------------------------------------- relevo --- */
+
+/*
+ * Otra persona lleva este partido. Ocupa el sitio de la pista, así que no suma
+ * alto: el presupuesto vertical de esta pantalla ya está gastado entero.
+ *
+ * Ni azul ni rojo: aquí esos dos son los colores de equipación (--anot-a,
+ * --anot-b) y toda la premisa del versus es que nunca haga falta leer cuál es
+ * cuál. Una caja azul se leería como que el punto es del equipo A. Esta caja
+ * no habla del partido: habla de quién tiene el móvil en la mano, así que usa
+ * los colores del sitio y no los de la competición — arena y pino, como el
+ * resto de La Copa Arena. `--pine` sobre `--dune` da 7,71:1 de contraste.
+ */
+.anot-relevo {
+  background: var(--dune);
+  border: 3px solid var(--pine);
+  border-radius: 16px;
+  margin: 14px 0;
+  padding: 16px;
+}
+
+/*
+ * El título es el nombre de la persona, en Titan One: la caja de decisión abre
+ * con un marcador porque su pregunta es «qué»; esta abre con un nombre porque
+ * su pregunta es «quién». Se queda claramente por debajo del marcador grande
+ * de arriba (clamp hasta 4.4rem) para que no compitan dos titulares en la
+ * misma tipografía.
+ */
+.anot-relevo-titulo {
+  color: var(--pine);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin: 0 0 6px;
+}
+
+.anot-relevo-texto {
+  color: var(--pine);
+  font-size: 0.92rem;
+  margin: 0 0 14px;
+}
+
+.anot-relevo-botones {
+  display: grid;
+  gap: 8px;
+}
+
+/*
+ * El aviso propio de este bloque, mismo motivo que `[data-anot-error-decision]`
+ * y `[data-anot-error-fuera]`: `.anot-pulgar` está oculto mientras se enseña el
+ * relevo, así que un «Tomar el relevo» que falla necesita su propio sitio.
+ */
+[data-anot-error-relevo] {
+  margin: 10px 0 0;
 }
 
 /* --------------------------------------------------------------- decisión --- */
@@ -641,6 +756,53 @@ body.is-anotador {
   margin: 0 0 8px;
 }
 
+/*
+ * La confirmación de cierre de set, quinto estado de la franja.
+ *
+ * Ámbar, el mismo de `.anot-decision` y por el mismo motivo: no ha fallado nada,
+ * hay algo que decidir. El rojo de esta hoja significa error y esto no lo es.
+ *
+ * Lleva fondo propio porque es el único estado de la franja que cambia lo que
+ * hace el botón de siempre: donde antes anotabas un punto, ahora cierras un set.
+ * Que la franja entera cambie de color es lo que evita confirmarlo de memoria.
+ */
+.anot-cierre {
+  background: #ffe9c2;
+  border: 3px solid #a06a00;
+  border-radius: 14px;
+  padding: 10px 12px 12px;
+}
+
+.anot-cierre[hidden] {
+  display: none;
+}
+
+.anot-cierre-titulo {
+  color: #4a3200;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.anot-cierre-marcador {
+  color: #4a3200;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: 2px 0 8px;
+}
+
+/* Un tono más hondo que el borde ámbar del panel: sobre `#a06a00` el subtítulo
+   en `#ffe9c2` se quedaba en 3,89:1, por debajo de AA para 0,74rem. Así da 5,84. */
+.anot-btn--cerrar {
+  background: #7a5100;
+  border-color: #4a3200;
+  color: #ffffff;
+}
+
+.anot-btn--cerrar .anot-tipo-ayuda {
+  color: #ffe9c2;
+}
+
 .anot-tipos {
   display: grid;
   gap: 8px;
@@ -665,26 +827,57 @@ body.is-anotador {
 }
 
 /*
- * El error es el que cambia de dueño el punto: se marca distinto para no
- * confundirlo con los aciertos en un toque rápido.
- *
- * Ya no en rojo. Desde que los equipos son azul y rojo de equipación, un botón
- * rojo se lee como «el botón del equipo rojo», que es exactamente lo contrario
- * de lo que hace (dar el punto al rival, sea quien sea). Ahora lo distingue el
- * doble borde de tinta, y la flecha del ::after dice lo único que importa: que
- * el punto cruza la red.
+ * El saque fallado es el único que cambia de dueño el punto, así que ocupa la
+ * fila entera: el ancho lo dice antes de leer la etiqueta. Ya no en rojo —desde
+ * que los equipos son azul y rojo de equipación, un botón rojo se lee como «el
+ * botón del equipo rojo», que es lo contrario de lo que hace—. Lo distinguen el
+ * doble filo de tinta y la flecha, que dice lo único que importa: el punto cruza
+ * la red.
  */
-.anot-btn--error {
+.anot-btn--saque_fallado {
   border-color: var(--anot-tinta);
   box-shadow: inset 0 0 0 3px var(--anot-superficie), inset 0 0 0 6px var(--anot-tinta);
+  grid-column: 1 / -1;
 }
 
-.anot-btn--error .anot-tipo-nombre::after {
+.anot-btn--saque_fallado .anot-tipo-nombre::after {
   content: " ⇢";
   font-weight: 900;
 }
 
-.anot-btn--defensa {
+/*
+ * El borde discontinuo significa una sola cosa, y aparece en dos sitios: aquí y
+ * en «No fue punto» del tercer toque. En los dos quiere decir «esto no mueve el
+ * marcador».
+ *
+ * El grupo va más bajo que el de arriba (56 contra 68) para que se lea como
+ * secundario sin necesidad de un rótulo, que costaría el doble de alto. 56 es el
+ * suelo táctil de esta hoja y no se baja de ahí.
+ */
+.anot-tipos--extra {
+  border-top: 1px solid var(--anot-linea);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.anot-tipos--extra .anot-btn--tipo {
+  border-style: dashed;
+  min-height: 56px;
+}
+
+/*
+ * «No fue punto» lleva el mismo borde discontinuo en los dos sitios donde
+ * aparece —el tercer toque al anotar y el sí/no del diálogo de corregir— y
+ * significa lo mismo en los dos: esto no mueve el marcador. Ninguno de los
+ * dos es `--primario` — un botón sólido a pleno sol y con prisa sesga el
+ * toque, y aquí las dos respuestas son igual de legítimas. El selector no se
+ * queda en `.anot-punto` porque el diálogo de corregir no vive dentro de ese
+ * bloque: es su propio `[data-anot-corregir-punto]`, y es justo ahí donde se
+ * decide si un punto existe o no — el único hilo visual de esta rama no
+ * podía faltar precisamente ahí.
+ */
+.anot-punto .anot-btn--no,
+[data-anot-corregir-punto] .anot-btn--no {
   border-style: dashed;
 }
 

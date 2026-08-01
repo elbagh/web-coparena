@@ -56,7 +56,7 @@ describe("no se anota sobre un partido que no está en directo", () => {
 
     const respuesta = await postear(
       partidoId,
-      { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
+      { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
       cookie
     );
 
@@ -111,7 +111,7 @@ describe("poner en directo", () => {
 
     const punto = await postear(
       partidoId,
-      { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
+      { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
       cookie
     );
     expect(punto.status).toBe(201);
@@ -175,7 +175,7 @@ describe("un partido terminado no se confunde con uno sin publicar", () => {
     for (let orden = 0; orden < 5; orden += 1) {
       const punto = await postear(
         partidoId,
-        { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
+        { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: orden },
         cookie
       );
       expect(punto.status).toBe(201);
@@ -184,7 +184,7 @@ describe("un partido terminado no se confunde con uno sin publicar", () => {
 
     const respuesta = await postear(
       partidoId,
-      { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 5 },
+      { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 5 },
       cookie
     );
 
@@ -219,7 +219,7 @@ describe("las reparaciones no se bloquean", () => {
     await postear(partidoId, { accion: "directo" }, cookie);
     await postear(
       partidoId,
-      { accion: "evento", tipo: "remate", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
+      { accion: "evento", tipo: "punto", jugadorId: equipoA.jugadores[0].id, ordenEsperado: 0 },
       cookie
     );
 

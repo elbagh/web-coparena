@@ -73,15 +73,26 @@ const structuredData = [
         </div>
       </div>
 
-      <p class="versus-detalle" data-versus-detalle></p>
+      {/*
+        El reloj en su propio <span>: el detalle se escribe con textContent y se
+        llevaría cualquier hijo, y los dígitos necesitan `tabular-nums` para no
+        cambiar de ancho cada segundo.
+
+        Aquí el tictac hace además un trabajo que no hace en ningún otro sitio:
+        es la única señal continua de que la página está viva cuando el marcador
+        lleva un minuto quieto.
+      */}
+      <p class="versus-detalle">
+        <span data-versus-detalle></span><span class="versus-reloj" data-versus-reloj hidden></span>
+      </p>
       <p class="versus-parciales" data-versus-parciales hidden></p>
     </section>
 
     {/*
       El historial, como el de un partido de fútbol: cada punto, cada bloqueo,
-      cada error y cada cambio, del más reciente al más antiguo. En móvil va
-      plegado —lo que importa es el marcador— y el script lo abre en pantallas
-      grandes, donde cabe sin tapar nada.
+      cada saque fallado y cada cambio, del más reciente al más antiguo. En
+      móvil va plegado —lo que importa es el marcador— y el script lo abre en
+      pantallas grandes, donde cabe sin tapar nada.
     */}
     <section class="feed" data-feed hidden aria-label="Lo que va pasando">
       <details class="feed-plegable" data-feed-plegable>

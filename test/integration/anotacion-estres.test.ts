@@ -90,10 +90,25 @@ async function montar(
   return { partidoId, local, visitante };
 }
 
-/** Anota leyendo antes el orden esperado, como hace la pantalla. */
-async function punto(user: UsuarioSesion, partidoId: string, jugadorId: number, tipo = "remate"): Promise<Response> {
+/**
+ * Anota leyendo antes el orden esperado, como hace la pantalla. `gano` sólo
+ * viaja con los tipos que preguntan (bloqueo y chilena).
+ */
+async function punto(
+  user: UsuarioSesion,
+  partidoId: string,
+  jugadorId: number,
+  tipo = "punto",
+  gano?: boolean
+): Promise<Response> {
   const { siguienteOrden } = await leer(user, partidoId);
-  return anotar(user, partidoId, { accion: "evento", tipo, jugadorId, ordenEsperado: siguienteOrden });
+  return anotar(user, partidoId, {
+    accion: "evento",
+    tipo,
+    jugadorId,
+    ordenEsperado: siguienteOrden,
+    ...(gano === undefined ? {} : { punto: gano })
+  });
 }
 
 const filaPartido = async (id: string) =>
@@ -105,8 +120,12 @@ const filaPartido = async (id: string) =>
 /**
  * La invariante fuerte del sistema, la que ata las estadísticas al marcador:
  * cada punto jugado tiene exactamente una acción detrás, así que la suma de los
- * puntos anotados a los jugadores más los errores cometidos (que dan punto al
- * rival) tiene que ser igual a los puntos que marca el marcador.
+ * puntos anotados a los jugadores más los saques fallados (la única acción cuyo
+ * punto cruza la red) tiene que ser igual a los puntos que marca el marcador.
+ *
+ * Los bloqueos y las chilenas que no ganaron el rally no entran por ninguno de
+ * los dos lados: cuentan en la ficha y no dieron punto a nadie, que es
+ * exactamente lo que dice su `lado_punto` en NULL.
  */
 async function cuadraElMarcador(user: UsuarioSesion, partidoId: string): Promise<{ fichas: number; jugados: number }> {
   const { estado } = await leer(user, partidoId);
@@ -114,11 +133,14 @@ async function cuadraElMarcador(user: UsuarioSesion, partidoId: string): Promise
     estado.historial.reduce((suma, set) => suma + set.a + set.b, 0) + estado.puntos.A + estado.puntos.B;
 
   const fila = await env.DB
-    .prepare("SELECT COALESCE(SUM(puntos), 0) AS puntos, COALESCE(SUM(errores), 0) AS errores FROM estadisticas WHERE partido_id = ?1")
+    .prepare(
+      `SELECT COALESCE(SUM(puntos), 0) AS puntos, COALESCE(SUM(saques_fallados), 0) AS fallados
+         FROM estadisticas WHERE partido_id = ?1`
+    )
     .bind(partidoId)
-    .first<{ puntos: number; errores: number }>();
+    .first<{ puntos: number; fallados: number }>();
 
-  return { fichas: (fila?.puntos ?? 0) + (fila?.errores ?? 0), jugados };
+  return { fichas: (fila?.puntos ?? 0) + (fila?.fallados ?? 0), jugados };
 }
 
 // ---------------------------------------------------------------------------
@@ -152,10 +174,17 @@ describe("un partido terminado no admite más puntos", () => {
     const admin = await crearAdmin();
     const { partidoId, local, visitante } = await montar(admin);
     const gente = [...local.jugadores.map((j) => j.id), ...visitante.jugadores.map((j) => j.id)];
-    const tipos = ["remate", "ace", "bloqueo", "error", "defensa"];
+    const acciones: { tipo: string; gano?: boolean }[] = [
+      { tipo: "punto" },
+      { tipo: "ace" },
+      { tipo: "bloqueo", gano: true },
+      { tipo: "saque_fallado" },
+      { tipo: "chilena", gano: false }
+    ];
 
     for (let i = 0; i < 40; i += 1) {
-      await punto(admin, partidoId, gente[i % gente.length]!, tipos[i % tipos.length]!);
+      const accion = acciones[i % acciones.length]!;
+      await punto(admin, partidoId, gente[i % gente.length]!, accion.tipo, accion.gano);
     }
 
     const { fichas, jugados } = await cuadraElMarcador(admin, partidoId);
@@ -286,8 +315,15 @@ describe("el cuadro no se queda con un ganador que ya no lo es", () => {
     for (let i = 0; i < 5; i += 1) await punto(admin, partidoId, visitante.jugadores[0]!.id);
     expect((await finalDe(finalId))!.equipo_a_id).toBe(visitante.id);
 
-    // El primer punto de A no era de A: era un error suyo, o sea punto de B.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "error" });
+    // El primer punto de A no era de A: falló el saque, o sea punto de B.
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const corregido = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "saque_fallado",
+      ordenEsperado: siguienteOrden
+    });
+    expect(corregido.status).toBe(200);
 
     const fila = await filaPartido(partidoId);
     expect(fila!.winner).toBe("B");
@@ -346,7 +382,7 @@ describe("dos anotadores pulsando a la vez", () => {
       Array.from({ length: 8 }, () =>
         anotar(admin, partidoId, {
           accion: "evento",
-          tipo: "remate",
+          tipo: "punto",
           jugadorId: local.jugadores[0]!.id,
           ordenEsperado: 0
         })
@@ -376,7 +412,7 @@ describe("dos anotadores pulsando a la vez", () => {
 
     for (let ronda = 0; ronda < 4; ronda += 1) {
       await Promise.all(
-        gente.map((jugadorId) => punto(admin, partidoId, jugadorId, ronda % 2 === 0 ? "remate" : "error"))
+        gente.map((jugadorId) => punto(admin, partidoId, jugadorId, ronda % 2 === 0 ? "punto" : "saque_fallado"))
       );
     }
 
@@ -398,7 +434,7 @@ describe("entradas hostiles", () => {
     for (const ordenEsperado of [999999, Number.MAX_SAFE_INTEGER]) {
       const respuesta = await anotar(admin, partidoId, {
         accion: "evento",
-        tipo: "remate",
+        tipo: "punto",
         jugadorId: local.jugadores[0]!.id,
         ordenEsperado
       });
@@ -408,7 +444,7 @@ describe("entradas hostiles", () => {
     for (const ordenEsperado of [-1, 1.5, "cero", null, {}]) {
       const respuesta = await anotar(admin, partidoId, {
         accion: "evento",
-        tipo: "remate",
+        tipo: "punto",
         jugadorId: local.jugadores[0]!.id,
         ordenEsperado
       });
@@ -422,7 +458,7 @@ describe("entradas hostiles", () => {
 
     await anotar(admin, partidoId, {
       accion: "evento",
-      tipo: "remate",
+      tipo: "punto",
       jugadorId: local.jugadores[0]!.id,
       ordenEsperado: 0,
       // Todo esto es ruido: el servidor lo calcula.
@@ -449,7 +485,13 @@ describe("entradas hostiles", () => {
     expect(inventado.status).toBe(400);
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-    const corregido = await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "ajuste" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const corregido = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "ajuste",
+      ordenEsperado: siguienteOrden
+    });
     expect(corregido.status).toBe(409);
   });
 
@@ -550,7 +592,15 @@ describe("anotar el punto 200 cuesta lo mismo que anotar el segundo", () => {
           await peticion(`/api/anotacion?partido=${partidoId}`, {
             method: "POST",
             user: admin,
-            json: { accion: "evento", tipo: "defensa", jugadorId: local.jugadores[0]!.id, ordenEsperado: orden }
+            // Un bloqueo que no ganó el rally: engorda el log sin mover el
+            // marcador, que es lo que aquí interesa medir.
+            json: {
+              accion: "evento",
+              tipo: "bloqueo",
+              punto: false,
+              jugadorId: local.jugadores[0]!.id,
+              ordenEsperado: orden
+            }
           }),
           entorno
         )
@@ -592,7 +642,7 @@ describe("anotar el punto 200 cuesta lo mismo que anotar el segundo", () => {
     const gente = [...local.jugadores.map((j) => j.id), ...visitante.jugadores.map((j) => j.id)];
 
     for (let i = 0; i < 12; i += 1) {
-      await punto(admin, partidoId, gente[i % gente.length]!, i % 3 === 0 ? "error" : "remate");
+      await punto(admin, partidoId, gente[i % gente.length]!, i % 3 === 0 ? "saque_fallado" : "punto");
     }
     const trasAnotar = (await (await punto(admin, partidoId, gente[0]!)).json()) as Respuesta;
     const leido = await leer(admin, partidoId);
