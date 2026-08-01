@@ -476,6 +476,26 @@ describe("el reloj del partido", () => {
     expect(reloj.textContent).toMatch(/02:0\d$/);
   });
 
+  /*
+   * El cronómetro del anotador pone `startedAt` a `null` al PAUSAR, no solo
+   * antes de empezar — con `Boolean(startedAt)` a secas el reloj público
+   * desaparecía en cada pausa en vez de quedarse quieto en lo acumulado.
+   * `elapsedMs` es lo que distingue «en pausa con algo acumulado» de «nunca
+   * estrenado», y por eso viaja en `/api/directo` además de `startedAt`.
+   */
+  it("en pausa se queda quieto en lo acumulado, no desaparece", async () => {
+    await montar();
+    const base = estadoBase();
+    (base.partidos[0] as Record<string, unknown>).startedAt = null;
+    (base.partidos[0] as Record<string, unknown>).elapsedMs = 90_000;
+
+    await sondeo(base);
+
+    const reloj = $("[data-versus-reloj]");
+    expect(reloj.hidden).toBe(false);
+    expect(reloj.textContent).toBe(" · 01:30");
+  });
+
   it("el reloj lleva cifras de ancho fijo", () => {
     const css = readFileSync(path.resolve(import.meta.dirname, "../../src/styles/global.css"), "utf8");
     expect(css).toMatch(/\.versus-reloj\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);

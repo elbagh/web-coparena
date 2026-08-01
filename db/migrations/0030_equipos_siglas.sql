@@ -1,0 +1,13 @@
+-- Migration number: 0030 	 equipos_siglas
+-- Las siglas con las que el chip de la cabecera dice quién está jugando.
+--
+-- Anulable y SIN backfill a propósito: NULL significa «derívalas del nombre»
+-- (functions/_lib/siglas.ts). Rellenarlas ahora inventaría unas siglas que nadie
+-- ha decidido y que la organización se encontraría puestas; dejándolas vacías,
+-- lo que hay es un respaldo razonable y un campo que se rellena cuando hace
+-- falta —típicamente para deshacer un choque entre dos equipos parecidos—.
+--
+-- Aditiva, como pide el orden de despliegue: durante los segundos que tarda el
+-- deploy, el código viejo sigue sirviendo tráfico contra un esquema que es un
+-- superconjunto del que conoce.
+ALTER TABLE equipos ADD COLUMN siglas TEXT;

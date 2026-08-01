@@ -72,7 +72,8 @@
    * El reloj va por su cuenta y no con el sondeo: entre dos sondeos pasan tres
    * segundos como poco —sesenta si no hay nadie jugando—, y un reloj que salta
    * de tres en tres se lee como roto. Correrlo aquí no cuesta ni una petición
-   * más, porque `elapsed()` sólo necesita `startedAt` y la hora del navegador.
+   * más, porque `elapsed()` sólo necesita `startedAt`, `elapsedMs` y la hora
+   * del navegador — nada que no viaje ya en el propio partido.
    */
   let partidoDelReloj = null;
 
@@ -381,16 +382,22 @@
   /**
    * El reloj del partido, en la línea de detalle.
    *
-   * Se esconde entero —separador incluido— cuando no hay hora de inicio: un
-   * «00:00» fijo dice menos que no decir nada, y hasta hace poco era lo único
-   * que se podía enseñar, porque el anotador no marcaba `started_at`.
+   * Se esconde entero —separador incluido— mientras el reloj no se ha
+   * estrenado: un «00:00» fijo dice menos que no decir nada.
+   *
+   * No basta con mirar `startedAt`: el cronómetro del anotador lo pone a
+   * `null` también al PAUSAR, no solo antes de empezar — con `Boolean(startedAt)`
+   * el reloj público desaparecía en cada pausa en vez de quedarse quieto en lo
+   * acumulado, que es lo que sí hace `/anotador/`. `elapsedMs` es lo que
+   * distingue «parado con algo acumulado» de «nunca estrenado», y `elapsed()`
+   * ya sabe devolver ese acumulado quieto cuando no hay ancla.
    */
   function pintarReloj() {
     const nodo = $("[data-versus-reloj]");
     if (!nodo) return;
-    const corre = Boolean(partidoDelReloj && partidoDelReloj.startedAt);
-    nodo.hidden = !corre;
-    if (corre) texto(nodo, ` · ${utils.formatClock(utils.elapsed(partidoDelReloj))}`);
+    const empezado = Boolean(partidoDelReloj && (partidoDelReloj.startedAt || partidoDelReloj.elapsedMs));
+    nodo.hidden = !empezado;
+    if (empezado) texto(nodo, ` · ${utils.formatClock(utils.elapsed(partidoDelReloj))}`);
   }
 
   window.setInterval(pintarReloj, 1000);

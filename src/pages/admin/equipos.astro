@@ -45,6 +45,12 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
               <p class="field-error" data-team-edit-error="equipo" hidden></p>
             </div>
 
+            <div class="field">
+              <label for="team-edit-siglas">Siglas</label>
+              <input id="team-edit-siglas" type="text" maxlength="4" autocomplete="off" data-team-edit-siglas placeholder="Se derivan solas" />
+              <p class="admin-field-hint">Dos a cuatro letras. Es lo que sale en el botón de «En directo» de la cabecera.</p>
+            </div>
+
             <div class="field" data-team-foto-bloque>
               <span class="admin-photo-label">Foto del equipo</span>
               <div class="admin-foto-equipo">

@@ -188,6 +188,28 @@ async function editarEquipo(request: Request, env: AdminEnv, equipoId: number): 
   }
   const eliminarFotoEquipo = formData.get("eliminarFotoEquipo") === "1";
 
+  /*
+   * Las siglas del chip de la cabecera. Van sueltas y no dentro de `payload`
+   * porque ese JSON pasa por `validarRegistro`, que comparten /inscripcion/ y
+   * /mi-equipo/: meterlas ahí las llevaría al formulario público, y esto lo cura
+   * la organización.
+   *
+   * `null` cuando no llega el campo (no se toca) y cuando llega vacío (se borra,
+   * que significa «derívalas del nombre»). La distinción importa: el editor se
+   * guarda entero cada vez, así que un campo ausente NO puede borrar nada.
+   */
+  const siglasCruda = formData.get("siglas");
+  let siglas: string | null = null;
+  if (typeof siglasCruda === "string") {
+    siglas = siglasCruda.trim().toLocaleUpperCase("es");
+    if (siglas.length > 0 && (siglas.length < 2 || siglas.length > 4)) {
+      return jsonAdmin(
+        { error: "Revisa los campos marcados.", campos: { siglas: "Entre 2 y 4 caracteres, o déjalo vacío." } },
+        400
+      );
+    }
+  }
+
   if (Object.keys(camposFoto).length > 0) {
     return jsonAdmin({ error: "Revisa los campos marcados.", campos: camposFoto }, 400);
   }
@@ -197,6 +219,13 @@ async function editarEquipo(request: Request, env: AdminEnv, equipoId: number): 
 
   const fallo = await aplicarFotoEquipo(env, equipoId, equipoActual.foto_key, fotoEquipo, eliminarFotoEquipo);
   if (fallo) return fallo;
+
+  if (typeof siglasCruda === "string") {
+    await env.DB
+      .prepare("UPDATE equipos SET siglas = ?1 WHERE id = ?2")
+      .bind(siglas || null, equipoId)
+      .run();
+  }
 
   const equipo = await cargarEquipoConJugadores(env.DB, equipoId);
   return jsonAdmin({ ok: true, equipo });

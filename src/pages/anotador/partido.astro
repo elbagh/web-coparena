@@ -39,17 +39,22 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <span class="anot-guion">–</span>
         <span class="anot-puntos anot-puntos--b" data-anot-puntos-b>0</span>
       </p>
-      {/*
-        El reloj va en su propio <span> por dos razones. Una: `pintar()` escribe
-        el detalle con textContent, que se llevaría por delante cualquier hijo.
-        Y otra: necesita `tabular-nums`. Sin eso los dígitos cambian de ancho al
-        pasar de «11:11» a «00:00», y como esta línea va centrada se movería sola
-        cada segundo — en la pantalla cuya regla es que nada se mueve de sitio.
-      */}
-      <p class="anot-detalle">
-        <span data-anot-detalle></span><span class="anot-reloj" data-anot-reloj hidden></span>
-      </p>
+      <p class="anot-detalle" data-anot-detalle></p>
       <p class="anot-parciales" data-anot-parciales hidden></p>
+      {/*
+        El reloj va ARRIBA, lejos del pulgar: la zona de anotar está abajo, así que la
+        pausa no se toca sin querer. El número lo pinta el navegador desde el ancla que
+        manda el servidor, no viaja hecho.
+      */}
+      <p class="anot-reloj-fila">
+        <span class="anot-reloj" data-anot-reloj hidden></span>
+        <button type="button" class="anot-reloj-btn" data-anot-reloj-pausa hidden aria-label="Pausar el cronómetro">
+          ⏸
+        </button>
+        <button type="button" class="anot-btn anot-btn--reloj" data-anot-reloj-iniciar hidden>
+          Iniciar cronómetro
+        </button>
+      </p>
     </section>
 
     {/*
@@ -67,6 +72,12 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
           Tomar el relevo
         </button>
       </div>
+      {/*
+        Mismo motivo que en `.anot-decision` y `.anot-fuera`: si «Tomar el
+        relevo» falla (otra persona se adelantó, o se cae la red) este bloque
+        sigue en pantalla y necesita su propio aviso.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-relevo hidden></p>
     </section>
 
     {/*
@@ -85,18 +96,33 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn anot-btn--primario" data-anot-adoptar></button>
         <button type="button" class="anot-btn" data-anot-cero>Empezar en 0–0</button>
       </div>
+      {/*
+        `[data-anot-error]`, el de siempre, vive dentro de `.anot-pulgar` —
+        oculto justo mientras se enseña este bloque. Sin uno propio aquí, un
+        «Adoptar» que falla no dice nada: el botón vuelve y ya está.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-decision hidden></p>
     </section>
 
     {/*
-      El aviso de error vive pegado a la franja del pulgar (más abajo) porque ahí
-      está la mirada mientras se anota. Pero relevo y decisión ocupan el sitio de
-      la franja precisamente para no pintar botones que van a responder 409: sin
-      franja no hay a qué pegarse, y `partido.js` muda aquí el mismo aviso — no
-      uno nuevo — mientras esas cajas están puestas, porque si no el error de
-      «Tomar el relevo» o «Seguir desde…» quedaría dentro de un `[hidden]` y
-      nunca se vería.
+      Mientras el partido no esté en directo, esto ocupa el sitio de la pista — el
+      mismo patrón que `anot-decision`: no se pintan botones que van a responder 409.
+      La alineación sí se puede tocar desde «Más»: es la preparación previa.
     */}
-    <div data-anot-error-destino></div>
+    <section class="anot-fuera" data-anot-fuera hidden>
+      <h2 class="anot-fuera-titulo">Este partido no está en directo</h2>
+      <p class="anot-fuera-texto">
+        Nadie lo está viendo todavía. Al ponerlo en directo se publica en la web para todo el mundo.
+      </p>
+      <button type="button" class="anot-btn anot-btn--primario" data-anot-poner-directo>Poner en directo</button>
+      {/*
+        Mismo motivo que en `.anot-decision`: el diálogo se cierra antes de
+        mandar la petición, así que si «Poner en directo» falla (otro
+        anotador ya lo publicó, o se cae la red) este bloque sigue en
+        pantalla y necesita su propio aviso.
+      */}
+      <p class="anot-alerta" role="alert" data-anot-error-fuera hidden></p>
+    </section>
 
     {/*
       La pista, como un versus: cada equipo en su lado con su color, quien está
@@ -269,6 +295,49 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn anot-btn--primario" data-anot-corregir-guardar>
           Guardar la corrección
         </button>
+      </div>
+    </form>
+  </dialog>
+
+  {/*
+    La doble confirmación es UN diálogo, no dos: dos seguidos en un móvil al sol se
+    despachan a ciegas, que es lo contrario de lo que se busca. La casilla es una
+    fila ancha y no un cuadradito porque esto se usa de pie y con una mano.
+  */}
+  <dialog class="anot-dialogo" data-anot-dialogo-directo>
+    <form method="dialog">
+      <h2>¿Poner el partido en directo?</h2>
+      <p class="anot-dialogo-cruce" data-anot-directo-cruce></p>
+      <p class="anot-hint">
+        Se publicará ahora en la web: aparecerá en la portada, en el botón de la cabecera y en la página
+        del directo para todo el que entre.
+      </p>
+
+      <label class="anot-acepto">
+        <input type="checkbox" data-anot-directo-acepto />
+        <span>Lo entiendo, publícalo</span>
+      </label>
+
+      <div class="anot-dialogo-pie">
+        <button type="button" class="anot-btn" data-anot-directo-cancelar>Cancelar</button>
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-directo-confirmar disabled>
+          Sí, en directo
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  {/*
+    Sale al tocar un punto con el reloj sin estrenar. Al confirmar se anota el punto
+    que lo disparó: un toque descartado a pie de pista es un punto perdido.
+  */}
+  <dialog class="anot-dialogo" data-anot-dialogo-reloj>
+    <form method="dialog">
+      <h2>¿Arrancamos el cronómetro?</h2>
+      <p class="anot-hint">El partido ya está en directo. Al arrancarlo se anota este punto.</p>
+      <div class="anot-dialogo-pie">
+        <button type="button" class="anot-btn" data-anot-reloj-cancelar>Cancelar</button>
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-reloj-confirmar>Arrancar</button>
       </div>
     </form>
   </dialog>

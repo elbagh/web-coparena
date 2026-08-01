@@ -63,6 +63,10 @@
   --equipo-azul-claro: #38bdf8;
   --equipo-rojo: #b91c1c;
   --equipo-rojo-claro: #ff8f8f;
+  /* El hueco que la banda de la portada le quita a la cabecera y su fondo,
+     que son `fixed`. Lo rellena directo.js con el alto medido; 0 mientras no
+     hay partido, así que la cabecera se queda donde siempre. */
+  --banda-directo: 0px;
   --font-display: "Titan One", "Arial Rounded MT Bold", ui-rounded, ui-sans-serif, sans-serif;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   font-family:
@@ -193,7 +197,9 @@ html.ver-como body {
    final en vez de corte recto, para que no se note como una barra pegada. */
 .header-backdrop {
   position: fixed;
-  inset: 0 0 auto 0;
+  /* top va con --banda-directo, no en 0 fijo: la banda de la portada, en
+     flujo, empuja la cabecera y su fondo hacia abajo por su alto real. */
+  inset: var(--banda-directo) 0 auto 0;
   z-index: 15;
   height: 52px;
   background: linear-gradient(180deg, #fff8e9 0px, #fff8e9 36px, rgba(255, 248, 233, 0) 52px);
@@ -202,7 +208,8 @@ html.ver-como body {
 
 .site-header {
   position: fixed;
-  top: 34px;
+  /* Igual que .header-backdrop: se aparta lo que mida la banda de la portada. */
+  top: calc(34px + var(--banda-directo));
   left: 50%;
   z-index: 20;
   display: grid;
@@ -4205,7 +4212,7 @@ html.js .reveal.in-view {
   }
 
   .site-header {
-    top: 22px;
+    top: calc(22px + var(--banda-directo));
     min-height: 54px;
     padding: 7px 10px;
   }
@@ -4739,7 +4746,7 @@ html.js .reveal.in-view {
   }
 
   .site-header {
-    top: 22px;
+    top: calc(22px + var(--banda-directo));
     width: calc(100% - 20px);
   }
 
@@ -5358,6 +5365,23 @@ button.bracket-match {
   padding: 5px 13px;
 }
 
+/*
+ * El chip pasa a llevar dos siglas («OST–PUL»), más ancho que el marcador de
+ * antes, y a 360px la cabecera ya iba justa con la marca, el chip y «Menú».
+ * Se aprieta el interior antes que quitar la llama, que es lo que dice de un
+ * vistazo que hay partido. Va DESPUÉS de la regla sin media query: mismo
+ * selector, misma especificidad, y quien gana un empate es el que viene
+ * detrás en la hoja — colocarla en el bloque de media queries de más arriba
+ * la dejaba sin efecto a cualquier ancho.
+ */
+@media (max-width: 560px) {
+  .header-directo.is-vivo {
+    gap: 3px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+}
+
 .header-directo.is-vivo:hover,
 .header-directo.is-vivo:focus-visible {
   box-shadow: 5px 6px 0 var(--ink);
@@ -5459,6 +5483,91 @@ html.js .directo-off[open] .directo-aviso {
     opacity: 1;
     scale: 1;
     translate: 0 0;
+  }
+}
+
+/* --------------------------------------------- banda de directo (portada) --- */
+
+/*
+ * «Estamos en directo» en flujo, primer hijo del body: el hero que viene
+ * después baja solo. Comparte gradiente y llama con el chip de la cabecera
+ * (mismo lenguaje visual) pero con los nombres completos, no las siglas —
+ * aquí hay sitio y es lo primero que se lee de la página.
+ */
+.banda-directo {
+  align-items: center;
+  background: linear-gradient(115deg, var(--coral) 0%, #ff9138 100%);
+  border-bottom: 3px solid var(--ink);
+  color: #fff;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 12px 16px;
+  text-decoration: none;
+}
+
+.banda-directo-llama {
+  flex: none;
+  height: 22px;
+  width: 18px;
+}
+
+.banda-directo-llama svg {
+  height: 100%;
+  width: 100%;
+}
+
+html.js .banda-directo-llama {
+  animation: llama 1.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.banda-directo-texto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.banda-directo-texto strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.banda-directo-equipos {
+  font-weight: 700;
+}
+
+.banda-directo-cta {
+  flex: none;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.banda-directo:hover .banda-directo-cta,
+.banda-directo:focus-visible .banda-directo-cta {
+  text-decoration-thickness: 3px;
+}
+
+@media (max-width: 560px) {
+  /* En móvil la banda se apila: el reclamo, los equipos y la llamada. */
+  .banda-directo {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 10px 14px;
+  }
+
+  .banda-directo-texto {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .banda-directo-texto strong {
+    font-size: 0.98rem;
+  }
+
+  .banda-directo-cta {
+    font-size: 0.86rem;
   }
 }
 

@@ -23,6 +23,7 @@ const MARCADO = `
         <input type="text" data-team-edit-field="equipo" />
         <p data-team-edit-error="equipo" hidden></p>
       </div>
+      <input type="text" data-team-edit-siglas />
       <input type="file" data-team-edit-field="fotoEquipo" />
       <input type="checkbox" data-team-edit-field="eliminarFotoEquipo" />
       <img data-team-foto-preview hidden />

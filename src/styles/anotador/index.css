@@ -157,10 +157,17 @@ body.is-anotador {
   background: var(--anot-superficie);
   border: 2px solid var(--anot-tinta);
   border-radius: 16px;
-  /* Ancla de la pestaña de punto de set, que se monta sobre el borde de arriba.
-     El aire que necesita por encima lo pone ya el `padding-bottom` de la barra
-     de título: añadir margen aquí costaba 8px de alto a toda la pantalla. */
-  padding: 10px 14px 12px;
+  /*
+   * 8px de aire abajo, no 12: la fila del reloj es la que ahora cierra esta
+   * tarjeta, y esos 4px son parte de lo que devuelve el presupuesto de alto
+   * al añadirla (ver «reloj» más abajo).
+   *
+   * `position: relative` es el ancla de la pestaña de punto de set, que se
+   * monta sobre el borde de arriba. El aire que necesita por encima lo pone
+   * ya el `padding-bottom` de la barra de título: añadir margen aquí costaba
+   * 8px de alto a toda la pantalla.
+   */
+  padding: 10px 14px 8px;
   position: relative;
   text-align: center;
 }
@@ -283,6 +290,84 @@ body.is-anotador {
   margin: 4px 0 0;
 }
 
+/* -------------------------------------------------------------- reloj --- */
+
+/*
+ * Sin margen ni alto mínimo propios: el presupuesto de esta pantalla ya
+ * estaba gastado entero (746px en un móvil de 844, medido) antes de que
+ * existiera esta fila, así que lo que ella mida lo pone únicamente lo que
+ * hay dentro — ver `.anot-reloj-btn` y `.anot-btn--reloj` más abajo, que son
+ * los que de verdad determinan su alto.
+ */
+.anot-reloj-fila {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 0;
+}
+
+/* Tabular para que los dígitos no bailen al pasar de 9 a 10. Mismo tamaño de
+   letra que siempre: lo que se recorta alrededor es sitio, no legibilidad. */
+.anot-reloj {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/*
+ * La caja visual se encoge para devolver el presupuesto de alto, pero el
+ * objetivo táctil no: `::before` la amplía por fuera con un cuadrado
+ * invisible, en `position: absolute`, así que no cuenta para el alto de la
+ * fila. Sigue tocándose cómodo con el pulgar de refilón aunque el botón que
+ * se ve sea pequeño.
+ */
+.anot-reloj-btn {
+  background: none;
+  border: 2px solid var(--anot-linea);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  height: 24px;
+  line-height: 1;
+  min-width: 34px;
+  padding: 0 4px;
+  position: relative;
+}
+
+.anot-reloj-btn::before {
+  content: "";
+  inset: -10px;
+  position: absolute;
+}
+
+/*
+ * A la escala de la propia fila, no a la de un `.anot-btn` normal (56px de
+ * alto): este botón se toca una vez, al principio del partido — no está en
+ * la zona del pulgar, que es la que necesita objetivos grandes porque se
+ * toca entre puntos, a ciegas. Mismo truco del `::before` que `.anot-reloj-btn`
+ * para no perder objetivo táctil por el camino.
+ *
+ * Compuesto con `.anot-btn` y no solo `.anot-btn--reloj`: un selector de dos
+ * clases pesa (0,2,0) y uno de una clase (0,1,0), así que este gana **por
+ * especificidad**, no por dónde cae en la hoja — con un solo `.anot-btn--reloj`
+ * el `min-height: 56px` de la regla base seguiría aplicando pese a venir antes
+ * en el fichero.
+ */
+.anot-btn.anot-btn--reloj {
+  height: 24px;
+  min-height: 0;
+  padding: 0 12px;
+  position: relative;
+}
+
+.anot-btn.anot-btn--reloj::before {
+  content: "";
+  inset: -10px;
+  position: absolute;
+}
+
 /* ----------------------------------------------------------------- relevo --- */
 
 /*
@@ -329,6 +414,15 @@ body.is-anotador {
   gap: 8px;
 }
 
+/*
+ * El aviso propio de este bloque, mismo motivo que `[data-anot-error-decision]`
+ * y `[data-anot-error-fuera]`: `.anot-pulgar` está oculto mientras se enseña el
+ * relevo, así que un «Tomar el relevo» que falla necesita su propio sitio.
+ */
+[data-anot-error-relevo] {
+  margin: 10px 0 0;
+}
+
 /* --------------------------------------------------------------- decisión --- */
 
 /*
@@ -363,6 +457,52 @@ body.is-anotador {
 .anot-decision-botones {
   display: grid;
   gap: 8px;
+}
+
+/*
+ * El aviso propio de este bloque. `[data-anot-error]`, el de siempre, vive
+ * dentro de `.anot-pulgar`, que `pintar()` oculta mientras se enseña esta
+ * decisión — un «Adoptar» que falla no tenía dónde decirlo. `.anot-decision`
+ * no es flex, así que el margen de arriba es lo que lo separa de los botones.
+ */
+[data-anot-error-decision] {
+  margin: 10px 0 0;
+}
+
+/* ---------------------------------------------------------- fuera de directo --- */
+
+/* Ocupa el hueco de la pista, así que se compone igual que `.anot-decision`. */
+.anot-fuera {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.anot-fuera-titulo {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.anot-fuera-texto {
+  color: var(--anot-apagado);
+  margin: 0;
+  max-width: 34ch;
+}
+
+/*
+ * Mismo motivo que `[data-anot-error-decision]`: `.anot-pulgar` está oculto
+ * mientras se enseña este bloque, así que un «Poner en directo» que falla
+ * necesita su propio sitio. Sin margen propio: el `gap` de `.anot-fuera` ya
+ * lo separa del botón.
+ */
+[data-anot-error-fuera] {
+  margin: 0;
 }
 
 /* ------------------------------------------------------------------ pista --- */
@@ -868,6 +1008,30 @@ body.is-anotador {
 .anot-dialogo h2 {
   font-size: 1.2rem;
   margin: 0 0 4px;
+}
+
+/* Fila ancha, no casilla diminuta: esto se marca de pie y con una mano. */
+.anot-acepto {
+  align-items: center;
+  border: 2px solid var(--anot-linea);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  margin: 14px 0;
+  min-height: 52px;
+  padding: 10px 14px;
+}
+
+.anot-acepto input {
+  height: 24px;
+  width: 24px;
+}
+
+.anot-dialogo-cruce {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 6px;
 }
 
 .anot-plantilla {

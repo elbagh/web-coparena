@@ -39,14 +39,20 @@ const MARCADO = `
         <span data-anot-puntos-a>0</span>
         <span data-anot-puntos-b>0</span>
       </p>
-      <p><span data-anot-detalle></span><span data-anot-reloj hidden></span></p>
+      <p data-anot-detalle></p>
       <p data-anot-parciales hidden></p>
+      <p class="anot-reloj-fila">
+        <span data-anot-reloj hidden></span>
+        <button type="button" data-anot-reloj-pausa hidden></button>
+        <button type="button" data-anot-reloj-iniciar hidden>Iniciar cronómetro</button>
+      </p>
     </section>
 
     <section class="anot-relevo" data-anot-relevo hidden>
       <h2 data-anot-relevo-titulo></h2>
       <p data-anot-relevo-texto></p>
       <button type="button" data-anot-relevo-tomar>Tomar el relevo</button>
+      <p role="alert" data-anot-error-relevo hidden></p>
     </section>
 
     <section class="anot-decision" data-anot-decision hidden>
@@ -55,9 +61,13 @@ const MARCADO = `
         <button type="button" data-anot-adoptar></button>
         <button type="button" data-anot-cero>Empezar en 0–0</button>
       </div>
+      <p role="alert" data-anot-error-decision hidden></p>
     </section>
 
-    <div data-anot-error-destino></div>
+    <section class="anot-fuera" data-anot-fuera hidden>
+      <button type="button" data-anot-poner-directo>Poner en directo</button>
+      <p role="alert" data-anot-error-fuera hidden></p>
+    </section>
 
     <section class="anot-pista" data-anot-pista>
       <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
@@ -135,6 +145,18 @@ const MARCADO = `
     <button type="button" data-anot-corregir-cancelar>Cancelar</button>
     <button type="button" data-anot-corregir-guardar>Guardar la corrección</button>
   </dialog>
+
+  <dialog data-anot-dialogo-directo>
+    <p data-anot-directo-cruce></p>
+    <input type="checkbox" data-anot-directo-acepto />
+    <button type="button" data-anot-directo-cancelar>Cancelar</button>
+    <button type="button" data-anot-directo-confirmar disabled>Sí, en directo</button>
+  </dialog>
+
+  <dialog data-anot-dialogo-reloj>
+    <button type="button" data-anot-reloj-cancelar>Cancelar</button>
+    <button type="button" data-anot-reloj-confirmar>Arrancar</button>
+  </dialog>
 `;
 
 const REGLAS = { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 };
@@ -169,9 +191,15 @@ const EQUIPOS = {
   B: { nombre: "Os Pulpos Bravos", jugadores: [enPlantilla(3, "Iago", "García Hermida")] }
 };
 
+/*
+ * El reloj por defecto está PAUSADO (con algo acumulado), no sin estrenar: la
+ * mayoría de estos tests anotan un punto y esperan la petición al instante, y
+ * el reloj sin estrenar abriría el diálogo de arranque en su lugar. Solo los
+ * tests de `anotador-cronometro.test.ts` ejercitan ese cerrojo a propósito.
+ */
 /** La respuesta de `/api/anotacion`, con lo mínimo para pintar. */
 const respuesta = (extra: Record<string, unknown> = {}) => ({
-  partido: { id: "p1", status: "live", origenMarcador: "manual", reglas: REGLAS, startedAt: null },
+  partido: { id: "p1", status: "live", origenMarcador: "manual", reglas: REGLAS, startedAt: null, elapsedMs: 90000 },
   estado: { setNumero: 1, puntos: { A: 0, B: 0 }, sets: { A: 0, B: 0 }, historial: [], terminado: false, winner: null },
   eventos: [],
   siguienteOrden: 0,
@@ -754,17 +782,23 @@ describe("un partido que viene con marcador a mano", () => {
     expect($("[data-anot-pista]").hidden).toBe(false);
   });
 
-  /* Mismo defecto que en el relevo, y misma solución: ver el describe de arriba. */
-  it("si «Seguir desde…» falla, el aviso no queda atrapado dentro de la franja oculta", async () => {
+  /*
+   * Mismo defecto que en el relevo, y misma solución: el aviso de siempre vive
+   * dentro de `.anot-pulgar`, que este bloque oculta. `mostrarError` lo manda a
+   * `[data-anot-error-decision]` en su lugar, y `[data-anot-error]` se queda
+   * vacío y oculto: no hay nodo que mover, así que no hay nada que verificar en
+   * su ancestro salvo que siga sin usarse.
+   */
+  it("si «Seguir desde…» falla con un error de respuesta, avisa en su propio bloque", async () => {
     await montar(aMano());
-    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
 
     responder = async () => new Response(JSON.stringify({ error: "Ese partido ya no existe." }), { status: 404 });
     $("[data-anot-adoptar]").click();
     await respirar();
 
-    expect($("[data-anot-error]").hidden).toBe(false);
-    expect($("[data-anot-error-destino]").contains($("[data-anot-error]"))).toBe(true);
+    expect($("[data-anot-error-decision]").hidden).toBe(false);
+    expect($("[data-anot-error-decision]").textContent).toBe("Ese partido ya no existe.");
+    expect($("[data-anot-error]").hidden).toBe(true);
   });
 });
 
@@ -880,23 +914,22 @@ describe("un partido que lleva otra persona", () => {
   });
 
   /*
-   * `[data-anot-error]` vivía siempre dentro de `.anot-pulgar`, y esta pantalla
-   * lo oculta entero. Si «Tomar el relevo» falla, el aviso quedaba colgado de un
-   * ancestro con `[hidden]` y no había forma de verlo: el botón parecía no
-   * hacer nada. La franja oculta no es un ancestro al que pegarse, así que el
-   * aviso se muda fuera de ella mientras dure este estado.
+   * `[data-anot-error]` vive siempre dentro de `.anot-pulgar`, y esta pantalla
+   * lo oculta entero. Si «Tomar el relevo» falla, un aviso colgado de ese
+   * ancestro con `[hidden]` no se vería: el botón parecería no hacer nada. Por
+   * eso este bloque tiene su propio hueco, igual que `fuera` y `decidir` — el
+   * mismo mecanismo, no uno nuevo para el cuarto caso.
    */
-  it("si el relevo falla, el aviso no queda atrapado dentro de la franja oculta", async () => {
+  it("si el relevo falla, avisa en su propio bloque y no en el de siempre", async () => {
     await montar(respuestaDeOtro());
-    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
 
     responder = async () => new Response(JSON.stringify({ error: "Ese partido ya no existe." }), { status: 404 });
     $("[data-anot-relevo-tomar]").click();
     await respirar();
 
-    expect($("[data-anot-error]").hidden).toBe(false);
-    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
-    expect($("[data-anot-error-destino]").contains($("[data-anot-error]"))).toBe(true);
+    expect($("[data-anot-error-relevo]").hidden).toBe(false);
+    expect($("[data-anot-error-relevo]").textContent).toBe("Ese partido ya no existe.");
+    expect($("[data-anot-error]").hidden).toBe(true);
   });
 });
 
@@ -1396,6 +1429,66 @@ describe("sin red", () => {
 });
 
 /*
+ * `[data-anot-error]`, el de siempre, cuelga de `.anot-pulgar` — que `pintar()`
+ * oculta durante `fuera` y `decidir`. Un fallo de «Poner en directo» o de
+ * «Adoptar» caía ahí y no se veía: el anotador solo veía el botón reaparecer,
+ * sin saber que había que repetir el toque. Comprobar solo `.hidden` en el
+ * propio párrafo es justo el chequeo que habría pasado con el bug en danza —
+ * hay que subir la cadena de antepasados, porque un nodo con `hidden=false`
+ * dentro de una sección `hidden=true` tampoco se ve.
+ */
+describe("el aviso de un fallo se ve en el bloque que está en pantalla", () => {
+  /** Rompe la red a partir de la siguiente petición: mismo camino de catch que un 409. */
+  const cortar = () => {
+    responder = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+  };
+
+  const visible = (nodo: HTMLElement | null): boolean => {
+    for (let actual: HTMLElement | null = nodo; actual; actual = actual.parentElement) {
+      if (actual.hidden) return false;
+    }
+    return Boolean(nodo);
+  };
+
+  it("«Poner en directo» que falla se ve, no solo el botón que vuelve", async () => {
+    await montar(
+      respuesta({ partido: { id: "p1", status: "scheduled", origenMarcador: "manual", reglas: REGLAS, startedAt: null } })
+    );
+
+    $("[data-anot-poner-directo]").click();
+    const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+    acepto.checked = true;
+    acepto.dispatchEvent(new Event("change"));
+    cortar();
+    $("[data-anot-directo-confirmar]").click();
+    await respirar();
+
+    const aviso = $("[data-anot-error-fuera]");
+    expect(aviso.hidden).toBe(false);
+    expect(visible(aviso)).toBe(true);
+    // El de siempre —oculto en este estado— no debe quedarse con el mensaje.
+    expect($("[data-anot-error]").hidden).toBe(true);
+  });
+
+  it("«Adoptar» que falla se ve mientras la decisión sigue en pantalla", async () => {
+    await montar(
+      respuesta({ pendienteDeAdoptar: true, marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } } })
+    );
+
+    cortar();
+    $("[data-anot-adoptar]").click();
+    await respirar();
+
+    const aviso = $("[data-anot-error-decision]");
+    expect(aviso.hidden).toBe(false);
+    expect(visible(aviso)).toBe(true);
+    expect($("[data-anot-error]").hidden).toBe(true);
+  });
+});
+
+/*
  * Ofrecer un botón que va a contestar con un error es ofrecer un fallo. Ya
  * estaba decidido para «Deshacer» de un partido terminado; faltaban los otros
  * dos casos que también responden 409 seguro.
@@ -1467,10 +1560,12 @@ describe("dónde se avisa de que algo no se ha guardado", () => {
     const pagina = leer("../../src/pages/anotador/partido.astro");
     const pulgar = pagina.indexOf("data-anot-pulgar");
     const cierre = pagina.indexOf("</section>", pulgar);
-    // Con el espacio final: sin él, este `indexOf` encontraría antes el hueco
-    // `data-anot-error-destino` (relevo/decisión ocupan su sitio y el aviso se
-    // muda ahí en tiempo de ejecución), que vive fuera de la franja a propósito.
-    const aviso = pagina.indexOf("data-anot-error ");
+    // No `indexOf("data-anot-error")`: eso encuentra antes a
+    // `data-anot-error-relevo` / `data-anot-error-decision` / `data-anot-error-fuera`
+    // (los avisos propios de los otros tres bloques) o incluso su mención en un
+    // comentario. Este busca el atributo suelto: sin guion ni corchete detrás,
+    // un espacio.
+    const aviso = pagina.search(/data-anot-error(?=\s)/);
 
     expect(aviso).toBeGreaterThan(pulgar);
     expect(aviso).toBeLessThan(cierre);
@@ -1541,16 +1636,162 @@ describe("volver a la pantalla", () => {
   });
 });
 
+describe("el marcado de poner en directo", () => {
+  const leer = (ruta: string) => readFileSync(path.resolve(import.meta.dirname, ruta), "utf8");
+  const pagina = () => leer("../../src/pages/anotador/partido.astro");
+
+  it("tiene el bloque de fuera de directo y su diálogo", () => {
+    const fuente = pagina();
+    expect(fuente).toContain("data-anot-fuera");
+    expect(fuente).toContain("data-anot-poner-directo");
+    expect(fuente).toContain("data-anot-dialogo-directo");
+  });
+
+  /*
+   * La segunda confirmación es una casilla que hay que marcar, no un segundo
+   * diálogo: dos diálogos seguidos en un móvil al sol se despachan a ciegas.
+   */
+  it("la confirmación es doble: casilla más botón", () => {
+    const fuente = pagina();
+    expect(fuente).toContain("data-anot-directo-acepto");
+    expect(fuente).toContain("data-anot-directo-confirmar");
+  });
+
+  /*
+   * El aviso tiene que decir QUÉ pasa, no solo que es importante: quien anota no
+   * tiene por qué saber dónde sale publicado el partido.
+   */
+  it("dice dónde va a aparecer el partido", () => {
+    expect(pagina()).toContain("portada");
+  });
+});
+
 /*
- * El reloj sale de `partidos.started_at`, que hasta hace poco sólo escribía el
- * botón «empezar» del panel: un partido llevado entero desde el anotador no
- * tenía hora de inicio y el reloj marcaba 00:00 para siempre. Ahora lo pone el
- * pliegue con el primer punto, y esta pantalla lo enseña.
+ * El estado «fuera de directo»: mientras el partido sigue `scheduled`, publicar
+ * es un acto deliberado (`PartidoNoEnDirecto` en el servidor) y esta pantalla no
+ * pinta una pista cuyos botones responderían 409.
+ */
+describe("fuera de directo", () => {
+  const programado = (extra: Record<string, unknown> = {}) =>
+    respuesta({ partido: { id: "p1", status: "scheduled", origenMarcador: "manual", reglas: REGLAS, startedAt: null }, ...extra });
+
+  it("oculta la pista y la franja del pulgar, y enseña el aviso", async () => {
+    await montar(programado());
+
+    expect($("[data-anot-fuera]").hidden).toBe(false);
+    expect($("[data-anot-pista]").hidden).toBe(true);
+    expect($("[data-anot-pulgar]").hidden).toBe(true);
+  });
+
+  it("en directo, el aviso se oculta y vuelve la pista", async () => {
+    await montar(respuesta());
+
+    expect($("[data-anot-fuera]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+    expect($("[data-anot-pulgar]").hidden).toBe(false);
+  });
+
+  /*
+   * Un `scheduled` con marcador a mano: el servidor comprueba el status ANTES
+   * que el marcador (`registrarEvento` en `_lib/eventos.ts`), así que el primer
+   * aviso en llegar sería «no está en directo», no «hay un marcador por
+   * decidir». Pintar los dos a la vez ofrecería dos salidas cuando solo una
+   * lleva a algún sitio: publicarlo primero.
+   */
+  it("gana sobre la decisión del marcador a mano", async () => {
+    await montar(
+      programado({ pendienteDeAdoptar: true, marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } } })
+    );
+
+    expect($("[data-anot-fuera]").hidden).toBe(false);
+    expect($("[data-anot-decision]").hidden).toBe(true);
+  });
+
+  it("terminado sigue enseñando la pista, no el aviso de publicar", async () => {
+    await montar(
+      respuesta({
+        partido: { id: "p1", status: "finished", origenMarcador: "eventos", reglas: REGLAS, startedAt: null },
+        estado: { setNumero: 3, puntos: { A: 0, B: 0 }, sets: { A: 2, B: 0 }, historial: [], terminado: true, winner: "A" }
+      })
+    );
+
+    // Un partido terminado ya se publicó: ofrecerle «Poner en directo» otra
+    // vez repetiría el error que esto existe para evitar, y el servidor lo
+    // rechazaría con un aviso distinto («ya ha terminado»).
+    expect($("[data-anot-fuera]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+  });
+
+  describe("el diálogo de confirmación", () => {
+    it("el botón de confirmar arranca apagado y muestra el cruce", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).showModal).toHaveBeenCalled();
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(true);
+      expect($("[data-anot-directo-cruce]").textContent).toBe("Areeiros — Os Pulpos Bravos");
+    });
+
+    it("marcar la casilla enciende el botón, y se resetea cada vez que se abre", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+      acepto.checked = true;
+      acepto.dispatchEvent(new Event("change"));
+
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(false);
+
+      // Reabrir sin haber confirmado: la casilla no debe seguir marcada.
+      $("[data-anot-directo-cancelar]").click();
+      $("[data-anot-poner-directo]").click();
+
+      expect(acepto.checked).toBe(false);
+      expect(($("[data-anot-directo-confirmar]") as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("confirmar publica el partido y cierra el diálogo", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      const acepto = $("[data-anot-directo-acepto]") as HTMLInputElement;
+      acepto.checked = true;
+      acepto.dispatchEvent(new Event("change"));
+      $("[data-anot-directo-confirmar]").click();
+      await respirar();
+
+      expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "directo" });
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).close).toHaveBeenCalled();
+    });
+
+    it("cancelar no manda nada", async () => {
+      await montar(programado());
+
+      $("[data-anot-poner-directo]").click();
+      $("[data-anot-directo-cancelar]").click();
+
+      expect(peticiones.filter((p) => p.cuerpo)).toHaveLength(0);
+      expect(($("[data-anot-dialogo-directo]") as HTMLDialogElement).close).toHaveBeenCalled();
+    });
+  });
+});
+
+/*
+ * El reloj sale de `partidos.started_at`/`elapsed_ms` (migración 0003,
+ * reinterpretadas por el cronómetro pausable): `started_at` es el inicio del
+ * tramo EN CURSO y `elapsed_ms` el acumulado de los tramos ya cerrados. El
+ * cerrojo del reloj sin estrenar tiene sus propios tests en
+ * `anotador-cronometro.test.ts`; estos cubren lo que pinta `pintarReloj()`.
  */
 describe("el reloj del partido", () => {
-  it("no se pinta mientras el partido no ha empezado", async () => {
-    await montar(respuesta());
+  it("no se pinta mientras no se ha estrenado", async () => {
+    await montar(
+      respuesta({ partido: { id: "p1", status: "live", origenMarcador: "manual", reglas: REGLAS, startedAt: null, elapsedMs: 0 } })
+    );
+
     expect($("[data-anot-reloj]").hidden).toBe(true);
+    expect(($("[data-anot-reloj-iniciar]") as HTMLElement).hidden).toBe(false);
   });
 
   it("cuenta desde la hora de inicio", async () => {
@@ -1561,23 +1802,60 @@ describe("el reloj del partido", () => {
 
     const reloj = $("[data-anot-reloj]");
     expect(reloj.hidden).toBe(false);
-    expect(reloj.textContent).toMatch(/01:3\d$/);
+    expect(reloj.textContent).toMatch(/^01:3\d$/);
   });
 
   /*
-   * Al terminar, el servidor congela la duración en `elapsed_ms` y el reloj deja
-   * de correr solo. Sin `elapsedMs` en la respuesta, `elapsed()` devolvía 0 y la
-   * pantalla se despedía marcando 00:00 tras cuarenta minutos de juego.
+   * El acumulado se SUMA al tramo en curso, no lo sustituye — es justo el
+   * fallo que esta rama arregló (`ahora − started_at` a secas tiraba
+   * `elapsed_ms` por la ventana). Con 90s ya acumulados de un tramo anterior y
+   * 30s del que corre ahora, el reloj tiene que enseñar 02:0X, no 00:3X.
    */
-  it("un partido terminado enseña la duración congelada", async () => {
+  it("con el reloj en marcha, suma el acumulado más el tramo en curso", async () => {
+    const hace30s = new Date(Date.now() - 30_000).toISOString();
+    await montar(
+      respuesta({ partido: { id: "p1", status: "live", origenMarcador: "eventos", reglas: REGLAS, startedAt: hace30s, elapsedMs: 90_000 } })
+    );
+
+    expect($("[data-anot-reloj]").textContent).toMatch(/^02:0\d$/);
+  });
+
+  /*
+   * En pausa, `started_at` es `null` y todo el tiempo vive en `elapsed_ms`: el
+   * reloj se queda quieto en ese número y el botón ofrece reanudar, no pausar.
+   */
+  it("en pausa enseña el acumulado quieto, con el botón para reanudar", async () => {
+    await montar(
+      respuesta({ partido: { id: "p1", status: "live", origenMarcador: "eventos", reglas: REGLAS, startedAt: null, elapsedMs: 90_000 } })
+    );
+
+    expect($("[data-anot-reloj]").textContent).toBe("01:30");
+    const pausa = $("[data-anot-reloj-pausa]");
+    expect(pausa.hidden).toBe(false);
+    expect(pausa.textContent).toBe("▶");
+    expect(pausa.getAttribute("aria-label")).toBe("Reanudar el cronómetro");
+  });
+
+  /*
+   * Fuera de directo esta fila no pinta nada todavía: no hay reloj que
+   * arrancar ni pausar antes de publicar. Y terminado el partido se retira
+   * entera — no hay pausa ni arranque que ofrecer sobre un resultado cerrado.
+   */
+  it("no se pinta fuera de directo ni con el partido terminado", async () => {
+    await montar(
+      respuesta({ partido: { id: "p1", status: "scheduled", origenMarcador: "manual", reglas: REGLAS, startedAt: null, elapsedMs: 0 } })
+    );
+    expect($("[data-anot-reloj]").hidden).toBe(true);
+    expect(($("[data-anot-reloj-pausa]") as HTMLElement).hidden).toBe(true);
+    expect(($("[data-anot-reloj-iniciar]") as HTMLElement).hidden).toBe(true);
+
     await montar(
       respuesta({
-        partido: { id: "p1", status: "finished", origenMarcador: "eventos", reglas: REGLAS, startedAt: new Date().toISOString(), elapsedMs: 2_400_000 },
+        partido: { id: "p1", status: "finished", origenMarcador: "eventos", reglas: REGLAS, startedAt: null, elapsedMs: 2_400_000 },
         estado: { setNumero: 2, puntos: { A: 0, B: 0 }, sets: { A: 1, B: 0 }, historial: [{ a: 5, b: 3 }], terminado: true, winner: "A" }
       })
     );
-
-    expect($("[data-anot-reloj]").textContent).toBe(" · 40:00");
+    expect($("[data-anot-reloj]").hidden).toBe(true);
   });
 
   /*

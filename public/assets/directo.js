@@ -134,9 +134,11 @@ window.CopaDirecto = (() => {
   // -------------------------------------------------------------- cabecera ---
 
   /*
-   * El botón encendido enseña el marcador, no la palabra «directo»: es lo que
-   * uno quiere saber. Apagado y encendido son dos elementos distintos porque un
-   * <a> deshabilitado no existe en HTML y seguiría siendo enfocable.
+   * El botón encendido enseña quién juega (siglas), no la palabra «directo»
+   * ni el marcador: sin saber de quién, un «12–9» no informa de nada, y el
+   * marcador está a un toque en /directo/. Apagado y encendido son dos
+   * elementos distintos porque un <a> deshabilitado no existe en HTML y
+   * seguiría siendo enfocable.
    *
    * El apagado es un <details> con un aviso dentro, y de ahí que esto lo cierre
    * al encenderse: quien lo hubiera dejado abierto se encontraría el recado
@@ -160,22 +162,65 @@ window.CopaDirecto = (() => {
 
     apagado.open = false;
 
+    /*
+     * Enseña QUIÉN juega, no cómo van: sin saber de quién, un «12–9» no informa
+     * de nada, y el marcador está a un toque. De paso desaparece el caso especial
+     * de «antes del primer punto el marcador no dice nada»: siglas hay siempre.
+     */
     const texto = vivo.querySelector("[data-directo-texto]");
-    const marcador = `${partido.points.A}–${partido.points.B}`;
-    // Antes del primer punto el marcador no dice nada: mejor decir qué es.
-    texto.textContent = partido.points.A === 0 && partido.points.B === 0 ? "En directo" : marcador;
+    texto.textContent = `${partido.teams.A.siglas}–${partido.teams.B.siglas}`;
+    /*
+     * Sin el marcador aquí tampoco. El enlace tiene aria-live="polite": con los
+     * puntos dentro, un lector de pantalla cantaba cada punto del partido desde
+     * cualquier página del sitio. Así se anuncia una vez por partido.
+     */
     vivo.setAttribute(
       "aria-label",
-      `En directo: ${partido.teams.A.name} ${partido.points.A}, ${partido.teams.B.name} ${partido.points.B}. Ver el partido.`
+      `En directo: ${partido.teams.A.name} contra ${partido.teams.B.name}. Ver el marcador.`
     );
+  }
+
+  // ------------------------------------------------- banda de la portada ---
+
+  /*
+   * Solo existe en la portada. Se mide el alto real en vez de fijar un número
+   * porque en móvil son dos líneas y los nombres largos pueden hacer tres: un
+   * 52px a ojo dejaría la cabecera pisando la banda en cuanto un equipo se
+   * llamara largo.
+   */
+  function pintarBanda(datos) {
+    const banda = document.querySelector("[data-banda-directo]");
+    if (!banda) return;
+
+    const partido = datos?.partidos?.[0] || null;
+    banda.hidden = !partido;
+
+    if (!partido) {
+      document.documentElement.style.setProperty("--banda-directo", "0px");
+      return;
+    }
+
+    const equipos = banda.querySelector("[data-banda-equipos]");
+    const nombres = `${partido.teams.A.name} — ${partido.teams.B.name}`;
+    if (equipos.textContent !== nombres) equipos.textContent = nombres;
+
+    // Después de pintar: el alto depende de lo que se acaba de escribir.
+    const alto = Math.round(banda.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--banda-directo", `${alto}px`);
   }
 
   /*
    * Solo se sondea si hay algo que pintar. Este fichero se carga en todas las
-   * páginas porque el botón vive en la cabecera, pero el panel no tiene
-   * cabecera: allí no hay botón, nadie se suscribe y no se pide nada.
+   * páginas porque el botón vive en la cabecera; la banda solo existe en la
+   * portada, así que es un suscriptor más del mismo sondeo: cero peticiones
+   * nuevas y cero cambio de cadencia.
    */
-  if (document.querySelector("[data-directo-apagado]")) suscribir(pintarBoton);
+  if (document.querySelector("[data-directo-apagado]") || document.querySelector("[data-banda-directo]")) {
+    suscribir((datos) => {
+      pintarBoton(datos);
+      pintarBanda(datos);
+    });
+  }
 
   return { suscribir, refrescarAhora, mirandoDeCerca, get estado() { return estado; } };
 })();

@@ -1,7 +1,7 @@
 // /api/anotacion?partido=ID
 //   GET   estado del partido, alineación y log
 //   POST  { accion: "evento" | "deshacer" | "corregir" | "alineacion" | "cambio"
-//           | "cambio-deshacer" | "adoptar" | "soltar" | "relevo" }
+//           | "cambio-deshacer" | "adoptar" | "soltar" | "relevo" | "directo" | "cronometro" }
 //
 // Vive fuera de functions/api/admin/ a propósito: tiene otro permiso
 // (`partidos.anotar`), otro público (quien está a pie de pista con el móvil) y
@@ -25,6 +25,8 @@ import {
   leerCambios,
   leerEstado,
   marcadorPlano,
+  moverCronometro,
+  ponerEnDirecto,
   reclamarPartido,
   recalcularPartido,
   registrarCambio,
@@ -186,10 +188,12 @@ async function respuesta(
         origenMarcador: fresco.origen_marcador,
         reglas: normalizarReglas(fresco.reglas).partido,
         startedAt: fresco.started_at,
-        // El tiempo ya acumulado. Sin él, `elapsed()` de match-utils devuelve 0
-        // en un partido terminado —que es justo cuando el reloj deja de correr
-        // solo y todo el tiempo vive en esta columna— y la pantalla se despedía
-        // marcando 00:00 después de cuarenta minutos de juego.
+        // El acumulado viaja para que el navegador pueda pintar el reloj: el
+        // servidor manda el ancla, no el número que se ve girar. Sin él,
+        // `elapsed()` de match-utils devuelve 0 en un partido pausado o
+        // terminado —justo cuando el reloj deja de correr solo y todo el
+        // tiempo vive en esta columna— y la pantalla se despedía marcando
+        // 00:00 tras cuarenta minutos de juego.
         elapsedMs: fresco.elapsed_ms
       },
       ...estado,
@@ -420,6 +424,12 @@ export const onRequestPost: PagesFunction<AdminEnv> = async ({ request, env }) =
         return await respuesta(env.DB, partido, acceso.user.id);
       case "relevo":
         return await accionRelevo(env.DB, partido, acceso.user.id);
+      case "directo":
+        await ponerEnDirecto(env.DB, partido);
+        return await respuesta(env.DB, partido, acceso.user.id);
+      case "cronometro":
+        await moverCronometro(env.DB, partido, body.marcha === true);
+        return await respuesta(env.DB, partido, acceso.user.id);
       default:
         return jsonAdmin({ error: "La acción no es válida." }, 400);
     }

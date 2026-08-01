@@ -141,6 +141,12 @@ describe("permisos", () => {
   /*
    * Rehacer un partido cerrado ya no es anotar. Quien solo tiene
    * `partidos.anotar` lleva lo que se está jugando.
+   *
+   * El admin sí atraviesa esa puerta —tiene `partidos.editar`—, pero anotar un
+   * punto nuevo exige además que el partido esté en directo, y eso ya no lo
+   * salta ningún permiso: un resultado decidido no se amplía anotando encima,
+   * se corrige con deshacer o corregir. El admin llega más lejos que quien solo
+   * anota (pasa el permiso), pero se encuentra la misma pared que cualquiera.
    */
   it("un partido terminado ya no lo toca quien solo puede anotar", async () => {
     const anotador = await crearUsuarioConPermisos(["partidos.anotar", "jugadores.ver"]);
@@ -149,8 +155,7 @@ describe("permisos", () => {
     await env.DB.prepare("UPDATE partidos SET status = 'finished' WHERE id = ?1").bind(partidoId).run();
 
     expect((await punto(anotador, partidoId, local.jugadores[0]!.id)).status).toBe(403);
-    // El admin sí, porque tiene `partidos.editar`.
-    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(201);
+    expect((await punto(admin, partidoId, local.jugadores[0]!.id)).status).toBe(409);
   });
 });
 
@@ -1230,75 +1235,56 @@ describe("dos pestañas del mismo anotador", () => {
 });
 
 /*
- * El reloj del partido sale de `partidos.started_at`, y hasta ahora sólo lo
- * escribía el botón «empezar» del panel (`/api/partidos`). El anotador es un
- * camino completo hasta `live` que no pasa por ahí: el pliegue ponía el estado
- * en `live` y dejaba la marca en NULL, así que un partido llevado entero desde
- * el anotador no tenía hora de inicio y cualquier reloj marcaba 00:00 para
- * siempre. Es el mismo patrón que ya apareció dos veces en esta zona: varios
- * caminos al mismo estado y uno se deja algo por el camino.
+ * El reloj del partido es cosa del cronómetro (`accion: "cronometro"`, ver
+ * cronometro.test.ts para el ciclo completo de arrancar/pausar/reanudar), no
+ * del pliegue de puntos.
+ *
+ * Una versión de este pliegue lo ponía con `COALESCE(started_at, ?)` en CADA
+ * escritura: el primer punto arrancaba el reloj solo, sin pausa posible. Con
+ * la pausa ya en el anotador (`started_at = NULL` es también «en pausa», no
+ * solo «sin estrenar»), ese COALESCE habría reactivado el reloj con un ancla
+ * vieja en el primer punto tras cada pausa. Anotar y cronometrar quedan como
+ * dos gestos separados a propósito.
  */
-describe("la hora de inicio", () => {
+describe("el reloj no lo mueve anotar", () => {
   const marcaDe = (partidoId: string) =>
-    env.DB.prepare("SELECT started_at FROM partidos WHERE id = ?1")
+    env.DB.prepare("SELECT started_at, elapsed_ms FROM partidos WHERE id = ?1")
       .bind(partidoId)
-      .first<{ started_at: string | null }>();
+      .first<{ started_at: string | null; elapsed_ms: number }>();
 
-  it("el primer punto la pone", async () => {
+  it("anotar puntos no arranca ni mueve el reloj", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
 
     expect((await marcaDe(partidoId))!.started_at).toBeNull();
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-
-    const despues = (await marcaDe(partidoId))!.started_at;
-    expect(despues).not.toBeNull();
-    expect(Number.isNaN(Date.parse(despues!))).toBe(false);
-  });
-
-  /*
-   * `COALESCE` y no una asignación a secas: el pliegue se reescribe entero en
-   * CADA punto, así que sin él la marca saltaría a «ahora» con cada anotación y
-   * el reloj se quedaría clavado en cero de otra manera.
-   */
-  it("los puntos siguientes no la mueven", async () => {
-    const admin = await crearAdmin();
-    const { partidoId, local } = await montarPartido(admin);
-
-    await punto(admin, partidoId, local.jugadores[0]!.id);
-    const primera = (await marcaDe(partidoId))!.started_at;
-
     await punto(admin, partidoId, local.jugadores[1]!.id);
     await punto(admin, partidoId, local.jugadores[0]!.id);
 
-    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+    const fila = (await marcaDe(partidoId))!;
+    expect(fila.started_at).toBeNull();
+    expect(fila.elapsed_ms).toBe(0);
   });
 
-  /*
-   * Deshacer hasta dejar el log vacío no borra la marca: el partido empezó de
-   * verdad, y quitar el último punto no lo devuelve a «sin empezar».
-   */
-  it("deshacerlo todo no la borra", async () => {
+  it("deshacer tampoco lo toca", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
 
     await punto(admin, partidoId, local.jugadores[0]!.id);
-    const primera = (await marcaDe(partidoId))!.started_at;
-
     const { siguienteOrden } = await leer(admin, partidoId);
     await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: siguienteOrden - 1 });
 
-    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+    expect((await marcaDe(partidoId))!.started_at).toBeNull();
   });
 
-  it("el GET la devuelve, junto al tiempo acumulado", async () => {
+  it("el GET siempre lleva startedAt y elapsedMs, aunque el reloj no se haya estrenado", async () => {
     const admin = await crearAdmin();
     const { partidoId, local } = await montarPartido(admin);
     await punto(admin, partidoId, local.jugadores[0]!.id);
 
     const datos = await leer(admin, partidoId);
-    expect(datos.partido.startedAt).not.toBeNull();
+    expect(datos.partido.startedAt).toBeNull();
     expect(datos.partido).toHaveProperty("elapsedMs");
   });
 });

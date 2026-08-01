@@ -14,7 +14,14 @@ import { crearAdmin, crearEdicion, crearEquipo, crearPartido, peticion } from ".
 
 interface Estado {
   hayDirecto: boolean;
-  partidos: { id: string; ronda: string; points: { A: number; B: number }; teams: { A: { name: string } } }[];
+  partidos: {
+    id: string;
+    ronda: string;
+    points: { A: number; B: number };
+    teams: { A: { name: string } };
+    startedAt: string | null;
+    elapsedMs: number;
+  }[];
   enPista: { A: number[]; B: number[] } | null;
   feed: { o: number; c?: number; t: string; j?: number | null; x?: number; l?: string | null; s: number }[];
   feedTotal: number;
@@ -63,6 +70,36 @@ describe("es público y minúsculo", () => {
     expect(estado.partidos).toHaveLength(1);
     expect(estado.partidos[0]).toMatchObject({ ronda: "Final", points: { A: 12, B: 0 } });
     expect(estado.partidos[0]!.teams.A.name).toBe("Delfines");
+  });
+
+  /*
+   * `elapsedMs` tiene que viajar junto a `startedAt`: `elapsed()` de
+   * match-utils.js los necesita a los dos para pintar el reloj público, y sin
+   * el acumulado el chip leería mal en cuanto el cronómetro se pausara — el
+   * tramo en curso se sumaría sobre un acumulado que el cliente no tiene.
+   */
+  it("el marcador lleva el reloj: el ancla y lo ya acumulado", async () => {
+    const a = await crearEquipo({ nombre: "Delfines" });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+
+    const { moverCronometro } = await import("../../functions/_lib/eventos");
+    const leerAnotable = () =>
+      env.DB
+        .prepare(
+          `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id, points_a, points_b,
+                  sets_a, sets_b, reglas, started_at, elapsed_ms
+             FROM partidos WHERE id = ?1`
+        )
+        .bind(id)
+        .first<Parameters<typeof moverCronometro>[1]>();
+
+    await moverCronometro(env.DB, (await leerAnotable())!, true); // arranca
+    await moverCronometro(env.DB, (await leerAnotable())!, false); // pausa
+
+    const { estado } = await leer();
+    expect(estado.partidos[0]!.startedAt).toBeNull();
+    expect(estado.partidos[0]!.elapsedMs).toBeGreaterThanOrEqual(0);
   });
 
   // Sirve para que el botón del nav diga algo cuando no hay nadie en pista.
@@ -384,5 +421,37 @@ describe("el ETag cubre lo que no es el marcador", () => {
       .run();
 
     expect((await pedir(etag)).status).toBe(200);
+  });
+
+  /*
+   * Arrancar o pausar el reloj no toca puntos ni sets, pero sí `started_at`/
+   * `elapsed_ms` — y el espectador que ya tenía el reloj a la vista necesita
+   * enterarse. `moverCronometro` sube `log_version` en la misma fila que
+   * agrega `versionDirecto`, así que un cambio de marcha por sí solo también
+   * mueve el ETag.
+   */
+  it("cambia al arrancar o pausar el cronómetro, sin puntos de por medio", async () => {
+    const a = await crearEquipo({ nombre: "Delfines" });
+    const id = await crearPartido({ equipoA: a });
+    await ponerEnJuego(id);
+
+    const { moverCronometro } = await import("../../functions/_lib/eventos");
+    const leerAnotable = () =>
+      env.DB
+        .prepare(
+          `SELECT id, status, origen_marcador, equipo_a_id, equipo_b_id, points_a, points_b,
+                  sets_a, sets_b, reglas, started_at, elapsed_ms
+             FROM partidos WHERE id = ?1`
+        )
+        .bind(id)
+        .first<Parameters<typeof moverCronometro>[1]>();
+
+    const { etag: etagAntesDeArrancar } = await leer();
+    await moverCronometro(env.DB, (await leerAnotable())!, true);
+    expect((await pedir(etagAntesDeArrancar)).status).toBe(200);
+
+    const { etag: etagAntesDePausar } = await leer();
+    await moverCronometro(env.DB, (await leerAnotable())!, false);
+    expect((await pedir(etagAntesDePausar)).status).toBe(200);
   });
 });

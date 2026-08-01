@@ -22,6 +22,7 @@ import { json } from "./http";
 import { TIPOS } from "./marcador";
 import { atributosPorJugador, mediaAtributos, NIVEL_POR_DEFECTO } from "./perfil";
 import { normalizarReglas } from "./reglas";
+import { derivarSiglas } from "./siglas";
 
 export interface Ajustes {
   sondeoMs: number;
@@ -51,8 +52,11 @@ interface PartidoDirectoRow {
   set_number: number;
   set_history: string;
   started_at: string | null;
+  elapsed_ms: number;
   scheduled_at: string | null;
   reglas: string;
+  siglas_a: string | null;
+  siglas_b: string | null;
 }
 
 export interface EstadoDirecto {
@@ -148,6 +152,11 @@ export async function leerAjustes(db: D1Database): Promise<Ajustes> {
  * tampoco. Justo lo que pasa la mañana del torneo, cuando aún no ha empezado
  * nada.
  *
+ * Y lleva las siglas de quien está en pista, por la misma razón otra vez:
+ * `equipos.siglas` se edita desde el panel, pero lo único que mueve la versión
+ * es `updated_at` de `partidos`. Sin esto, corregir una sigla a media jornada
+ * no le llega a nadie que ya tenga la página cargada.
+ *
  * Sigue siendo **una fila agregada**: las subconsultas van dentro y el 304 se
  * responde sin llegar a leer los partidos. Un COUNT sobre `partido_eventos`
  * habría encarecido justo el camino barato (D1 factura filas leídas).
@@ -171,11 +180,42 @@ export async function versionDirecto(db: D1Database): Promise<string> {
               (SELECT COALESCE(id || '|' || updated_at, '')
                  FROM partidos
                 WHERE edicion_id = ${EDICION_ACTUAL} AND status = 'scheduled' AND scheduled_at IS NOT NULL
-                ORDER BY scheduled_at ASC LIMIT 1) AS proximo
+                ORDER BY scheduled_at ASC LIMIT 1) AS proximo,
+              -- Las siglas de quien está jugando. Van aquí porque se editan
+              -- desde el panel y updated_at vive en partidos: sin esto,
+              -- corregirlas durante el torneo no le llega a nadie.
+              --
+              -- En hex() porque esto acaba en una cabecera HTTP, donde una tilde
+              -- tira un TypeError y deja el directo caído. Se escapa en vez de
+              -- limpiarse por lo de siempre: sustituir juntaría dos versiones
+              -- distintas y devolvería un 304 con el cuerpo viejo.
+              --
+              -- El '|' entre los hex es igual de obligatorio: hex es 2 caracteres
+              -- por byte y sin separador el reparto se pierde. "ABC"+"D" y
+              -- "AB"+"CD" dan el mismo "41424344" pegados a pelo, y esos dos
+              -- estados son alcanzables de verdad (la columna no tiene más límite
+              -- que 2-4 caracteres). Un '|' no puede salir nunca de un hex(),
+              -- así que no hay ambigüedad posible al partir por él.
+              (SELECT COALESCE(GROUP_CONCAT(s, '|'), '')
+                 FROM (SELECT hex(e.siglas) AS s
+                         FROM equipos e
+                         JOIN partidos p2 ON e.id IN (p2.equipo_a_id, p2.equipo_b_id)
+                        WHERE p2.edicion_id = ${EDICION_ACTUAL}
+                          AND p2.status = 'live'
+                          AND e.siglas IS NOT NULL
+                        ORDER BY e.id)) AS siglas
          FROM partidos
         WHERE edicion_id = ${EDICION_ACTUAL} AND status = 'live'`
     )
-    .first<{ n: number; ultimo: string; marcador: number; log: number; ajustes: string; proximo: string }>();
+    .first<{
+      n: number;
+      ultimo: string;
+      marcador: number;
+      log: number;
+      ajustes: string;
+      proximo: string;
+      siglas: string;
+    }>();
 
   return [
     fila?.n ?? 0,
@@ -183,7 +223,8 @@ export async function versionDirecto(db: D1Database): Promise<string> {
     fila?.log ?? 0,
     fila?.ultimo ?? "",
     fila?.ajustes ?? "",
-    fila?.proximo ?? ""
+    fila?.proximo ?? "",
+    fila?.siglas ?? ""
   ].join("-");
 }
 
@@ -208,9 +249,12 @@ export async function estadoDirecto(db: D1Database, ajustes: Ajustes): Promise<E
   const [vivos, proximo] = await Promise.all([
     db
       .prepare(
-        `SELECT * FROM partidos
-          WHERE edicion_id = ${EDICION_ACTUAL} AND status = 'live'
-          ORDER BY COALESCE(scheduled_at, '9999'), sort_order ASC`
+        `SELECT p.*, ea.siglas AS siglas_a, eb.siglas AS siglas_b
+           FROM partidos p
+           LEFT JOIN equipos ea ON ea.id = p.equipo_a_id
+           LEFT JOIN equipos eb ON eb.id = p.equipo_b_id
+          WHERE p.edicion_id = ${EDICION_ACTUAL} AND p.status = 'live'
+          ORDER BY COALESCE(p.scheduled_at, '9999'), p.sort_order ASC`
       )
       .all<PartidoDirectoRow>(),
     db
@@ -470,11 +514,34 @@ function mapDirecto(partido: PartidoDirectoRow) {
     sets: { A: partido.sets_a, B: partido.sets_b },
     history: leerHistorial(partido.set_history),
     startedAt: partido.started_at,
+    /*
+     * El acumulado viaja igual que en `/api/anotacion`: `elapsed()` de
+     * match-utils.js necesita `elapsedMs` además de `startedAt` para pintar el
+     * reloj público, y sin él el chip volvería a leer mal tras cada pausa —el
+     * tramo en curso se sumaría sobre un acumulado que el cliente no tiene.
+     * Cambia con `moverCronometro`, que sube `log_version` en la misma fila
+     * que agrega `versionDirecto`: una pausa o un arranque sin puntos de por
+     * medio también mueve el ETag.
+     */
+    elapsedMs: partido.elapsed_ms,
     scheduledAt: partido.scheduled_at,
     reglas: normalizarReglas(partido.reglas).partido,
+    /*
+     * La sigla guardada manda; si no la hay, se deriva del nombre CONGELADO del
+     * partido —no de `equipos.nombre`—, igual que hace el cuadro. Así un cruce
+     * que todavía dice «Ganador SF1» también sale legible en el chip.
+     */
     teams: {
-      A: { id: partido.equipo_a_id, name: partido.equipo_a_nombre },
-      B: { id: partido.equipo_b_id, name: partido.equipo_b_nombre }
+      A: {
+        id: partido.equipo_a_id,
+        name: partido.equipo_a_nombre,
+        siglas: partido.siglas_a || derivarSiglas(partido.equipo_a_nombre)
+      },
+      B: {
+        id: partido.equipo_b_id,
+        name: partido.equipo_b_nombre,
+        siglas: partido.siglas_b || derivarSiglas(partido.equipo_b_nombre)
+      }
     }
   };
 }

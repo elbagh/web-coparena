@@ -53,17 +53,129 @@
   let porCerrar = null;
   /** Retratos vivos por jugador: se mueven entre pista y banquillo, no se recrean. */
   const retratos = new Map();
+  /** El punto que espera a que arranque el reloj. */
+  let puntoEnEspera = null;
+  let tictac = null;
 
   /** Rehacer un partido cerrado ya no es anotar: pide `partidos.editar`. */
   const puedeEditar = () => Boolean(window.CopaAuth?.state?.acceso?.permisos?.includes("partidos.editar"));
 
   // ------------------------------------------------------------- pintado ---
 
+  /*
+   * `relevo` gana a todos, y `fuera` gana a `decidir` — por este orden, y no
+   * por convención: así decide el propio servidor. `asegurarReclamo` en
+   * `api/anotacion.ts` corre delante de cualquier acción salvo la propia
+   * «relevo», así que un partido que ya lleva otra persona no se puede ni
+   * publicar («directo») ni decidir su marcador de a mano todavía — hay que
+   * tomarlo primero. Descartado eso, un `scheduled` con marcador a mano
+   * responde «no está en directo» (`PartidoNoEnDirecto`), no «hay un
+   * marcador por decidir» (`MarcadorSinAdoptar`) — `registrarEvento` en
+   * `_lib/eventos.ts` comprueba el status antes que el marcador. Pintar dos
+   * avisos a la vez ofrecería dos salidas cuando solo una lleva a algún
+   * sitio. Un partido `finished` no entra en `fuera`: ya se publicó, y el
+   * servidor le contesta con un aviso distinto («ya ha terminado»), no este.
+   *
+   * Una sola función y no cálculos sueltos: `pintar()` la usa para saber qué
+   * bloque enseñar y `mostrarError()` para saber a cuál de los cuatro avisos
+   * le toca un fallo. Que puedan desacoplarse es justo el bug de esta ronda.
+   */
+  function estadoBloque() {
+    const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
+    const fuera = !relevo && datos.partido.status === "scheduled";
+    const decidir = !relevo && !fuera && Boolean(datos.pendienteDeAdoptar);
+    return { relevo, fuera, decidir };
+  }
+
+  /**
+   * El aviso de un fallo vive en cuatro sitios, uno por bloque que puede estar
+   * en pantalla, no en uno: `[data-anot-error]` (el de siempre, en
+   * `core.js`) cuelga de `.anot-pulgar`, que `pintar()` oculta durante
+   * `relevo`, `fuera` y `decidir` — un fallo que cae ahí no se ve, que es
+   * justo lo que este aviso existe para evitar («Tomar el relevo», «Poner en
+   * directo» y «Adoptar»/«Empezar en 0–0» respondían 409 en silencio). Se
+   * elige con la misma cuenta que decide qué bloque se pinta, no mirando qué
+   * anda `hidden` en el DOM: así no puede desacoplarse de `pintar()` el día
+   * que cambie el orden de estados.
+   *
+   * Los otros tres huecos se limpian siempre, para que un aviso de un estado
+   * anterior no sobreviva al cambio que lo dejó sin sitio.
+   */
+  function mostrarError(mensaje) {
+    const { relevo, fuera, decidir } = datos
+      ? estadoBloque()
+      : { relevo: false, fuera: false, decidir: false };
+    const propio = relevo
+      ? $("[data-anot-error-relevo]")
+      : fuera
+        ? $("[data-anot-error-fuera]")
+        : decidir
+          ? $("[data-anot-error-decision]")
+          : null;
+
+    for (const otro of [
+      $("[data-anot-error-relevo]"),
+      $("[data-anot-error-fuera]"),
+      $("[data-anot-error-decision]")
+    ]) {
+      if (otro && otro !== propio) {
+        otro.textContent = "";
+        otro.hidden = true;
+      }
+    }
+
+    if (propio) {
+      propio.textContent = mensaje || "";
+      propio.hidden = !mensaje;
+      setError(""); // la franja del pulgar no se queda con el aviso de otro bloque
+      return;
+    }
+    setError(mensaje);
+  }
+
+  const relojCorriendo = () => Boolean(datos.partido.startedAt);
+  const relojSinEstrenar = () => !datos.partido.startedAt && !datos.partido.elapsedMs;
+
+  /**
+   * El reloj lo pinta el navegador desde el ancla del servidor.
+   *
+   * `elapsed()` de match-utils.js ya sabe la cuenta —acumulado más el tramo en
+   * curso—, así que aquí no se repite: es la misma que usa el panel.
+   */
+  function pintarReloj() {
+    const caja = $("[data-anot-reloj]");
+    const pausa = $("[data-anot-reloj-pausa]");
+    const iniciar = $("[data-anot-reloj-iniciar]");
+    const fuera = datos.partido.status !== "live";
+
+    iniciar.hidden = fuera || !relojSinEstrenar();
+    caja.hidden = fuera || relojSinEstrenar();
+    pausa.hidden = caja.hidden;
+
+    if (caja.hidden) return;
+
+    const ms = utils.elapsed({
+      status: "live",
+      startedAt: datos.partido.startedAt,
+      elapsedMs: datos.partido.elapsedMs
+    });
+    texto(caja, utils.formatClock(ms));
+    pausa.textContent = relojCorriendo() ? "⏸" : "▶";
+    pausa.setAttribute("aria-label", relojCorriendo() ? "Pausar el cronómetro" : "Reanudar el cronómetro");
+  }
+
+  /* Un tick por segundo, y solo mientras corre: parado no hay nada que mover. */
+  function vigilarReloj() {
+    clearInterval(tictac);
+    if (!datos || !relojCorriendo() || document.visibilityState === "hidden") return;
+    tictac = setInterval(pintarReloj, 1000);
+  }
+
   function pintar() {
     if (!datos) return;
     const { estado, alineacion } = datos;
     const terminado = estado.terminado;
-    const decidir = Boolean(datos.pendienteDeAdoptar);
+    const { relevo, fuera, decidir } = estadoBloque();
 
     /*
      * Los números grandes son los puntos del set, salvo en dos casos:
@@ -79,92 +191,43 @@
     $("[data-anot-puntos-b]").textContent = String(grandes.B);
 
     const sets = decidir ? datos.marcadorPanel.sets : estado.sets;
+    // `fuera` antes que el set/objetivo normal: «Set 1 · a 21» encima de «no
+    // está en directo» leía como que el partido ya iba por ahí sin publicarse.
     $("[data-anot-detalle]").textContent = terminado
       ? `Terminado · ganó ${nombreEquipo(estado.winner)}`
-      : decidir
-        ? `Sets ${sets.A}–${sets.B} · sin anotar`
-        : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
-
-    pintarReloj();
+      : fuera
+        ? "Sin empezar"
+        : decidir
+          ? `Sets ${sets.A}–${sets.B} · sin anotar`
+          : `Set ${estado.setNumero} · sets ${sets.A}–${sets.B} · a ${objetivo()}`;
 
     const parciales = $("[data-anot-parciales]");
     parciales.hidden = estado.historial.length === 0;
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
 
     /*
-     * El relevo va antes que la decisión: no se decide sobre el marcador de un
-     * partido que no llevas.
+     * Cuatro estados excluyentes, por este orden de prioridad: el relevo, fuera
+     * de directo, decidiendo el marcador de a mano, o anotando. La pista solo se
+     * pinta en el último: en los otros tres sus botones responderían 409.
+     *
+     * El relevo gana incluso a «fuera»: `asegurarReclamo` en `api/anotacion.ts`
+     * corre delante de cualquier acción salvo la propia «relevo» —incluida
+     * «directo»—, así que un partido que ya lleva otra persona no se puede ni
+     * publicar todavía sin tomarlo primero. `estadoBloque()` deja `fuera` y
+     * `decidir` ya excluyentes entre sí.
      */
-    const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
-    const sinFranja = relevo || decidir;
     pintarRelevo(relevo);
-    pintarDecision(!relevo && decidir);
-    $("[data-anot-pista]").hidden = sinFranja;
-    $("[data-anot-pulgar]").hidden = sinFranja;
-    pintarDestinoDelAviso(sinFranja);
+    pintarDecision(decidir);
+    $("[data-anot-fuera]").hidden = relevo || !fuera;
+    $("[data-anot-pista]").hidden = relevo || decidir || fuera;
+    $("[data-anot-pulgar]").hidden = relevo || decidir || fuera;
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
     pintarExtras();
+    pintarReloj();
+    vigilarReloj();
   }
-
-  /**
-   * Dónde vive el aviso de error (`data-anot-error`), y no lo decide su propio
-   * `hidden`: lo decide dónde cuelga.
-   *
-   * Su sitio de siempre es dentro de `.anot-pulgar` —pegado a la franja, que es
-   * donde está la mirada mientras se anota—, pero relevo y decisión ocupan
-   * justo el hueco de la pista y la franja para no pintar botones que van a
-   * responder 409. `[hidden] { display: none !important }` no distingue: un
-   * error dentro de una franja oculta no se ve, así que si «Tomar el relevo» o
-   * «Seguir desde…» fallan, el aviso desaparece con la franja que lo escondía.
-   *
-   * La solución es mover el mismo nodo, no crear uno nuevo: sin franja no hay a
-   * qué pegarse, así que cuelga en su lugar de `data-anot-error-destino` —justo
-   * debajo de las cajas de relevo/decisión, que es donde está la mirada en ese
-   * estado— y pierde el posicionamiento absoluto que lo pegaba a la franja. El
-   * caso normal (franja visible) no cambia: mismo nodo, mismo padre, mismas
-   * clases.
-   */
-  function pintarDestinoDelAviso(sinFranja) {
-    const aviso = $("[data-anot-error]");
-    if (!aviso) return;
-    const destino = sinFranja ? $("[data-anot-error-destino]") : $("[data-anot-pulgar]");
-    if (destino && aviso.parentElement !== destino) destino.appendChild(aviso);
-    aviso.classList.toggle("anot-alerta--pulgar", !sinFranja);
-  }
-
-  /**
-   * El reloj del partido, al final de la línea de detalle.
-   *
-   * Corre solo, con su propio intervalo, y no con el repintado: esta pantalla no
-   * sondea nada —un partido sólo cambia cuando lo toca quien lo anota—, así que
-   * atado al repintado el reloj sólo avanzaría al anotar un punto.
-   *
-   * `elapsed()` de match-utils es la misma cuenta que usa el panel: mientras el
-   * partido está `live` suma desde `startedAt`, y al terminar se queda en
-   * `elapsedMs`, que es donde el servidor congela la duración final.
-   */
-  function pintarReloj() {
-    /*
-     * `panel.isConnected`, igual que el oyente de `visibilitychange` y por lo
-     * mismo: el intervalo sobrevive a su propio panel. Si esta copia del script
-     * ya no pinta en ninguna parte, sigue encontrando un `[data-anot-reloj]`
-     * —la consulta es global— y lo escribe con sus datos viejos, que es de otro
-     * partido. En producción se nota poco porque el script corre una vez por
-     * carga; en los tests, donde cada caso lo vuelve a ejecutar, los intervalos
-     * se acumulan y uno viejo apagaba el reloj del caso en curso.
-     */
-    const nodo = $("[data-anot-reloj]");
-    if (!panel.isConnected || !nodo || !datos) return;
-    const partido = datos.partido || {};
-    const corre = Boolean(partido.startedAt);
-    nodo.hidden = !corre;
-    if (!corre) return;
-    texto(nodo, ` · ${utils.formatClock(utils.elapsed(partido))}`);
-  }
-
-  window.setInterval(pintarReloj, 1000);
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
 
@@ -575,7 +638,7 @@
     guardando = true;
     const entraId = entrante.id;
     cancelar();
-    setError("");
+    mostrarError("");
 
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
@@ -584,7 +647,7 @@
         sale: saleId
       });
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       await recargar();
     } finally {
       guardando = false;
@@ -656,6 +719,20 @@
     if (guardando || !elegido) return;
 
     /*
+     * El reloj sin estrenar para el primer punto. No es un cerrojo de servidor a
+     * propósito: lo único que estropea anotar sin reloj es la duración del
+     * partido, y un 409 más sería otra forma de que la franja del pulgar se
+     * quede muerta a pie de pista. Va antes que la pregunta de cierre: el
+     * primer punto del partido nunca puede ser el que cierra un set.
+     */
+    if (relojSinEstrenar()) {
+      puntoEnEspera = { tipo, punto, jugador: elegido };
+      cancelar();
+      $("[data-anot-dialogo-reloj]").showModal();
+      return;
+    }
+
+    /*
      * Un punto que cierra un set se pregunta antes de mandarse. Quien anota está
      * de pie al sol con tres segundos entre punto y punto: puede haber atribuido
      * mal el anterior o haber pulsado dos veces, y cerrar un set a destiempo es
@@ -671,8 +748,19 @@
     }
     porCerrar = null;
 
+    await enviarPunto(tipo, punto);
+  }
+
+  /**
+   * El envío de verdad, sin la comprobación del reloj ni la del cierre: al
+   * confirmar el diálogo de arranque se llega aquí directamente, porque esa
+   * comprobación ya se hizo —y repetirla leería el mismo `datos.partido` de
+   * antes de arrancar, así que volvería a preguntar en vez de anotar el punto
+   * que la pregunta dejó pendiente—.
+   */
+  async function enviarPunto(tipo, punto) {
     guardando = true;
-    setError("");
+    mostrarError("");
 
     // Se capturan antes de cerrar la botonera, que limpia `elegido`.
     const jugadorId = elegido.id;
@@ -708,7 +796,7 @@
       });
       datos = respuesta;
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       /*
        * La predicción no valía, así que lo primero es deshacerla. Antes se
        * llamaba directamente a `recargar()`: si esa también fallaba —que es lo
@@ -739,13 +827,13 @@
     if (guardando) return;
     if (ultimoFueCambio()) {
       guardando = true;
-      setError("");
+      mostrarError("");
       try {
         datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
           accion: "cambio-deshacer"
         });
       } catch (error) {
-        setError(error.message);
+        mostrarError(error.message);
         await recargar();
       } finally {
         guardando = false;
@@ -756,14 +844,14 @@
 
     if (datos.eventos.length === 0) return;
     guardando = true;
-    setError("");
+    mostrarError("");
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "deshacer",
         ordenEsperado: datos.eventos[datos.eventos.length - 1].orden
       });
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
       await recargarSiSePuede();
     } finally {
       guardando = false;
@@ -862,9 +950,9 @@
         // que conserva si la fila puntuó o no.
         ...(meta && meta.punto === "pregunta" ? { punto: correccion.punto } : {})
       });
-      setError("");
+      mostrarError("");
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
     } finally {
       // Se cierra en los dos casos: el aviso vive fuera del diálogo, y dejarlo
       // abierto lo taparía.
@@ -923,9 +1011,9 @@
         });
       }
       dialogo.close();
-      setError("");
+      mostrarError("");
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
     } finally {
       guardando = false;
       pintar();
@@ -955,19 +1043,46 @@
    * `guardando` también aquí: un doble toque en «Seguir desde 8–6» con la red
    * lenta mandaba dos adopciones, y la segunda contestaba «este partido ya tiene
    * anotación». El anotador veía un error por haberlo hecho bien.
+   *
+   * Devuelve si la petición llegó bien. El arranque del reloj lo usa para saber
+   * si toca anotar el punto que lo disparó: mirar `datos.partido.startedAt` tras
+   * la respuesta no vale, porque nada garantiza que el cuerpo devuelto refleje
+   * ese arranque concreto y no otro cambio de por medio. Que la petición no haya
+   * lanzado es la señal directa.
    */
   async function accionSimple(cuerpo) {
-    if (guardando) return;
+    if (guardando) return false;
     guardando = true;
     try {
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", cuerpo);
-      setError("");
+      mostrarError("");
+      return true;
     } catch (error) {
-      setError(error.message);
+      mostrarError(error.message);
+      return false;
     } finally {
       guardando = false;
       pintar();
     }
+  }
+
+  // ------------------------------------------------------ poner en directo ---
+
+  /**
+   * El servidor rechaza el primer punto de un partido `scheduled`
+   * (`PartidoNoEnDirecto`) para que anotar no publique el partido sin querer.
+   * Este diálogo es esa decisión, tomada a propósito: una casilla ancha que hay
+   * que marcar, no un segundo diálogo — dos seguidos en un móvil al sol se
+   * despachan a ciegas. Se resetea cada vez que se abre, para que confirmar sin
+   * mirar no sea posible por venir ya marcada de la vez anterior.
+   */
+  function abrirDirecto() {
+    if (guardando) return;
+    const acepto = $("[data-anot-directo-acepto]");
+    acepto.checked = false;
+    $("[data-anot-directo-confirmar]").disabled = true;
+    $("[data-anot-directo-cruce]").textContent = `${nombreEquipo("A")} — ${nombreEquipo("B")}`;
+    $("[data-anot-dialogo-directo]").showModal();
   }
 
   $("[data-anot-deshacer]").addEventListener("click", deshacer);
@@ -995,6 +1110,45 @@
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
+  $("[data-anot-poner-directo]").addEventListener("click", abrirDirecto);
+  $("[data-anot-directo-acepto]").addEventListener("change", (evento) => {
+    $("[data-anot-directo-confirmar]").disabled = !evento.target.checked;
+  });
+  $("[data-anot-directo-cancelar]").addEventListener("click", () => $("[data-anot-dialogo-directo]").close());
+  $("[data-anot-directo-confirmar]").addEventListener("click", async () => {
+    $("[data-anot-dialogo-directo]").close();
+    await accionSimple({ accion: "directo" });
+  });
+
+  $("[data-anot-reloj-iniciar]").addEventListener("click", () =>
+    accionSimple({ accion: "cronometro", marcha: true })
+  );
+  $("[data-anot-reloj-pausa]").addEventListener("click", () =>
+    accionSimple({ accion: "cronometro", marcha: !relojCorriendo() })
+  );
+  $("[data-anot-reloj-cancelar]").addEventListener("click", () => {
+    puntoEnEspera = null;
+    $("[data-anot-dialogo-reloj]").close();
+  });
+  $("[data-anot-reloj-confirmar]").addEventListener("click", async () => {
+    $("[data-anot-dialogo-reloj]").close();
+    const espera = puntoEnEspera;
+    puntoEnEspera = null;
+    const arrancado = await accionSimple({ accion: "cronometro", marcha: true });
+    // El punto que abrió el diálogo se anota: descartarlo sería perderlo. Pero
+    // solo si el reloj arrancó de verdad — si la petición falló, anotar encima
+    // dejaría un punto guardado con el reloj todavía sin estrenar, y el aviso ya
+    // dicho por `accionSimple` sería lo único que quedara sin explicar por qué.
+    // Va a `enviarPunto` y no a `anotarPunto`: la comprobación del reloj ya se
+    // hizo aquí, y volver a pasar por ella preguntaría otra vez.
+    if (arrancado && espera) {
+      elegido = espera.jugador;
+      await enviarPunto(espera.tipo, espera.punto);
+    }
+  });
+
+  document.addEventListener("visibilitychange", vigilarReloj);
+
   $("[data-anot-relevo-tomar]").addEventListener("click", () => accionSimple({ accion: "relevo" }));
 
   /*

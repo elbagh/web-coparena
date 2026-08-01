@@ -66,7 +66,7 @@ const conDirecto = (puntos: [number, number], siguienteSondeoMs = 3000) =>
         points: { A: puntos[0], B: puntos[1] },
         sets: { A: 0, B: 0 },
         history: [],
-        teams: { A: { name: "Delfines" }, B: { name: "Gaviotas" } }
+        teams: { A: { name: "Delfines", siglas: "DEL" }, B: { name: "Gaviotas", siglas: "GAV" } }
       }
     ]
   });
@@ -250,9 +250,11 @@ describe("cuando algo va mal", () => {
 });
 
 /*
- * El botón encendido enseña el marcador, no la palabra «directo»: es lo que uno
- * quiere saber. Y apagado es un elemento distinto, no un enlace deshabilitado
- * —que en HTML no existe y seguiría siendo enfocable con teclado—.
+ * El botón encendido enseña quién juega (siglas), no el marcador ni la
+ * palabra «directo»: sin saber de quién, un «12–9» no informa de nada, y el
+ * marcador está a un toque en /directo/. Y apagado es un elemento distinto,
+ * no un enlace deshabilitado —que en HTML no existe y seguiría siendo
+ * enfocable con teclado—.
  */
 describe("el botón de la cabecera", () => {
   const apagado = () => document.querySelector("[data-directo-apagado]") as HTMLDetailsElement;
@@ -302,23 +304,34 @@ describe("el botón de la cabecera", () => {
     expect(apagado().open).toBe(false);
   });
 
-  it("con partido enseña el marcador en el enlace", async () => {
+  it("con partido enseña las siglas en el enlace, no el marcador", async () => {
     fetchMock.mockResolvedValue(conDirecto([18, 14]));
     montar();
     await asentar();
 
     expect(apagado().hidden).toBe(true);
     expect(vivo().hidden).toBe(false);
-    expect(document.querySelector("[data-directo-texto]")!.textContent).toBe("18–14");
-    expect(vivo().getAttribute("aria-label")).toContain("Delfines 18");
+    const texto = document.querySelector("[data-directo-texto]")!.textContent!;
+    expect(texto).toContain("DEL");
+    expect(texto).toContain("GAV");
+    expect(texto).not.toContain("18");
+    expect(texto).not.toContain("14");
+
+    const etiqueta = vivo().getAttribute("aria-label")!;
+    expect(etiqueta).toContain("Delfines");
+    expect(etiqueta).toContain("Gaviotas");
+    expect(etiqueta).not.toMatch(/\b18\b/);
   });
 
-  // Antes del primer punto un 0–0 no dice nada: mejor decir qué es.
-  it("a cero enseña «En directo» en vez de 0–0", async () => {
+  // Siglas hay siempre, incluso a 0–0: ya no hay un «En directo» de repuesto
+  // para el saque inicial.
+  it("a cero también enseña las siglas, no «En directo»", async () => {
     fetchMock.mockResolvedValue(conDirecto([0, 0]));
     montar();
     await asentar();
-    expect(document.querySelector("[data-directo-texto]")!.textContent).toBe("En directo");
+    const texto = document.querySelector("[data-directo-texto]")!.textContent;
+    expect(texto).toBe("DEL–GAV");
+    expect(texto).not.toBe("En directo");
   });
 });
 

@@ -93,7 +93,7 @@ export function mapJugador(jugador: JugadorRow) {
 export async function cargarEquipoConJugadores(db: D1Database, equipoId: number) {
   const equipo = await db
     .prepare(
-      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id,
+      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id, e.siglas,
               c.email AS capitan_email, c.nombre AS capitan_nombre, c.apellidos AS capitan_apellidos
        FROM equipos e
        LEFT JOIN jugadores c ON c.id = e.capitan_jugador_id
@@ -107,6 +107,7 @@ export async function cargarEquipoConJugadores(db: D1Database, equipoId: number)
       foto_key: string | null;
       edicion_id: number | null;
       capitan_jugador_id: number | null;
+      siglas: string | null;
       capitan_email: string | null;
       capitan_nombre: string | null;
       capitan_apellidos: string | null;
@@ -127,6 +128,7 @@ export async function cargarEquipoConJugadores(db: D1Database, equipoId: number)
     capitanJugadorId: equipo.capitan_jugador_id,
     capitanEmail: equipo.capitan_email,
     capitanNombre: [equipo.capitan_nombre, equipo.capitan_apellidos].filter(Boolean).join(" ") || null,
+    siglas: equipo.siglas,
     jugadores: jugadores.map(mapJugador),
     jugadoresTotal: jugadores.length
   };

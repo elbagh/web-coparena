@@ -23,6 +23,7 @@ interface EquipoRow {
   capitan_email: string | null;
   capitan_nombre: string | null;
   capitan_apellidos: string | null;
+  siglas: string | null;
   jugadores: number;
 }
 
@@ -74,6 +75,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         capitanJugadorId: equipo.capitan_jugador_id,
         capitanEmail: equipo.capitan_email,
         capitanNombre: [equipo.capitan_nombre, equipo.capitan_apellidos].filter(Boolean).join(" ") || null,
+        siglas: equipo.siglas,
         jugadores: jugadoresPorEquipo.get(equipo.id) || [],
         jugadoresTotal: equipo.jugadores
       })),
@@ -97,7 +99,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 async function cargarEquipos(db: D1Database) {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id,
+      `SELECT e.id, e.nombre, e.created_at, e.foto_key, e.edicion_id, e.capitan_jugador_id, e.siglas,
               c.email AS capitan_email, c.nombre AS capitan_nombre, c.apellidos AS capitan_apellidos,
               COUNT(j.id) AS jugadores
        FROM equipos e

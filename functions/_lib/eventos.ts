@@ -238,6 +238,24 @@ export class PartidoTerminado extends ErrorDeAnotacion {
   }
 }
 
+/**
+ * El partido no se ha puesto en directo, así que todavía no se anota.
+ *
+ * Sin esto, anotar el primer punto PUBLICABA el partido: `sentenciasDerivadas`
+ * escribe `status = 'live'` en cada pliegue, así que un toque de prueba lo sacaba
+ * en la portada, en el chip de la cabecera y en /directo/ para todo el que
+ * entrara — sin confirmación y sin vuelta atrás desde el anotador.
+ *
+ * El cerrojo vive aquí y no en la pantalla por lo mismo que `MarcadorSinAdoptar`:
+ * entrar por la URL basta para saltarse cualquier aviso del cliente.
+ */
+export class PartidoNoEnDirecto extends ErrorDeAnotacion {
+  constructor() {
+    super("Este partido no está en directo. Ponlo en directo para poder anotar.");
+    this.name = "PartidoNoEnDirecto";
+  }
+}
+
 export interface MarcadorPlano {
   puntos: { A: number; B: number };
   sets: { A: number; B: number };
@@ -312,35 +330,42 @@ function sentenciasDerivadas(
   const estado = plegarEventos(eventos, reglas);
   const ahora = new Date().toISOString();
 
+  /*
+   * La duración al cerrar: lo ya acumulado MÁS el tramo en curso.
+   *
+   * Antes era solo `ahora − started_at`, que tira `elapsed_ms` por la ventana.
+   * No se notaba porque nada escribía el acumulado antes del final; con la pausa
+   * del anotador, cada partido que se pare entre sets reportaría solo su último
+   * tramo. `elapsedOnFinish` de functions/api/partidos.ts siempre lo hizo así:
+   * eran dos copias de la misma cuenta y una mentía.
+   */
   const elapsed =
     estado.terminado && partido.started_at
-      ? Math.max(0, Date.now() - new Date(partido.started_at).getTime())
+      ? partido.elapsed_ms + Math.max(0, Date.now() - new Date(partido.started_at).getTime())
       : partido.elapsed_ms;
+
+  /*
+   * Al cerrar, el reloj se PARA: `started_at` pasa a NULL junto con el
+   * acumulado ya plegado. Antes esta sentencia nunca lo mencionaba, así que el
+   * ancla se quedaba apuntando a antes del cierre; deshacer después el punto
+   * decisivo devolvía el partido a `live` con ESA ancla todavía puesta, y
+   * `elapsed()`/`elapsedOnFinish` —que solo miran `status` y `started_at`, no
+   * si el partido acaba de terminar— volvían a sumar el mismo tramo sobre un
+   * `elapsed_ms` que YA lo incluía: el partido entero contado dos veces, más
+   * el rato que estuvo terminado de más. Fuera de ese cierre se deja tal cual
+   * —`partido.started_at`, sin tocar—: un partido en juego con el reloj
+   * corriendo tiene que seguir corriendo.
+   */
+  const startedAtTrasPliegue = estado.terminado ? null : partido.started_at;
 
   const sentencias: D1PreparedStatement[] = [
     db
       .prepare(
-        /*
-         * `started_at` con COALESCE, y es la única forma que sirve.
-         *
-         * De esa marca sale el reloj del partido, y hasta ahora sólo la escribía
-         * el botón «empezar» del panel. El anotador es un camino completo hasta
-         * `live` que no pasa por ahí: dejaba la marca en NULL, así que un partido
-         * llevado entero desde aquí no tenía hora de inicio y el reloj marcaba
-         * 00:00 para siempre — en el panel, en el directo y en esta pantalla.
-         *
-         * Y con COALESCE porque este UPDATE se ejecuta en CADA escritura: una
-         * asignación a secas movería el inicio a «ahora» con cada punto y el
-         * reloj se quedaría clavado en cero por el otro lado. Se pone una vez y
-         * no se toca; deshacer hasta vaciar el log tampoco la borra, porque el
-         * partido empezó de verdad.
-         */
         `UPDATE partidos SET
            points_a = ?1, points_b = ?2, sets_a = ?3, sets_b = ?4, set_number = ?5,
-           set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9,
-           started_at = COALESCE(started_at, ?10),
-           origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?10
-         WHERE id = ?11`
+           set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9, started_at = ?10,
+           origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?11
+         WHERE id = ?12`
       )
       .bind(
         estado.puntos.A,
@@ -352,6 +377,7 @@ function sentenciasDerivadas(
         estado.terminado ? "finished" : "live",
         estado.winner,
         elapsed,
+        startedAtTrasPliegue,
         ahora,
         partido.id
       ),
@@ -477,7 +503,21 @@ export async function registrarEvento(
   const reglas = normalizarReglas(partido.reglas).partido;
   const antes = plegarEventos(eventos, reglas);
 
-  // Antes que nada: si viene con marcador a mano, no se anota encima.
+  /*
+   * Lo específico primero. Un partido ya decidido dice que ha terminado, no
+   * que «no está en directo»: ese segundo aviso invita a pulsar «ponerlo en
+   * directo», y `ponerEnDirecto` lo rechaza igual por haber terminado — dos
+   * mensajes que se contradicen entre sí y ninguno lleva a ningún sitio. Sólo
+   * un `scheduled` de verdad —nunca se ha publicado— cae en el segundo aviso.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+
+  // Antes que nada (ya descartado que esté decidido): si no está en directo,
+  // no se anota. Publicar es un acto deliberado y este es el único sitio
+  // donde no se puede esquivar.
+  if (partido.status !== "live") throw new PartidoNoEnDirecto();
+
+  // Y si viene con marcador a mano, no se anota encima.
   if (hayMarcadorAMano(partido, antes)) throw new MarcadorSinAdoptar(marcadorPlano(partido));
 
   /*
@@ -907,6 +947,17 @@ export async function adoptarMarcador(
   usuarioId: number,
   desdeCero = false
 ): Promise<ResultadoAnotacion> {
+  /*
+   * Mismo orden que en `registrarEvento`, y por la misma razón: lo específico
+   * primero. Un partido terminado dice que ha terminado, no que le falta
+   * publicarse.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+
+  // Adoptar escribe por el pliegue, así que publicaría igual: es la otra puerta
+  // al mismo agujero que registrarEvento.
+  if (partido.status !== "live") throw new PartidoNoEnDirecto();
+
   const eventos = await leerEventos(db, partido.id);
   const reglas = normalizarReglas(partido.reglas).partido;
 
@@ -1020,4 +1071,76 @@ export async function leerAlineacion(db: D1Database, partidoId: string): Promise
     .bind(partidoId)
     .all<AlineacionFila>();
   return results;
+}
+
+/**
+ * Saca el partido a la web.
+ *
+ * NO toca el cronómetro: son dos gestos separados a propósito. Un partido puede
+ * estar publicado y con el reloj sin estrenar —es el estado normal entre que se
+ * anuncia y se saca el primer servicio—.
+ */
+export async function ponerEnDirecto(db: D1Database, partido: PartidoAnotable): Promise<void> {
+  if (partido.status === "live") {
+    throw new ErrorDeAnotacion("Este partido ya está en directo.");
+  }
+  if (partido.status === "finished") {
+    throw new ErrorDeAnotacion("Este partido ya ha terminado.");
+  }
+
+  await db
+    .prepare(
+      "UPDATE partidos SET status = 'live', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+    )
+    .bind(new Date().toISOString(), partido.id)
+    .run();
+}
+
+/**
+ * Arranca o para el reloj del partido.
+ *
+ * `started_at` es el inicio del tramo EN CURSO y `elapsed_ms` el acumulado de los
+ * cerrados, así que arrancar pone el ancla y pausar la recoge. Las dos son
+ * idempotentes: arrancar un reloj que ya corre movería el ancla hacia adelante y
+ * regalaría el tiempo transcurrido, y pausar uno ya parado volvería a sumar el
+ * mismo tramo.
+ */
+export async function moverCronometro(
+  db: D1Database,
+  partido: PartidoAnotable,
+  marcha: boolean
+): Promise<void> {
+  /*
+   * Mismo orden que en registrarEvento y adoptarMarcador, y por la misma razón:
+   * un partido terminado dice que terminó, no que le falta ponerse en directo.
+   * Lo segundo invitaría a pulsar «ponerlo en directo», y ponerEnDirecto lo
+   * rechaza igual por haber terminado — dos avisos que se contradicen y ninguno
+   * lleva a ningún sitio.
+   */
+  if (partido.status === "finished") throw new PartidoTerminado();
+  if (partido.status !== "live") {
+    throw new ErrorDeAnotacion("El cronómetro es del partido en directo. Ponlo en directo primero.");
+  }
+
+  const ahora = new Date().toISOString();
+
+  if (marcha) {
+    if (partido.started_at) return; // ya corre
+    await db
+      .prepare(
+        "UPDATE partidos SET started_at = ?1, log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+      )
+      .bind(ahora, partido.id)
+      .run();
+    return;
+  }
+
+  if (!partido.started_at) return; // ya está parado
+  const acumulado = partido.elapsed_ms + Math.max(0, Date.now() - new Date(partido.started_at).getTime());
+  await db
+    .prepare(
+      "UPDATE partidos SET started_at = NULL, elapsed_ms = ?1, log_version = log_version + 1, updated_at = ?2 WHERE id = ?3"
+    )
+    .bind(acumulado, ahora, partido.id)
+    .run();
 }
