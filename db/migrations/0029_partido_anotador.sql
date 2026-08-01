@@ -13,7 +13,10 @@
 -- despliega el nuevo, no la lee.
 --
 -- No hay columna «desde cuando»: partidos.updated_at ya sube en toda escritura
--- del anotador y solo el dueno puede escribir, asi que esa marca ya es «la
--- ultima vez que anoto quien lo lleva».
+-- sobre el partido, y con eso basta para lo que la pantalla necesita decir.
+-- Ojo con lo que esa marca NO es: no dice quien la movio ni que fuera un punto.
+-- La suben tambien soltar la anotacion y el panel al cambiar hora, pista o
+-- ronda, y todo partido nace con ella puesta por el DEFAULT. De ahi que el
+-- aviso del relevo hable de cuando se movio el partido, no de un apunte.
 
 ALTER TABLE partidos ADD COLUMN anotador_usuario_id INTEGER REFERENCES usuarios(id);

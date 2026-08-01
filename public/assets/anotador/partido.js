@@ -189,7 +189,7 @@
      * quien lo lleva sigue ahí.
      */
     $("[data-anot-relevo-texto]").textContent = hora
-      ? `El último apunte de este partido fue a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
+      ? `Este partido se movió por última vez a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
       : `Si tomas el relevo, ${quien} dejará de poder anotar este partido.`;
   }
 

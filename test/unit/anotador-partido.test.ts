@@ -538,7 +538,7 @@ describe("un partido que lleva otra persona", () => {
 
     expect(texto).toContain(horaEsperada("2026-08-01T17:40:00Z"));
     expect(texto).not.toMatch(/su último/i);
-    expect(texto).toContain("El último apunte de este partido");
+    expect(texto).toContain("Este partido se movió por última vez");
   });
 
   /*
