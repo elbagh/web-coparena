@@ -29,8 +29,13 @@ dos personas lleven el mismo partido **sin enterarse**.
 Agujeros relacionados que salieron al revisar:
 
 1. `corregir` no lleva `ordenEsperado` (`api/anotacion.ts`, `accionCorregir`).
-   Dos correcciones sobre el mismo evento y la segunda pisa a la primera sin
-   decir nada.
+   Lo que entra sin que nada lo diga es una corrección emitida desde una vista
+   vieja: una pantalla que no se ha recargado desde el último punto anotado
+   decide sin saber que el marcador ya cambió, y es fácil que apunte a la fila
+   equivocada. Lo que `ordenEsperado` **no** separa son dos correcciones
+   seguidas sobre el mismo evento: corregir no añade filas al log, así que el
+   orden siguiente no se mueve entre una y otra y la segunda pasa la guarda
+   igual que la primera.
 2. `alineacion` borra el lado entero y reinserta: gana el último, en silencio.
 3. `cambio-deshacer` coge el último cambio por `id DESC`, sea de quien sea.
 4. `adoptarMarcador` no traduce el `UNIQUE` a `ConflictoDeOrden` — le falta el
@@ -62,8 +67,9 @@ si es larga, no sirve de nada. Y obliga a manipular el reloj en los tests de
 `integration`, que ya son los lentos.
 
 El coste que se acepta a cambio: cuando el anterior anotador ya no está, hace
-falta un toque de más. La pantalla enseña cuándo fue el último punto, que es la
-información necesaria para decidir, sin que el servidor decida por nadie.
+falta un toque de más. La pantalla enseña cuándo se movió el partido por última
+vez, que es la información necesaria para decidir, sin que el servidor decida
+por nadie.
 
 ## Esquema — migración 0029
 
@@ -191,8 +197,10 @@ vacío en la banda no serviría para decidir.
 ## Cliente
 
 `partido.js` arranca en **modo lectura** cuando `anotador.puedeAnotar === false`:
-banda con «Lo lleva Ana · último punto a las 17:40» y un botón «Tomar el
-relevo». Reutiliza el patrón que ya existe para `pendienteDeAdoptar`
+banda con «Lo lleva Ana · último apunte del partido a las 17:40» y un botón
+«Tomar el relevo». La hora no se le atribuye a Ana: `updated_at` la mueve
+cualquier escritura sobre el partido y el relevo no la mueve en absoluto, así
+que «su último punto» sería falso en cuanto el partido cambia de manos. Reutiliza el patrón que ya existe para `pendienteDeAdoptar`
 (`pintarDecision`): ocultar pista y zona del pulgar mientras hay algo que
 decidir, para no pintar botones que van a responder 409.
 
@@ -226,7 +234,9 @@ Lo que **no** cubre es la misma persona con dos pestañas abiertas: mismo
 pestañas.** Por eso entran en esta rama los dos arreglos que quedan:
 
 - `ordenEsperado` en `corregir`, con el mismo 409 que las demás acciones. El
-  cliente ya tiene el dato.
+  cliente ya tiene el dato. Rechaza corregir desde una vista vieja; **no**
+  separa dos correcciones seguidas sobre el mismo evento, por lo dicho en el
+  punto 1 de los agujeros.
 - El `catch` del `UNIQUE` en `adoptarMarcador`, que hoy sale como 500.
 
 ## Tests

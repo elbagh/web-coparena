@@ -25,6 +25,17 @@ import {
 } from "./marcador";
 import { normalizarReglas } from "./reglas";
 
+/**
+ * La fila de `partidos` que necesitan las funciones del log.
+ *
+ * `anotador_usuario_id` NO está aquí, y esa ausencia es deliberada: sólo la lee
+ * `api/anotacion.ts`, y allí vive en `PartidoConAnotador`, el único tipo cuyo
+ * `SELECT` la trae. Puesta en esta interfaz compartida, cualquier cargador de
+ * partidos que no la seleccione produce `undefined`, que no es el usuario y
+ * tampoco es `null`: la puerta del reclamo respondería «este partido lo lleva
+ * otra persona» a todo el mundo, para siempre, con un dueño sin id ni nombre.
+ * Fuera de aquí ese fallo deja de ser representable y lo impide TypeScript.
+ */
 export interface PartidoAnotable {
   id: string;
   status: "scheduled" | "live" | "finished";
@@ -38,8 +49,6 @@ export interface PartidoAnotable {
   reglas: string;
   started_at: string | null;
   elapsed_ms: number;
-  /** Quién lleva la anotación, o `null` si no la lleva nadie. */
-  anotador_usuario_id: number | null;
 }
 
 export interface AlineacionFila {

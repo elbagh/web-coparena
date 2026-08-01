@@ -268,6 +268,26 @@ describe("el relevo", () => {
   });
 
   /*
+   * El relevo no sube `updated_at`, y eso es una decisión, no un olvido. Esa
+   * columna entra en la versión del directo (`versionDirecto`), así que moverla
+   * aquí le costaría un cuerpo entero a cada espectador por un cambio que el
+   * directo no enseña. Y tampoco arreglaría la frase que motivó mirarlo: quien
+   * acaba de tomar el relevo no ha anotado ningún punto a esa hora. Lo que se
+   * arregló es la frase —«el último apunte de este partido», no «su último
+   * punto»—, y esto es lo que impide que alguien la deshaga subiendo la marca.
+   */
+  it("el relevo no mueve la marca de la última actividad", async () => {
+    const ana = await crearAdmin();
+    const berta = await crearAdmin();
+    const { partidoId } = await montar(ana);
+    const antes = (await leer(ana, partidoId)).ultimaActividad;
+
+    expect((await anotar(berta, partidoId, { accion: "relevo" })).status).toBe(200);
+
+    expect((await leer(berta, partidoId)).ultimaActividad).toBe(antes);
+  });
+
+  /*
    * Siempre disponible y nunca falla. Si al anterior anotador se le acabó la
    * batería, el siguiente tiene que poder entrar sin llamar a nadie: por eso el
    * reclamo es blando y no un cerrojo.
@@ -315,11 +335,21 @@ describe("el relevo", () => {
  * igual que si alguien lo hubiera soltado justo antes de la relectura.
  */
 describe("la ventana entre perder el CAS y releer", () => {
-  /** Hace que la primera consulta del CAS de reclamo informe de que perdió, sin tocar la base. */
-  function conPrimerCasFallido(db: D1Database): D1Database {
+  /**
+   * Hace que la primera consulta del CAS de reclamo informe de que perdió, sin
+   * tocar la base.
+   *
+   * Devuelve además `seInterpuso`, y eso no es un adorno: la trampa reconoce el
+   * CAS por un trozo de su SQL, así que reordenar el `WHERE` de
+   * `reclamarPartido` —un refactor que no cambia el comportamiento— la
+   * desactiva entera. Sin afirmar que llegó a interponerse, el test seguía
+   * verde midiendo un reclamo normal, y el reintento del CAS se quedaba sin una
+   * sola prueba detrás.
+   */
+  function conPrimerCasFallido(db: D1Database): { db: D1Database; seInterpuso: () => boolean } {
     const preparar = db.prepare.bind(db);
     let interceptado = false;
-    return new Proxy(db, {
+    const proxy = new Proxy(db, {
       get: (objetivo, prop, receptor) => {
         if (prop !== "prepare") return Reflect.get(objetivo, prop, receptor);
         return (sql: string) => {
@@ -346,13 +376,15 @@ describe("la ventana entre perder el CAS y releer", () => {
         };
       }
     }) as D1Database;
+    return { db: proxy, seInterpuso: () => interceptado };
   }
 
   it("reintenta el CAS y reclama de verdad en vez de seguir sin dueño", async () => {
     const berta = await crearAdmin();
     const { partidoId, local } = await partidoLibre();
 
-    const entorno = { ...env, DB: conPrimerCasFallido(env.DB) };
+    const trampa = conPrimerCasFallido(env.DB);
+    const entorno = { ...env, DB: trampa.db };
     const respuesta = await onRequestPost(
       ctx(
         await peticion(`/api/anotacion?partido=${partidoId}`, {
@@ -363,6 +395,10 @@ describe("la ventana entre perder el CAS y releer", () => {
         entorno
       )
     );
+
+    // Lo primero, que la trampa llegó a saltar: sin esto, las dos afirmaciones
+    // de abajo las cumple también un reclamo corriente y el test no mide nada.
+    expect(trampa.seInterpuso()).toBe(true);
 
     // La primera consulta del CAS «perdió»: si no hubiera reintento, esto
     // sería un 409 contra un dueño fantasma, o pasaría sin haber reclamado

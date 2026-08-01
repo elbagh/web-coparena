@@ -523,6 +523,25 @@ describe("un partido que lleva otra persona", () => {
   });
 
   /*
+   * La hora no se le atribuye a quien lleva el partido. `ultimaActividad` es
+   * `partidos.updated_at`, que mueve cualquier escritura sobre el partido, y el
+   * relevo no la mueve en absoluto: la frase decía «Su último punto fue a
+   * las…», así que en cuanto el partido cambiaba de manos le colgaba al nuevo
+   * dueño la hora del anterior. La otra salida —subirla en el relevo— se
+   * descartó en el servidor: esa columna entra en el ETag del directo, así que
+   * un relevo le costaría un cuerpo entero a cada espectador, y aun así detrás
+   * de esa hora seguiría sin haber ningún punto de esa persona.
+   */
+  it("la hora del relevo no se le atribuye a quien lleva el partido", async () => {
+    await montar(respuestaDeOtro());
+    const texto = $("[data-anot-relevo-texto]").textContent || "";
+
+    expect(texto).toContain(horaEsperada("2026-08-01T17:40:00Z"));
+    expect(texto).not.toMatch(/su último/i);
+    expect(texto).toContain("El último apunte de este partido");
+  });
+
+  /*
    * `ultimaActividad` llega en dos formatos según de dónde salga la fila:
    * `datetime('now')` de SQLite («2026-08-01 17:40:00», sin «T» ni «Z», y es
    * UTC) o `toISOString()` del código («2026-08-01T17:40:00Z»). `horaDe` existe

@@ -1,6 +1,7 @@
 // /api/anotacion?partido=ID
 //   GET   estado del partido, alineación y log
-//   POST  { accion: "evento" | "deshacer" | "corregir" | "alineacion" | "adoptar" }
+//   POST  { accion: "evento" | "deshacer" | "corregir" | "alineacion" | "cambio"
+//           | "cambio-deshacer" | "adoptar" | "soltar" | "relevo" }
 //
 // Vive fuera de functions/api/admin/ a propósito: tiene otro permiso
 // (`partidos.anotar`), otro público (quien está a pie de pista con el móvil) y
@@ -60,8 +61,19 @@ const SELECT_PARTIDO = `SELECT p.id, p.status, p.origen_marcador, p.equipo_a_id,
                           LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
                          WHERE p.id = ?1`;
 
+/**
+ * La fila que devuelve `SELECT_PARTIDO`, con quién lleva la anotación.
+ *
+ * `anotador_usuario_id` vive aquí y no en `PartidoAnotable` porque este tipo es
+ * el único que garantiza el `SELECT` con la columna. En la interfaz compartida,
+ * un segundo cargador que la omitiera daría `undefined`: ni el usuario ni
+ * `null`, así que `asegurarReclamo` rechazaría a todo el mundo con un dueño sin
+ * id ni nombre.
+ */
 export type PartidoConAnotador = PartidoAnotable & {
   updated_at: string;
+  /** Quién lleva la anotación, o `null` si no la lleva nadie. */
+  anotador_usuario_id: number | null;
   anotador_nombre: string | null;
   anotador_email: string | null;
 };
@@ -198,8 +210,9 @@ async function respuesta(
           fresco.anotador_usuario_id === null ? null : fresco.anotador_nombre || fresco.anotador_email,
         puedeAnotar: fresco.anotador_usuario_id === null || fresco.anotador_usuario_id === usuarioId
       },
-      // La última escritura del anotador. Como sólo el dueño escribe, es «la
-      // última vez que anotó quien lo lleva».
+      // La última escritura sobre el partido, sea de quien sea: el relevo no la
+      // mueve y soltar sí. No es «el último punto de quien lo lleva», así que la
+      // banda del relevo tampoco lo dice.
       ultimaActividad: fresco.updated_at,
       alineacion,
       // Los cambios no son eventos del log: viajan aparte y el cliente los
@@ -607,6 +620,16 @@ async function accionAdoptar(
  * puede fallar no es una salida. Tampoco hace falta registrar el cambio de
  * manos en ninguna parte, porque cada evento del log ya va firmado con su
  * `usuario_id`.
+ *
+ * **Y no toca `updated_at` a propósito.** Esa columna alimenta
+ * `ultimaActividad`, que la pantalla enseñaba como «su último punto»: tras un
+ * relevo le atribuía al nuevo dueño la hora del anterior. De las dos salidas se
+ * elige arreglar la frase, no la marca, por dos razones. `updated_at` entra en
+ * el ETag del directo (`versionDirecto`), así que subirla aquí le costaría un
+ * cuerpo entero a cada espectador por un cambio que el directo ni siquiera
+ * enseña. Y no arreglaría nada: quien acaba de tomar el relevo tampoco ha
+ * anotado ningún punto a esa hora. Lo que la columna dice de verdad es «la
+ * última escritura sobre este partido», y eso es lo que dice ahora la banda.
  */
 async function accionRelevo(db: D1Database, partido: PartidoAnotable, usuarioId: number): Promise<Response> {
   await db

@@ -180,8 +180,16 @@
     const quien = datos.anotador.nombre || "otra persona";
     const hora = horaDe(datos.ultimaActividad);
     $("[data-anot-relevo-titulo]").textContent = `Lo lleva ${quien}`;
+    /*
+     * La hora no se le atribuye a nadie. `ultimaActividad` es
+     * `partidos.updated_at`, que mueve cualquier escritura sobre el partido; el
+     * relevo, que no la toca, dejaba a esta frase diciendo «su último punto» de
+     * una hora que era del anotador anterior. Se dice lo que la marca sabe: la
+     * última vez que este partido se movió. Es lo que hace falta para decidir si
+     * quien lo lleva sigue ahí.
+     */
     $("[data-anot-relevo-texto]").textContent = hora
-      ? `Su último punto fue a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
+      ? `El último apunte de este partido fue a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
       : `Si tomas el relevo, ${quien} dejará de poder anotar este partido.`;
   }
 
