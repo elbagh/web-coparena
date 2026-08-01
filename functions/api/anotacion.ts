@@ -243,12 +243,14 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 async function partidosDeHoy(db: D1Database) {
   const { results } = await db
     .prepare(
-      `SELECT id, ronda, pista, status, origen_marcador, scheduled_at,
-              equipo_a_nombre, equipo_b_nombre, points_a, points_b, sets_a, sets_b
-         FROM partidos
-        WHERE edicion_id = (SELECT id FROM ediciones WHERE es_actual = 1)
-          AND status <> 'finished'
-        ORDER BY (status = 'live') DESC, COALESCE(scheduled_at, '9999'), sort_order ASC`
+      `SELECT p.id, p.ronda, p.pista, p.status, p.origen_marcador, p.scheduled_at,
+              p.equipo_a_nombre, p.equipo_b_nombre, p.points_a, p.points_b, p.sets_a, p.sets_b,
+              p.anotador_usuario_id, u.nombre AS anotador_nombre, u.email AS anotador_email
+         FROM partidos p
+         LEFT JOIN usuarios u ON u.id = p.anotador_usuario_id
+        WHERE p.edicion_id = (SELECT id FROM ediciones WHERE es_actual = 1)
+          AND p.status <> 'finished'
+        ORDER BY (p.status = 'live') DESC, COALESCE(p.scheduled_at, '9999'), p.sort_order ASC`
     )
     .all<Record<string, unknown>>();
 
@@ -261,7 +263,11 @@ async function partidosDeHoy(db: D1Database) {
     scheduledAt: fila.scheduled_at,
     teams: { A: { name: fila.equipo_a_nombre }, B: { name: fila.equipo_b_nombre } },
     points: { A: fila.points_a, B: fila.points_b },
-    sets: { A: fila.sets_a, B: fila.sets_b }
+    sets: { A: fila.sets_a, B: fila.sets_b },
+    anotador:
+      fila.anotador_usuario_id === null
+        ? null
+        : { id: fila.anotador_usuario_id, nombre: fila.anotador_nombre || fila.anotador_email }
   }));
 }
 

@@ -42,6 +42,12 @@ const MARCADO = `
       <p data-anot-parciales hidden></p>
     </section>
 
+    <section class="anot-relevo" data-anot-relevo hidden>
+      <h2 data-anot-relevo-titulo></h2>
+      <p data-anot-relevo-texto></p>
+      <button type="button" data-anot-relevo-tomar>Tomar el relevo</button>
+    </section>
+
     <section class="anot-decision" data-anot-decision hidden>
       <h2 data-anot-decision-titulo></h2>
       <div class="anot-decision-botones">
@@ -466,6 +472,41 @@ describe("un partido que viene con marcador a mano", () => {
     await montar(respuesta({ marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } } }));
 
     expect($("[data-anot-decision]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+  });
+});
+
+describe("un partido que lleva otra persona", () => {
+  const respuestaDeOtro = () =>
+    respuesta({
+      anotador: { id: 7, nombre: "Ana Muros", puedeAnotar: false },
+      ultimaActividad: "2026-08-01 17:40:00"
+    });
+
+  it("esconde la pista y la zona del pulgar, y dice quién lo lleva", async () => {
+    await montar(respuestaDeOtro());
+
+    expect($("[data-anot-relevo]").hidden).toBe(false);
+    expect($("[data-anot-pista]").hidden).toBe(true);
+    expect($("[data-anot-pulgar]").hidden).toBe(true);
+    expect($("[data-anot-relevo-titulo]").textContent).toContain("Ana Muros");
+    expect($("[data-anot-relevo-texto]").textContent).toContain("17:40");
+  });
+
+  it("el botón pide el relevo", async () => {
+    await montar(respuestaDeOtro());
+    peticiones.length = 0;
+
+    $("[data-anot-relevo-tomar]").click();
+    await respirar();
+
+    expect(peticiones[0]?.cuerpo).toMatchObject({ accion: "relevo" });
+  });
+
+  it("cuando no lo lleva nadie, la pista se pinta", async () => {
+    await montar(respuesta({ anotador: { id: null, nombre: null, puedeAnotar: true } }));
+
+    expect($("[data-anot-relevo]").hidden).toBe(true);
     expect($("[data-anot-pista]").hidden).toBe(false);
   });
 });

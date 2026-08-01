@@ -89,11 +89,15 @@
     parciales.hidden = estado.historial.length === 0;
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
 
-    // Mientras haya marcador de a mano por decidir, la pista y el pulgar no se
-    // pintan: sus botones responderían 409.
-    pintarDecision(decidir);
-    $("[data-anot-pista]").hidden = decidir;
-    $("[data-anot-pulgar]").hidden = decidir;
+    /*
+     * El relevo va antes que la decisión: no se decide sobre el marcador de un
+     * partido que no llevas.
+     */
+    const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
+    pintarRelevo(relevo);
+    pintarDecision(!relevo && decidir);
+    $("[data-anot-pista]").hidden = relevo || decidir;
+    $("[data-anot-pulgar]").hidden = relevo || decidir;
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
@@ -123,6 +127,34 @@
     const sets = mano.sets.A + mano.sets.B > 0 ? `, sets ${mano.sets.A}–${mano.sets.B}` : "";
     $("[data-anot-decision-titulo]").textContent = `Este partido va ${marcador}${sets} a mano`;
     $("[data-anot-adoptar]").textContent = `Seguir desde ${marcador}`;
+  }
+
+  /**
+   * La hora de una marca de tiempo del servidor.
+   *
+   * `updated_at` llega de dos sitios: `new Date().toISOString()` desde el código
+   * y `datetime('now')` desde el DEFAULT de SQLite, que no lleva ni «T» ni «Z» y
+   * es UTC. Sin normalizarla, el segundo caso da «Invalid Date» en unos motores
+   * y una hora local equivocada en otros.
+   */
+  const horaDe = (marca) => {
+    if (!marca) return "";
+    const fecha = new Date(/[TZ]/.test(marca) ? marca : `${marca.replace(" ", "T")}Z`);
+    if (Number.isNaN(fecha.getTime())) return "";
+    return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(fecha);
+  };
+
+  function pintarRelevo(relevo) {
+    const caja = $("[data-anot-relevo]");
+    caja.hidden = !relevo;
+    if (!relevo) return;
+
+    const quien = datos.anotador.nombre || "otra persona";
+    const hora = horaDe(datos.ultimaActividad);
+    $("[data-anot-relevo-titulo]").textContent = `Lo lleva ${quien}`;
+    $("[data-anot-relevo-texto]").textContent = hora
+      ? `Su último punto fue a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
+      : `Si tomas el relevo, ${quien} dejará de poder anotar este partido.`;
   }
 
   /** El retrato de alguien, creado una vez y reutilizado siempre. */
@@ -781,6 +813,7 @@
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
+  $("[data-anot-relevo-tomar]").addEventListener("click", () => accionSimple({ accion: "relevo" }));
 
   /*
    * Al volver a la pantalla, releer una vez.
@@ -788,11 +821,11 @@
    * Esta pantalla no sondea, y no va a empezar: un partido solo cambia cuando lo
    * toca quien lo está anotando, así que pedir cada pocos segundos durante seis
    * horas sería gastar por gastar. Lo que sí pasa es que el móvil se bloquea
-   * entre sets, o que dos personas anotan el mismo partido sin saberlo: al
-   * volver, lo que hay en pantalla puede ser de hace diez minutos y el primer
-   * toque se lo lleva un conflicto de orden. Una lectura al reaparecer cuesta
-   * una petición y se ahorra ese toque perdido, que es el que duele porque llega
-   * justo cuando hay tres segundos para anotar.
+   * entre sets, o que alguien ha tomado el relevo mientras tanto: al volver, lo
+   * que hay en pantalla puede ser de hace diez minutos y el primer toque se lo
+   * lleva un 409. Una lectura al reaparecer cuesta una petición y se ahorra ese
+   * toque perdido, que es el que duele porque llega justo cuando hay tres
+   * segundos para anotar.
    */
   document.addEventListener("visibilitychange", async () => {
     // `panel.isConnected`: el oyente cuelga de `document`, que sobrevive a su

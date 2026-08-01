@@ -41,8 +41,11 @@
     );
     enlace.append(cruce);
 
-    // Que ya lo lleve alguien no lo bloquea, pero conviene saberlo antes de entrar.
-    if (partido.origenMarcador === "eventos") {
+    // Que ya lo lleve alguien no lo bloquea, pero conviene saberlo antes de
+    // entrar: dentro habrá que pedir el relevo.
+    if (partido.anotador && partido.anotador.nombre) {
+      enlace.append(el("p", "anot-partido-nota", `Lo lleva ${partido.anotador.nombre}`));
+    } else if (partido.origenMarcador === "eventos") {
       enlace.append(el("p", "anot-partido-nota", "Ya se está anotando"));
     }
     return enlace;
