@@ -29,7 +29,13 @@
 
     const meta = el("div", "anot-partido-meta");
     meta.append(el("span", "", partido.ronda));
-    meta.append(el("span", "", partido.pista || hora(partido.scheduledAt)));
+    /*
+     * La hora, no la pista. Enseñaba `pista || hora`, y como todos los partidos
+     * del torneo se juegan en la misma pista, los treinta ponían «Pista central»:
+     * una columna idéntica en todas las tarjetas, ocupando el sitio del único dato
+     * que distingue un partido del siguiente.
+     */
+    meta.append(el("span", "", hora(partido.scheduledAt)));
     if (partido.status === "live") meta.append(el("span", "anot-vivo", "En juego"));
     enlace.append(meta);
 

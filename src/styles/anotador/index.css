@@ -157,7 +157,11 @@ body.is-anotador {
   background: var(--anot-superficie);
   border: 2px solid var(--anot-tinta);
   border-radius: 16px;
+  /* Ancla de la pestaña de punto de set, que se monta sobre el borde de arriba.
+     El aire que necesita por encima lo pone ya el `padding-bottom` de la barra
+     de título: añadir margen aquí costaba 8px de alto a toda la pantalla. */
   padding: 10px 14px 12px;
+  position: relative;
   text-align: center;
 }
 
@@ -207,6 +211,17 @@ body.is-anotador {
   margin: 2px 0 0;
 }
 
+/*
+ * Cifras de ancho fijo. Sin esto el reloj cambia de ancho al pasar de «11:11» a
+ * «00:00» —los dígitos de Inter no miden lo mismo— y, como la línea va centrada,
+ * el detalle entero se desplaza una vez por segundo. En esta pantalla eso es
+ * inaceptable: la regla de la que sale todo su diseño es que nada se mueve de
+ * sitio, porque se mira tres segundos entre punto y punto.
+ */
+.anot-reloj {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Terminado, los números grandes son los sets. Sin el rótulo, un 2 – 1 se leería
    como un marcador de puntos absurdo. */
 .anot-rotulo {
@@ -216,6 +231,49 @@ body.is-anotador {
   letter-spacing: 0.14em;
   margin: 4px 0 -4px;
   text-transform: uppercase;
+}
+
+/*
+ * El aviso de punto de set, como una pestaña montada sobre el borde de arriba
+ * del marcador.
+ *
+ * Va en `absolute` y no en el flujo por la regla de la que sale toda esta
+ * pantalla: aparecer no puede mover un botón. En el flujo reservaba 24px, y
+ * medidos en un móvil de 390×844 esos 24 eran los que llevaban la botonera de
+ * acciones de 870 a 894 — justo el estado en el que se toca deprisa.
+ *
+ * Relleno macizo del color del equipo que puede cerrar, los mismos
+ * `--anot-a`/`--anot-b` de las bandas de la pista y del directo: dice de quién es
+ * antes de leerse. Al sol, un color de letra sobre la crema no se lee.
+ */
+.anot-punto-set {
+  background: var(--anot-punto-set, var(--anot-tinta));
+  border: 2px solid var(--anot-superficie);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  left: 50%;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 2px 12px;
+  position: absolute;
+  text-transform: uppercase;
+  top: -12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.anot-punto-set[hidden] {
+  display: none;
+}
+
+.anot-punto-set[data-lado="A"] {
+  --anot-punto-set: var(--anot-a);
+}
+
+.anot-punto-set[data-lado="B"] {
+  --anot-punto-set: var(--anot-b);
 }
 
 .anot-parciales {
@@ -556,6 +614,53 @@ body.is-anotador {
 .anot-pregunta {
   font-size: 1rem;
   margin: 0 0 8px;
+}
+
+/*
+ * La confirmación de cierre de set, quinto estado de la franja.
+ *
+ * Ámbar, el mismo de `.anot-decision` y por el mismo motivo: no ha fallado nada,
+ * hay algo que decidir. El rojo de esta hoja significa error y esto no lo es.
+ *
+ * Lleva fondo propio porque es el único estado de la franja que cambia lo que
+ * hace el botón de siempre: donde antes anotabas un punto, ahora cierras un set.
+ * Que la franja entera cambie de color es lo que evita confirmarlo de memoria.
+ */
+.anot-cierre {
+  background: #ffe9c2;
+  border: 3px solid #a06a00;
+  border-radius: 14px;
+  padding: 10px 12px 12px;
+}
+
+.anot-cierre[hidden] {
+  display: none;
+}
+
+.anot-cierre-titulo {
+  color: #4a3200;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.anot-cierre-marcador {
+  color: #4a3200;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: 2px 0 8px;
+}
+
+/* Un tono más hondo que el borde ámbar del panel: sobre `#a06a00` el subtítulo
+   en `#ffe9c2` se quedaba en 3,89:1, por debajo de AA para 0,74rem. Así da 5,84. */
+.anot-btn--cerrar {
+  background: #7a5100;
+  border-color: #4a3200;
+  color: #ffffff;
+}
+
+.anot-btn--cerrar .anot-tipo-ayuda {
+  color: #ffe9c2;
 }
 
 .anot-tipos {

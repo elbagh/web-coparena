@@ -1112,12 +1112,17 @@ html.js .hero-content > *:nth-child(5) {
   rotate: 9deg;
 }
 
+/* El h2 es el de `.zona-herramientas`, que no está dentro de una lista de pasos
+   y por tanto no es un h3: en Mi zona el bocadillo es hermano de las tarjetas
+   de «Cuenta», que ya son h2. */
+.paso-bubble h2,
 .paso-bubble h3,
 .paso-bubble p {
   margin: 0;
   color: var(--ink);
 }
 
+.paso-bubble h2,
 .paso-bubble h3 {
   font-size: clamp(1.15rem, 2vw, 1.4rem);
   font-weight: 900;
@@ -1188,6 +1193,57 @@ html.js .hero-content > *:nth-child(5) {
 .paso:active .paso-num {
   scale: 0.94;
   transition-duration: 90ms;
+}
+
+/*
+ * Mi zona: acceso a las herramientas de la organización. Reutiliza el bocadillo
+ * de «Pasos para apuntarse», que es el gesto de la casa, pero **sin la clase
+ * `.paso`**: allí el color, la inclinación y el lado del rabito los reparte
+ * `:nth-child()`, y aquí el bocadillo lo inserta un script justo detrás de la
+ * portadilla, así que su índice entre los hermanos decidiría cómo se pinta. De
+ * `.paso` solo hacía falta el ancho, que está abajo.
+ *
+ * Lo construye public/assets/herramientas.js. No hay marcado suyo en
+ * mi-equipo.astro a propósito: quien no tiene el permiso no lo ve ni en el
+ * código fuente.
+ */
+.zona-herramientas {
+  --paso-bg: var(--sun);
+
+  /* 430px y no los 560px de `.paso`: aquí el texto es una línea y dos píldoras,
+     y a 560px sobraba medio bocadillo vacío. Es el ancho justo para que
+     «Panel» y «Anotar en directo» quepan en la misma fila. */
+  width: min(430px, 100%);
+  /* El margen de abajo cuenta con el rabito, que baja 17px fuera de la caja:
+     con menos, la punta llegaba a tocar la tarjeta de «Cuenta». */
+  margin: 30px 0 34px;
+}
+
+/* El sello del rol: la receta del `.paso-num` en píldora, porque
+   «Administración» no entra en un círculo de 54px. Lleva el nombre del rol que
+   da /api/me, no un número: aquí no hay ninguna secuencia que numerar, y decir
+   con qué permisos entras es lo que explica los botones de abajo. */
+.zona-herramientas-rol {
+  position: absolute;
+  top: -15px;
+  left: 18px;
+  z-index: 2;
+  padding: 5px 14px;
+  border: 2px solid var(--foam);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--foam);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  rotate: -3deg;
+  box-shadow: 3px 3px 0 rgba(16, 21, 22, 0.28);
+}
+
+.zona-herramientas-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .donde-page {
@@ -4349,6 +4405,7 @@ html.js .reveal.in-view {
     font-size: 1.25rem;
   }
 
+  .paso-bubble h2,
   .paso-bubble h3 {
     font-size: clamp(1.05rem, 1.5vw, 1.2rem);
   }
@@ -5585,6 +5642,12 @@ html.js .directo-off[open] .directo-aviso {
   font-size: 0.72rem;
   margin: 12px 0 0;
   text-align: center;
+}
+
+/* Cifras de ancho fijo: si no, el reloj cambia de ancho cada segundo y arrastra
+   la línea centrada con él. Mismo motivo que en el anotador. */
+.versus-reloj {
+  font-variant-numeric: tabular-nums;
 }
 
 .versus-parciales {

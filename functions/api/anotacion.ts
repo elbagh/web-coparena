@@ -185,7 +185,12 @@ async function respuesta(
         status: fresco.status,
         origenMarcador: fresco.origen_marcador,
         reglas: normalizarReglas(fresco.reglas).partido,
-        startedAt: fresco.started_at
+        startedAt: fresco.started_at,
+        // El tiempo ya acumulado. Sin él, `elapsed()` de match-utils devuelve 0
+        // en un partido terminado —que es justo cuando el reloj deja de correr
+        // solo y todo el tiempo vive en esta columna— y la pantalla se despedía
+        // marcando 00:00 después de cuarenta minutos de juego.
+        elapsedMs: fresco.elapsed_ms
       },
       ...estado,
       /*

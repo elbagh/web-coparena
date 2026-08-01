@@ -30,7 +30,13 @@ import {
  */
 
 interface Respuesta {
-  partido: { origenMarcador: string; status: string };
+  partido: {
+    origenMarcador: string;
+    status: string;
+    reglas: { sets: number; puntosPorSet: number; puntosSetDecisivo: number; diferencia: number };
+    startedAt: string | null;
+    elapsedMs: number;
+  };
   estado: { puntos: { A: number; B: number }; sets: { A: number; B: number }; setNumero: number; winner: string | null };
   eventos: { orden: number; tipo: string; jugadorId: number | null; ladoPunto: string | null }[];
   siguienteOrden: number;
@@ -264,6 +270,48 @@ describe("anotar un punto", () => {
       jugadorIds: [fuera.jugadores[0]!.id]
     });
     expect(respuesta.status).toBe(400);
+  });
+});
+
+/*
+ * Las reglas viajan a la pantalla como objeto plano, ya normalizado.
+ *
+ * Es lo único que le dice al anotador a cuántos puntos va el set, y de ahí salen
+ * el «a 15» de la cabecera, el aviso de punto de set y la pregunta de cierre. La
+ * columna de la base es TEXTO (un JSON), así que basta con que alguien mande la
+ * fila tal cual para que `reglasDe` en match-utils no la reconozca como objeto y
+ * caiga a su red de 21/21/15: la pantalla anunciaría «a 21» los días que se juega
+ * a 15, sin error, sin nada roto y sin que ninguna prueba de la pantalla se
+ * enterase — las suyas se montan con un objeto a mano.
+ *
+ * Los tres formatos son los del torneo 2026: grupos de cuatro al mejor de tres a
+ * 15, grupo de cinco a un set de 21, y cuadro a 21 con tercero de 15.
+ */
+describe("las reglas que llegan a la pantalla", () => {
+  const formatos = [
+    { que: "grupos de cuatro", reglas: { sets: 2, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 2 } },
+    { que: "grupo de cinco", reglas: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 } },
+    { que: "cuadro", reglas: { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } }
+  ];
+
+  for (const formato of formatos) {
+    it(`${formato.que}: llegan como objeto, con sus números`, async () => {
+      const admin = await crearAdmin();
+      const { partidoId } = await montarPartido(admin, { partido: formato.reglas });
+
+      const { partido } = await leer(admin, partidoId);
+
+      expect(partido.reglas).toEqual(formato.reglas);
+    });
+  }
+
+  it("un partido sin reglas propias sale con las de serie, no con null", async () => {
+    const admin = await crearAdmin();
+    const { partidoId } = await montarPartido(admin);
+
+    const { partido } = await leer(admin, partidoId);
+
+    expect(partido.reglas).toEqual(REGLAS_POR_DEFECTO.partido);
   });
 });
 
@@ -1178,5 +1226,79 @@ describe("dos pestañas del mismo anotador", () => {
     expect(error).toBeTruthy();
     // El texto genérico del 500 no puede aparecer en un 409.
     expect(error).not.toContain("No se ha podido guardar");
+  });
+});
+
+/*
+ * El reloj del partido sale de `partidos.started_at`, y hasta ahora sólo lo
+ * escribía el botón «empezar» del panel (`/api/partidos`). El anotador es un
+ * camino completo hasta `live` que no pasa por ahí: el pliegue ponía el estado
+ * en `live` y dejaba la marca en NULL, así que un partido llevado entero desde
+ * el anotador no tenía hora de inicio y cualquier reloj marcaba 00:00 para
+ * siempre. Es el mismo patrón que ya apareció dos veces en esta zona: varios
+ * caminos al mismo estado y uno se deja algo por el camino.
+ */
+describe("la hora de inicio", () => {
+  const marcaDe = (partidoId: string) =>
+    env.DB.prepare("SELECT started_at FROM partidos WHERE id = ?1")
+      .bind(partidoId)
+      .first<{ started_at: string | null }>();
+
+  it("el primer punto la pone", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    expect((await marcaDe(partidoId))!.started_at).toBeNull();
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const despues = (await marcaDe(partidoId))!.started_at;
+    expect(despues).not.toBeNull();
+    expect(Number.isNaN(Date.parse(despues!))).toBe(false);
+  });
+
+  /*
+   * `COALESCE` y no una asignación a secas: el pliegue se reescribe entero en
+   * CADA punto, así que sin él la marca saltaría a «ahora» con cada anotación y
+   * el reloj se quedaría clavado en cero de otra manera.
+   */
+  it("los puntos siguientes no la mueven", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    const primera = (await marcaDe(partidoId))!.started_at;
+
+    await punto(admin, partidoId, local.jugadores[1]!.id);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+  });
+
+  /*
+   * Deshacer hasta dejar el log vacío no borra la marca: el partido empezó de
+   * verdad, y quitar el último punto no lo devuelve a «sin empezar».
+   */
+  it("deshacerlo todo no la borra", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+    const primera = (await marcaDe(partidoId))!.started_at;
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: siguienteOrden - 1 });
+
+    expect((await marcaDe(partidoId))!.started_at).toBe(primera);
+  });
+
+  it("el GET la devuelve, junto al tiempo acumulado", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    await punto(admin, partidoId, local.jugadores[0]!.id);
+
+    const datos = await leer(admin, partidoId);
+    expect(datos.partido.startedAt).not.toBeNull();
+    expect(datos.partido).toHaveProperty("elapsedMs");
   });
 });
