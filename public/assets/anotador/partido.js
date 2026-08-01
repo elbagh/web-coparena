@@ -146,8 +146,17 @@
    * `elapsedMs`, que es donde el servidor congela la duración final.
    */
   function pintarReloj() {
+    /*
+     * `panel.isConnected`, igual que el oyente de `visibilitychange` y por lo
+     * mismo: el intervalo sobrevive a su propio panel. Si esta copia del script
+     * ya no pinta en ninguna parte, sigue encontrando un `[data-anot-reloj]`
+     * —la consulta es global— y lo escribe con sus datos viejos, que es de otro
+     * partido. En producción se nota poco porque el script corre una vez por
+     * carga; en los tests, donde cada caso lo vuelve a ejecutar, los intervalos
+     * se acumulan y uno viejo apagaba el reloj del caso en curso.
+     */
     const nodo = $("[data-anot-reloj]");
-    if (!nodo || !datos) return;
+    if (!panel.isConnected || !nodo || !datos) return;
     const partido = datos.partido || {};
     const corre = Boolean(partido.startedAt);
     nodo.hidden = !corre;
@@ -157,7 +166,7 @@
 
   window.setInterval(pintarReloj, 1000);
 
-  const nombreEquipo =(lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
+  const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
 
   const nombreDeJugador = (id) => {
     for (const lado of ["A", "B"]) {
