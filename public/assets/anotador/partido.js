@@ -91,15 +91,47 @@
     parciales.hidden = estado.historial.length === 0;
     parciales.textContent = estado.historial.map((set) => `${set.a}–${set.b}`).join(" · ");
 
-    // Mientras haya marcador de a mano por decidir, la pista y el pulgar no se
-    // pintan: sus botones responderían 409.
-    pintarDecision(decidir);
-    $("[data-anot-pista]").hidden = decidir;
-    $("[data-anot-pulgar]").hidden = decidir;
+    /*
+     * El relevo va antes que la decisión: no se decide sobre el marcador de un
+     * partido que no llevas.
+     */
+    const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
+    const sinFranja = relevo || decidir;
+    pintarRelevo(relevo);
+    pintarDecision(!relevo && decidir);
+    $("[data-anot-pista]").hidden = sinFranja;
+    $("[data-anot-pulgar]").hidden = sinFranja;
+    pintarDestinoDelAviso(sinFranja);
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
     pintarExtras();
+  }
+
+  /**
+   * Dónde vive el aviso de error (`data-anot-error`), y no lo decide su propio
+   * `hidden`: lo decide dónde cuelga.
+   *
+   * Su sitio de siempre es dentro de `.anot-pulgar` —pegado a la franja, que es
+   * donde está la mirada mientras se anota—, pero relevo y decisión ocupan
+   * justo el hueco de la pista y la franja para no pintar botones que van a
+   * responder 409. `[hidden] { display: none !important }` no distingue: un
+   * error dentro de una franja oculta no se ve, así que si «Tomar el relevo» o
+   * «Seguir desde…» fallan, el aviso desaparece con la franja que lo escondía.
+   *
+   * La solución es mover el mismo nodo, no crear uno nuevo: sin franja no hay a
+   * qué pegarse, así que cuelga en su lugar de `data-anot-error-destino` —justo
+   * debajo de las cajas de relevo/decisión, que es donde está la mirada en ese
+   * estado— y pierde el posicionamiento absoluto que lo pegaba a la franja. El
+   * caso normal (franja visible) no cambia: mismo nodo, mismo padre, mismas
+   * clases.
+   */
+  function pintarDestinoDelAviso(sinFranja) {
+    const aviso = $("[data-anot-error]");
+    if (!aviso) return;
+    const destino = sinFranja ? $("[data-anot-error-destino]") : $("[data-anot-pulgar]");
+    if (destino && aviso.parentElement !== destino) destino.appendChild(aviso);
+    aviso.classList.toggle("anot-alerta--pulgar", !sinFranja);
   }
 
   /**
@@ -114,8 +146,17 @@
    * `elapsedMs`, que es donde el servidor congela la duración final.
    */
   function pintarReloj() {
+    /*
+     * `panel.isConnected`, igual que el oyente de `visibilitychange` y por lo
+     * mismo: el intervalo sobrevive a su propio panel. Si esta copia del script
+     * ya no pinta en ninguna parte, sigue encontrando un `[data-anot-reloj]`
+     * —la consulta es global— y lo escribe con sus datos viejos, que es de otro
+     * partido. En producción se nota poco porque el script corre una vez por
+     * carga; en los tests, donde cada caso lo vuelve a ejecutar, los intervalos
+     * se acumulan y uno viejo apagaba el reloj del caso en curso.
+     */
     const nodo = $("[data-anot-reloj]");
-    if (!nodo || !datos) return;
+    if (!panel.isConnected || !nodo || !datos) return;
     const partido = datos.partido || {};
     const corre = Boolean(partido.startedAt);
     nodo.hidden = !corre;
@@ -214,6 +255,42 @@
     const sets = mano.sets.A + mano.sets.B > 0 ? `, sets ${mano.sets.A}–${mano.sets.B}` : "";
     $("[data-anot-decision-titulo]").textContent = `Este partido va ${marcador}${sets} a mano`;
     $("[data-anot-adoptar]").textContent = `Seguir desde ${marcador}`;
+  }
+
+  /**
+   * La hora de una marca de tiempo del servidor.
+   *
+   * `updated_at` llega de dos sitios: `new Date().toISOString()` desde el código
+   * y `datetime('now')` desde el DEFAULT de SQLite, que no lleva ni «T» ni «Z» y
+   * es UTC. Sin normalizarla, el segundo caso da «Invalid Date» en unos motores
+   * y una hora local equivocada en otros.
+   */
+  const horaDe = (marca) => {
+    if (!marca) return "";
+    const fecha = new Date(/[TZ]/.test(marca) ? marca : `${marca.replace(" ", "T")}Z`);
+    if (Number.isNaN(fecha.getTime())) return "";
+    return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(fecha);
+  };
+
+  function pintarRelevo(relevo) {
+    const caja = $("[data-anot-relevo]");
+    caja.hidden = !relevo;
+    if (!relevo) return;
+
+    const quien = datos.anotador.nombre || "otra persona";
+    const hora = horaDe(datos.ultimaActividad);
+    $("[data-anot-relevo-titulo]").textContent = `Lo lleva ${quien}`;
+    /*
+     * La hora no se le atribuye a nadie. `ultimaActividad` es
+     * `partidos.updated_at`, que mueve cualquier escritura sobre el partido; el
+     * relevo, que no la toca, dejaba a esta frase diciendo «su último punto» de
+     * una hora que era del anotador anterior. Se dice lo que la marca sabe: la
+     * última vez que este partido se movió. Es lo que hace falta para decidir si
+     * quien lo lleva sigue ahí.
+     */
+    $("[data-anot-relevo-texto]").textContent = hora
+      ? `Este partido se movió por última vez a las ${hora}. Si tomas el relevo, ${quien} dejará de poder anotar este partido.`
+      : `Si tomas el relevo, ${quien} dejará de poder anotar este partido.`;
   }
 
   /** El retrato de alguien, creado una vez y reutilizado siempre. */
@@ -777,6 +854,7 @@
       datos = await api(`/api/anotacion?partido=${encodeURIComponent(partidoId)}`, "POST", {
         accion: "corregir",
         orden: correccion.orden,
+        ordenEsperado: datos.siguienteOrden,
         tipo: correccion.tipo,
         jugadorId: correccion.jugadorId,
         // Sólo con los tipos que preguntan: mandarlo siempre sería decidir por
@@ -917,6 +995,7 @@
   $("[data-anot-adoptar]").addEventListener("click", () => accionSimple({ accion: "adoptar" }));
   $("[data-anot-cero]").addEventListener("click", () => accionSimple({ accion: "adoptar", desdeCero: true }));
   $("[data-anot-soltar]").addEventListener("click", () => accionSimple({ accion: "soltar" }));
+  $("[data-anot-relevo-tomar]").addEventListener("click", () => accionSimple({ accion: "relevo" }));
 
   /*
    * Al volver a la pantalla, releer una vez.
@@ -924,11 +1003,11 @@
    * Esta pantalla no sondea, y no va a empezar: un partido solo cambia cuando lo
    * toca quien lo está anotando, así que pedir cada pocos segundos durante seis
    * horas sería gastar por gastar. Lo que sí pasa es que el móvil se bloquea
-   * entre sets, o que dos personas anotan el mismo partido sin saberlo: al
-   * volver, lo que hay en pantalla puede ser de hace diez minutos y el primer
-   * toque se lo lleva un conflicto de orden. Una lectura al reaparecer cuesta
-   * una petición y se ahorra ese toque perdido, que es el que duele porque llega
-   * justo cuando hay tres segundos para anotar.
+   * entre sets, o que alguien ha tomado el relevo mientras tanto: al volver, lo
+   * que hay en pantalla puede ser de hace diez minutos y el primer toque se lo
+   * lleva un 409. Una lectura al reaparecer cuesta una petición y se ahorra ese
+   * toque perdido, que es el que duele porque llega justo cuando hay tres
+   * segundos para anotar.
    */
   document.addEventListener("visibilitychange", async () => {
     // `panel.isConnected`: el oyente cuelga de `document`, que sobrevive a su

@@ -43,6 +43,12 @@ const MARCADO = `
       <p data-anot-parciales hidden></p>
     </section>
 
+    <section class="anot-relevo" data-anot-relevo hidden>
+      <h2 data-anot-relevo-titulo></h2>
+      <p data-anot-relevo-texto></p>
+      <button type="button" data-anot-relevo-tomar>Tomar el relevo</button>
+    </section>
+
     <section class="anot-decision" data-anot-decision hidden>
       <h2 data-anot-decision-titulo></h2>
       <div class="anot-decision-botones">
@@ -50,6 +56,8 @@ const MARCADO = `
         <button type="button" data-anot-cero>Empezar en 0–0</button>
       </div>
     </section>
+
+    <div data-anot-error-destino></div>
 
     <section class="anot-pista" data-anot-pista>
       <div class="anot-mitad anot-mitad--a" data-anot-lado="A">
@@ -179,6 +187,17 @@ const respuesta = (extra: Record<string, unknown> = {}) => ({
 const $ = (sel: string) => document.querySelector(sel) as HTMLElement;
 const botones = (sel: string) => [...document.querySelectorAll(sel)] as HTMLButtonElement[];
 const respirar = () => new Promise((r) => setTimeout(r, 0));
+
+/**
+ * La hora que `horaDe` (en `partido.js`) debería pintar para una marca dada,
+ * calculada con el mismo formateador — no un literal como «17:40»: cuál es esa
+ * hora depende de la zona horaria de la máquina que corre el test, igual que en
+ * `torneo-page-clasificacion.test.ts`. `marca` va ya en ISO con `Z`: es el valor
+ * de verdad, sin la normalización que `horaDe` existe para aplicarle al formato
+ * de SQLite.
+ */
+const horaEsperada = (marca: string) =>
+  new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(new Date(marca));
 
 let peticiones: { url: string; cuerpo: Record<string, unknown> | null }[] = [];
 
@@ -734,6 +753,151 @@ describe("un partido que viene con marcador a mano", () => {
     expect($("[data-anot-decision]").hidden).toBe(true);
     expect($("[data-anot-pista]").hidden).toBe(false);
   });
+
+  /* Mismo defecto que en el relevo, y misma solución: ver el describe de arriba. */
+  it("si «Seguir desde…» falla, el aviso no queda atrapado dentro de la franja oculta", async () => {
+    await montar(aMano());
+    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
+
+    responder = async () => new Response(JSON.stringify({ error: "Ese partido ya no existe." }), { status: 404 });
+    $("[data-anot-adoptar]").click();
+    await respirar();
+
+    expect($("[data-anot-error]").hidden).toBe(false);
+    expect($("[data-anot-error-destino]").contains($("[data-anot-error]"))).toBe(true);
+  });
+});
+
+describe("un partido que lleva otra persona", () => {
+  const respuestaDeOtro = () =>
+    respuesta({
+      anotador: { id: 7, nombre: "Ana Muros", puedeAnotar: false },
+      ultimaActividad: "2026-08-01 17:40:00"
+    });
+
+  it("esconde la pista y la zona del pulgar, y dice quién lo lleva", async () => {
+    await montar(respuestaDeOtro());
+
+    expect($("[data-anot-relevo]").hidden).toBe(false);
+    expect($("[data-anot-pista]").hidden).toBe(true);
+    expect($("[data-anot-pulgar]").hidden).toBe(true);
+    expect($("[data-anot-relevo-titulo]").textContent).toContain("Ana Muros");
+    expect($("[data-anot-relevo-texto]").textContent).toContain(horaEsperada("2026-08-01T17:40:00Z"));
+    // La frase que evita el relevo por accidente: quien pulsa tiene que saber
+    // que se lo quita a alguien que está delante, no solo que «va a anotar él».
+    expect($("[data-anot-relevo-texto]").textContent).toContain("dejará de poder anotar");
+  });
+
+  /*
+   * La hora no se le atribuye a quien lleva el partido. `ultimaActividad` es
+   * `partidos.updated_at`, que mueve cualquier escritura sobre el partido, y el
+   * relevo no la mueve en absoluto: la frase decía «Su último punto fue a
+   * las…», así que en cuanto el partido cambiaba de manos le colgaba al nuevo
+   * dueño la hora del anterior. La otra salida —subirla en el relevo— se
+   * descartó en el servidor: esa columna entra en el ETag del directo, así que
+   * un relevo le costaría un cuerpo entero a cada espectador, y aun así detrás
+   * de esa hora seguiría sin haber ningún punto de esa persona.
+   */
+  it("la hora del relevo no se le atribuye a quien lleva el partido", async () => {
+    await montar(respuestaDeOtro());
+    const texto = $("[data-anot-relevo-texto]").textContent || "";
+
+    expect(texto).toContain(horaEsperada("2026-08-01T17:40:00Z"));
+    expect(texto).not.toMatch(/su último/i);
+    expect(texto).toContain("Este partido se movió por última vez");
+  });
+
+  /*
+   * `ultimaActividad` llega en dos formatos según de dónde salga la fila:
+   * `datetime('now')` de SQLite («2026-08-01 17:40:00», sin «T» ni «Z», y es
+   * UTC) o `toISOString()` del código («2026-08-01T17:40:00Z»). `horaDe` existe
+   * para que los dos pinten la misma hora. Sin la normalización, V8 interpreta
+   * el primero como hora LOCAL de la máquina en vez de UTC: con la zona de la
+   * máquina en UTC los dos coinciden por casualidad y el fallo no se ve — que es
+   * justo lo que le pasaba al test anterior con `TZ=UTC` fijado en el config.
+   * Esta comparación no depende de esa zona: compara los dos formatos entre sí,
+   * no contra un literal.
+   */
+  it("la marca en formato SQLite y la misma en ISO pintan la misma hora", async () => {
+    await montar(
+      respuesta({
+        anotador: { id: 7, nombre: "Ana Muros", puedeAnotar: false },
+        ultimaActividad: "2026-08-01 17:40:00"
+      })
+    );
+    const desdeSqlite = $("[data-anot-relevo-texto]").textContent || "";
+
+    await montar(
+      respuesta({
+        anotador: { id: 7, nombre: "Ana Muros", puedeAnotar: false },
+        ultimaActividad: "2026-08-01T17:40:00Z"
+      })
+    );
+    const desdeIso = $("[data-anot-relevo-texto]").textContent || "";
+
+    expect(desdeSqlite).toBe(desdeIso);
+    expect(desdeSqlite).toContain(horaEsperada("2026-08-01T17:40:00Z"));
+  });
+
+  it("el botón pide el relevo", async () => {
+    await montar(respuestaDeOtro());
+    peticiones.length = 0;
+
+    $("[data-anot-relevo-tomar]").click();
+    await respirar();
+
+    expect(peticiones[0]?.cuerpo).toMatchObject({ accion: "relevo" });
+  });
+
+  it("cuando no lo lleva nadie, la pista se pinta", async () => {
+    await montar(respuesta({ anotador: { id: null, nombre: null, puedeAnotar: true } }));
+
+    expect($("[data-anot-relevo]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(false);
+  });
+
+  /*
+   * No se decide sobre el marcador de un partido que no llevas: si además viene
+   * con puntos a mano, manda el relevo y la caja de decisión no se pinta.
+   * `pintarDecision(!relevo && decidir)` es la única regla propia de esta
+   * tarea que un cambio en `pintar()` podía deshacer sin que ningún otro test
+   * lo notara (los de «un partido que viene con marcador a mano» nunca
+   * combinan las dos condiciones a la vez).
+   */
+  it("si además el marcador viene a mano, manda el relevo y la decisión no se pinta", async () => {
+    await montar(
+      respuesta({
+        anotador: { id: 7, nombre: "Ana Muros", puedeAnotar: false },
+        pendienteDeAdoptar: true,
+        marcadorPanel: { puntos: { A: 8, B: 6 }, sets: { A: 1, B: 1 } }
+      })
+    );
+
+    expect($("[data-anot-relevo]").hidden).toBe(false);
+    expect($("[data-anot-decision]").hidden).toBe(true);
+    expect($("[data-anot-pista]").hidden).toBe(true);
+    expect($("[data-anot-pulgar]").hidden).toBe(true);
+  });
+
+  /*
+   * `[data-anot-error]` vivía siempre dentro de `.anot-pulgar`, y esta pantalla
+   * lo oculta entero. Si «Tomar el relevo» falla, el aviso quedaba colgado de un
+   * ancestro con `[hidden]` y no había forma de verlo: el botón parecía no
+   * hacer nada. La franja oculta no es un ancestro al que pegarse, así que el
+   * aviso se muda fuera de ella mientras dure este estado.
+   */
+  it("si el relevo falla, el aviso no queda atrapado dentro de la franja oculta", async () => {
+    await montar(respuestaDeOtro());
+    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
+
+    responder = async () => new Response(JSON.stringify({ error: "Ese partido ya no existe." }), { status: 404 });
+    $("[data-anot-relevo-tomar]").click();
+    await respirar();
+
+    expect($("[data-anot-error]").hidden).toBe(false);
+    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(false);
+    expect($("[data-anot-error-destino]").contains($("[data-anot-error]"))).toBe(true);
+  });
 });
 
 describe("los dos toques", () => {
@@ -1013,6 +1177,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 3,
       punto: true
@@ -1056,6 +1221,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 1,
       punto: false
@@ -1104,6 +1270,7 @@ describe("corregir un punto", () => {
     expect(peticiones.at(-1)!.cuerpo).toEqual({
       accion: "corregir",
       orden: 1,
+      ordenEsperado: 2,
       tipo: "bloqueo",
       jugadorId: 1,
       punto: false
@@ -1123,7 +1290,13 @@ describe("corregir un punto", () => {
     $("[data-anot-corregir-guardar]").click();
     await respirar();
 
-    expect(peticiones.at(-1)!.cuerpo).toEqual({ accion: "corregir", orden: 1, tipo: "punto", jugadorId: 1 });
+    expect(peticiones.at(-1)!.cuerpo).toEqual({
+      accion: "corregir",
+      orden: 1,
+      ordenEsperado: 2,
+      tipo: "punto",
+      jugadorId: 1
+    });
     expect(peticiones.at(-1)!.cuerpo).not.toHaveProperty("punto");
   });
 });
@@ -1170,6 +1343,9 @@ describe("sin red", () => {
 
     expect($("[data-anot-puntos-a]").textContent).toBe("4");
     expect($("[data-anot-error]").hidden).toBe(false);
+    // Con la franja visible, el aviso sigue pegado a ella: éste es el caso
+    // normal, documentado en CLAUDE.md, y no debe cambiar.
+    expect($("[data-anot-pulgar]").contains($("[data-anot-error]"))).toBe(true);
   });
 
   it("lo dice en cristiano, no con el mensaje del navegador", async () => {
@@ -1291,7 +1467,10 @@ describe("dónde se avisa de que algo no se ha guardado", () => {
     const pagina = leer("../../src/pages/anotador/partido.astro");
     const pulgar = pagina.indexOf("data-anot-pulgar");
     const cierre = pagina.indexOf("</section>", pulgar);
-    const aviso = pagina.indexOf("data-anot-error");
+    // Con el espacio final: sin él, este `indexOf` encontraría antes el hueco
+    // `data-anot-error-destino` (relevo/decisión ocupan su sitio y el aviso se
+    // muda ahí en tiempo de ejecución), que vive fuera de la franja a propósito.
+    const aviso = pagina.indexOf("data-anot-error ");
 
     expect(aviso).toBeGreaterThan(pulgar);
     expect(aviso).toBeLessThan(cierre);

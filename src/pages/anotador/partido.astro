@@ -53,6 +53,23 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
     </section>
 
     {/*
+      Otra persona lleva este partido. Ocupa el sitio de la pista por lo mismo
+      que la caja de decisión: no se pintan botones que van a responder 409.
+
+      El relevo siempre se puede tomar. Si al anterior anotador se le acabó la
+      batería, el siguiente tiene que poder entrar sin llamar a nadie.
+    */}
+    <section class="anot-relevo" data-anot-relevo hidden>
+      <h2 class="anot-relevo-titulo" data-anot-relevo-titulo></h2>
+      <p class="anot-relevo-texto" data-anot-relevo-texto></p>
+      <div class="anot-relevo-botones">
+        <button type="button" class="anot-btn anot-btn--primario" data-anot-relevo-tomar>
+          Tomar el relevo
+        </button>
+      </div>
+    </section>
+
+    {/*
       Un partido que venía llevándose a mano llega con puntos que el log no
       conoce. Anotar encima los borraría, así que el servidor rechaza el primer
       punto y esta pantalla ocupa el sitio de la pista: mientras haya algo que
@@ -69,6 +86,17 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
         <button type="button" class="anot-btn" data-anot-cero>Empezar en 0–0</button>
       </div>
     </section>
+
+    {/*
+      El aviso de error vive pegado a la franja del pulgar (más abajo) porque ahí
+      está la mirada mientras se anota. Pero relevo y decisión ocupan el sitio de
+      la franja precisamente para no pintar botones que van a responder 409: sin
+      franja no hay a qué pegarse, y `partido.js` muda aquí el mismo aviso — no
+      uno nuevo — mientras esas cajas están puestas, porque si no el error de
+      «Tomar el relevo» o «Seguir desde…» quedaría dentro de un `[hidden]` y
+      nunca se vería.
+    */}
+    <div data-anot-error-destino></div>
 
     {/*
       La pista, como un versus: cada equipo en su lado con su color, quien está

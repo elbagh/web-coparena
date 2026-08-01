@@ -25,6 +25,17 @@ import {
 } from "./marcador";
 import { normalizarReglas } from "./reglas";
 
+/**
+ * La fila de `partidos` que necesitan las funciones del log.
+ *
+ * `anotador_usuario_id` NO está aquí, y esa ausencia es deliberada: sólo la lee
+ * `api/anotacion.ts`, y allí vive en `PartidoConAnotador`, el único tipo cuyo
+ * `SELECT` la trae. Puesta en esta interfaz compartida, cualquier cargador de
+ * partidos que no la seleccione produce `undefined`, que no es el usuario y
+ * tampoco es `null`: la puerta del reclamo respondería «este partido lo lleva
+ * otra persona» a todo el mundo, para siempre, con un dueño sin id ni nombre.
+ * Fuera de aquí ese fallo deja de ser representable y lo impide TypeScript.
+ */
 export interface PartidoAnotable {
   id: string;
   status: "scheduled" | "live" | "finished";
@@ -177,6 +188,46 @@ export class MarcadorSinAdoptar extends ErrorDeAnotacion {
     );
     this.name = "MarcadorSinAdoptar";
   }
+}
+
+/**
+ * Otra persona lleva la anotación de este partido.
+ *
+ * Es un «no» blando: quien recibe esto puede tomar el relevo y seguir. El
+ * cerrojo duro sería peor —si al anterior anotador se le acaba la batería, el
+ * siguiente tiene que poder entrar sin llamar a nadie—, y es la misma razón por
+ * la que aquí no hay cola de trabajo sin conexión.
+ */
+export class PartidoDeOtroAnotador extends ErrorDeAnotacion {
+  constructor(readonly anotador: { id: number; nombre: string | null }) {
+    super(
+      `Este partido lo lleva ${anotador.nombre || "otra persona"}. Toma el relevo si vas a anotarlo tú.`
+    );
+    this.name = "PartidoDeOtroAnotador";
+  }
+}
+
+/**
+ * Reclama el partido para `usuarioId`, y sólo si no lo lleva nadie.
+ *
+ * La condición va DENTRO del UPDATE a propósito. Un `SELECT` seguido de un `if`
+ * en el servidor no es atómico: dos peticiones simultáneas leerían las dos
+ * `NULL` y las dos se darían por dueñas, que es exactamente el agujero que esto
+ * viene a tapar. Aquí la resuelve D1, igual que el UNIQUE(partido_id, orden)
+ * resuelve la de dos puntos en el mismo hueco.
+ *
+ * Devuelve `true` si lo acaba de reclamar.
+ */
+export async function reclamarPartido(
+  db: D1Database,
+  partidoId: string,
+  usuarioId: number
+): Promise<boolean> {
+  const resultado = await db
+    .prepare("UPDATE partidos SET anotador_usuario_id = ?1 WHERE id = ?2 AND anotador_usuario_id IS NULL")
+    .bind(usuarioId, partidoId)
+    .run();
+  return resultado.meta.changes === 1;
 }
 
 /** El partido ya está decidido: no caben más puntos. */
@@ -533,9 +584,28 @@ export async function corregirEvento(
   partido: PartidoAnotable,
   orden: number,
   cambios: { tipo?: TipoEvento; jugadorId?: number; punto?: boolean },
-  alineacion: readonly AlineacionFila[]
+  alineacion: readonly AlineacionFila[],
+  ordenEsperado: number
 ): Promise<ResultadoAnotacion> {
   const eventos = await leerEventos(db, partido.id);
+
+  /*
+   * No es una guarda de «qué se pierde por en medio»: `eventos` se acaba de leer
+   * fresco, así que la corrección siempre pliega sobre el log tal como está en
+   * este instante, con cualquier punto que haya entrado después de que la
+   * pantalla cargara ya incluido. Lo que impide es corregir desde una VISTA
+   * vieja: si la pantalla no se ha recargado desde el último punto anotado,
+   * quien corrige decide sin saber que el marcador ya cambió, y es fácil que
+   * apunte a la fila equivocada. Rechazarlo obliga a recargar antes de decidir.
+   *
+   * Lo que esto NO hace: separar dos correcciones seguidas sobre el MISMO
+   * evento. Corregir no añade filas al log, así que `siguiente` no se mueve
+   * entre la primera corrección y la segunda — la segunda pasa esta guarda
+   * igual que la primera y la pisa sin decir nada.
+   */
+  const siguiente = eventos.length === 0 ? 0 : eventos[eventos.length - 1]!.orden + 1;
+  if (ordenEsperado !== siguiente) throw new ConflictoDeOrden();
+
   const indice = eventos.findIndex((evento) => evento.orden === orden);
   if (indice === -1) throw new ConflictoDeOrden();
 
@@ -882,25 +952,36 @@ export async function adoptarMarcador(
   };
 
   const { sentencias } = sentenciasDerivadas(db, partido, [...eventos, fila]);
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO partido_eventos
-           (partido_id, orden, set_numero, tipo, puntos_a, puntos_b, sets_a, sets_b, usuario_id)
-         VALUES (?1, ?2, ?3, 'ajuste', ?4, ?5, ?6, ?7, ?8)`
-      )
-      .bind(
-        partido.id,
-        orden,
-        saldo.sets_a + saldo.sets_b + 1,
-        saldo.puntos_a,
-        saldo.puntos_b,
-        saldo.sets_a,
-        saldo.sets_b,
-        usuarioId
-      ),
-    ...sentencias
-  ]);
+  try {
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO partido_eventos
+             (partido_id, orden, set_numero, tipo, puntos_a, puntos_b, sets_a, sets_b, usuario_id)
+           VALUES (?1, ?2, ?3, 'ajuste', ?4, ?5, ?6, ?7, ?8)`
+        )
+        .bind(
+          partido.id,
+          orden,
+          saldo.sets_a + saldo.sets_b + 1,
+          saldo.puntos_a,
+          saldo.puntos_b,
+          saldo.sets_a,
+          saldo.sets_b,
+          usuarioId
+        ),
+      ...sentencias
+    ]);
+  } catch (error) {
+    /*
+     * Mismo cierre que en `registrarEvento`, que aquí faltaba: dos adopciones a
+     * la vez chocan contra el UNIQUE y la perdedora salía como un 500 genérico.
+     * Un fallo del motor con pinta de avería no le dice a quien está a pie de
+     * pista lo único que necesita saber, que es que vuelva a mirar.
+     */
+    if (String(error).includes("UNIQUE")) throw new ConflictoDeOrden();
+    throw error;
+  }
 
   return await leerEstado(db, partido);
 }
@@ -908,11 +989,16 @@ export async function adoptarMarcador(
 /**
  * Devuelve el mando al panel. El marcador derivado se queda congelado en las
  * columnas planas y el log se conserva: soltar no es borrar lo anotado.
+ *
+ * Y suelta el reclamo: quien lo llevaba deja de llevarlo, así que el siguiente
+ * anotador entra sin pedir el relevo. Es la salida limpia al terminar un partido.
  */
 export async function soltarAnotacion(db: D1Database, partidoId: string): Promise<void> {
   await db
     .prepare(
-      "UPDATE partidos SET origen_marcador = 'manual', log_version = log_version + 1, updated_at = ?1 WHERE id = ?2"
+      `UPDATE partidos SET origen_marcador = 'manual', anotador_usuario_id = NULL,
+              log_version = log_version + 1, updated_at = ?1
+        WHERE id = ?2`
     )
     .bind(new Date().toISOString(), partidoId)
     .run();

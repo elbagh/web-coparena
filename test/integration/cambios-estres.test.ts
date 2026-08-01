@@ -147,7 +147,22 @@ describe("un cambio no pierde su set porque se deshaga un punto", () => {
     const { eventos } = await leer(admin, partidoId);
     await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: eventos[eventos.length - 1]!.orden });
     // ...y ahora una corrección cualquiera recalcula los sets de todo.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 0, tipo: "ace" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    const correccion = await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      tipo: "ace",
+      ordenEsperado: siguienteOrden
+    });
+
+    /*
+     * La corrección es lo único que dispara el recálculo, así que si se rechaza
+     * no queda nada que medir: el 3 de abajo ya valía 3 antes (lo fija el test
+     * de arriba) y la comprobación pasaría igual. Desde que `corregir` exige
+     * `ordenEsperado`, esta petición puede contestar 409 — y sin esta línea lo
+     * haría en silencio.
+     */
+    expect(correccion.status).toBe(200);
 
     expect((await cambiosDe(partidoId))[0]!.set_numero).toBe(3);
   });
@@ -187,7 +202,13 @@ describe("un cambio no pierde su set porque se deshaga un punto", () => {
 
     // El quinto punto era en realidad un saque fallado: se lo llevó el rival, así
     // que el set nunca se cerró y el cambio pasa a ser del primero.
-    await anotar(admin, partidoId, { accion: "corregir", orden: 4, tipo: "saque_fallado" });
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 4,
+      tipo: "saque_fallado",
+      ordenEsperado: siguienteOrden
+    });
 
     expect((await leer(admin, partidoId)).estado.setNumero).toBe(1);
     expect((await cambiosDe(partidoId))[0]!.set_numero).toBe(1);
