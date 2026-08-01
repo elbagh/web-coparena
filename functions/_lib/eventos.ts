@@ -282,14 +282,28 @@ function sentenciasDerivadas(
       ? partido.elapsed_ms + Math.max(0, Date.now() - new Date(partido.started_at).getTime())
       : partido.elapsed_ms;
 
+  /*
+   * Al cerrar, el reloj se PARA: `started_at` pasa a NULL junto con el
+   * acumulado ya plegado. Antes esta sentencia nunca lo mencionaba, así que el
+   * ancla se quedaba apuntando a antes del cierre; deshacer después el punto
+   * decisivo devolvía el partido a `live` con ESA ancla todavía puesta, y
+   * `elapsed()`/`elapsedOnFinish` —que solo miran `status` y `started_at`, no
+   * si el partido acaba de terminar— volvían a sumar el mismo tramo sobre un
+   * `elapsed_ms` que YA lo incluía: el partido entero contado dos veces, más
+   * el rato que estuvo terminado de más. Fuera de ese cierre se deja tal cual
+   * —`partido.started_at`, sin tocar—: un partido en juego con el reloj
+   * corriendo tiene que seguir corriendo.
+   */
+  const startedAtTrasPliegue = estado.terminado ? null : partido.started_at;
+
   const sentencias: D1PreparedStatement[] = [
     db
       .prepare(
         `UPDATE partidos SET
            points_a = ?1, points_b = ?2, sets_a = ?3, sets_b = ?4, set_number = ?5,
-           set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9,
-           origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?10
-         WHERE id = ?11`
+           set_history = ?6, status = ?7, winner = ?8, elapsed_ms = ?9, started_at = ?10,
+           origen_marcador = 'eventos', log_version = log_version + 1, updated_at = ?11
+         WHERE id = ?12`
       )
       .bind(
         estado.puntos.A,
@@ -301,6 +315,7 @@ function sentenciasDerivadas(
         estado.terminado ? "finished" : "live",
         estado.winner,
         elapsed,
+        startedAtTrasPliegue,
         ahora,
         partido.id
       ),
