@@ -72,6 +72,44 @@ async function montar(user: UsuarioSesion) {
   return { partidoId, local, visitante };
 }
 
+describe("la lista de partidos", () => {
+  /*
+   * `partidosDeHoy` (GET /api/anotacion sin `?partido=`) tenía la misma nota
+   * de «lo lleva…» para todo el mundo, dueño incluido: no recibía el usuario
+   * que preguntaba, así que no podía distinguirlo. Ana entraba a `/anotador/`
+   * y su propia tarjeta —la del partido que ella misma lleva— le decía «Lo
+   * lleva Ana Muros», que es justo el aviso que existe para decir lo
+   * contrario.
+   */
+  it("puedeAnotar distingue al dueño del resto en la misma fila", async () => {
+    const ana = await crearAdmin({ nombre: "Ana Muros" });
+    const berta = await crearAdmin();
+    const { partidoId } = await montar(ana);
+
+    const listaDeAna = (
+      (await (
+        await onRequestGet(ctx(await peticion("/api/anotacion", { user: ana }), env))
+      ).json()) as {
+        partidos: { id: string; anotador: { id: number; nombre: string; puedeAnotar: boolean } | null }[];
+      }
+    ).partidos;
+    expect(listaDeAna.find((p) => p.id === partidoId)?.anotador?.puedeAnotar).toBe(true);
+
+    const listaDeBerta = (
+      (await (
+        await onRequestGet(ctx(await peticion("/api/anotacion", { user: berta }), env))
+      ).json()) as {
+        partidos: { id: string; anotador: { id: number; nombre: string; puedeAnotar: boolean } | null }[];
+      }
+    ).partidos;
+    expect(listaDeBerta.find((p) => p.id === partidoId)?.anotador).toEqual({
+      id: ana.id,
+      nombre: "Ana Muros",
+      puedeAnotar: false
+    });
+  });
+});
+
 describe("el reclamo", () => {
   it("la primera escritura reclama el partido", async () => {
     const ana = await crearAdmin();

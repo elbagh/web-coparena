@@ -228,7 +228,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
 
   try {
     // Sin partido concreto, la lista de lo que hay que anotar hoy.
-    if (!id) return jsonAdmin({ partidos: await partidosDeHoy(env.DB) });
+    if (!id) return jsonAdmin({ partidos: await partidosDeHoy(env.DB, acceso.user.id) });
 
     const partido = await cargarPartido(env.DB, id);
     if (!partido) return jsonAdmin({ error: "Ese partido ya no existe." }, 404);
@@ -239,8 +239,15 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
   }
 };
 
-/** Lo que se juega o se va a jugar en la edición actual, para elegir. */
-async function partidosDeHoy(db: D1Database) {
+/**
+ * Lo que se juega o se va a jugar en la edición actual, para elegir.
+ *
+ * Recibe `usuarioId` para poder decir `puedeAnotar` en cada fila: sin él, la
+ * nota «Lo lleva…» se pintaba también en la propia tarjeta de quien pregunta
+ * — el aviso que existe para avisar de un dueño *distinto* se lo decía a su
+ * propio dueño.
+ */
+async function partidosDeHoy(db: D1Database, usuarioId: number) {
   const { results } = await db
     .prepare(
       `SELECT p.id, p.ronda, p.pista, p.status, p.origen_marcador, p.scheduled_at,
@@ -267,7 +274,11 @@ async function partidosDeHoy(db: D1Database) {
     anotador:
       fila.anotador_usuario_id === null
         ? null
-        : { id: fila.anotador_usuario_id, nombre: fila.anotador_nombre || fila.anotador_email }
+        : {
+            id: fila.anotador_usuario_id,
+            nombre: fila.anotador_nombre || fila.anotador_email,
+            puedeAnotar: fila.anotador_usuario_id === usuarioId
+          }
   }));
 }
 

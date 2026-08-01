@@ -70,6 +70,17 @@ import AnotadorLayout from "../../layouts/AnotadorLayout.astro";
     </section>
 
     {/*
+      El aviso de error vive pegado a la franja del pulgar (más abajo) porque ahí
+      está la mirada mientras se anota. Pero relevo y decisión ocupan el sitio de
+      la franja precisamente para no pintar botones que van a responder 409: sin
+      franja no hay a qué pegarse, y `partido.js` muda aquí el mismo aviso — no
+      uno nuevo — mientras esas cajas están puestas, porque si no el error de
+      «Tomar el relevo» o «Seguir desde…» quedaría dentro de un `[hidden]` y
+      nunca se vería.
+    */}
+    <div data-anot-error-destino></div>
+
+    {/*
       La pista, como un versus: cada equipo en su lado con su color, quien está
       jugando en grande y el banquillo debajo en pequeño. La red sigue en medio
       —vertical ahora— porque es lo que decide de quién es el punto: un error de

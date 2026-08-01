@@ -42,10 +42,12 @@
     enlace.append(cruce);
 
     // Que ya lo lleve alguien no lo bloquea, pero conviene saberlo antes de
-    // entrar: dentro habrá que pedir el relevo.
-    if (partido.anotador && partido.anotador.nombre) {
+    // entrar: dentro habrá que pedir el relevo. Nada de esto se pinta cuando el
+    // dueño es quien pregunta: es su propio partido, y es exactamente el aviso
+    // que existe para avisar de que lo lleva otra persona.
+    if (partido.anotador && partido.anotador.nombre && !partido.anotador.puedeAnotar) {
       enlace.append(el("p", "anot-partido-nota", `Lo lleva ${partido.anotador.nombre}`));
-    } else if (partido.origenMarcador === "eventos") {
+    } else if ((!partido.anotador || !partido.anotador.puedeAnotar) && partido.origenMarcador === "eventos") {
       enlace.append(el("p", "anot-partido-nota", "Ya se está anotando"));
     }
     return enlace;

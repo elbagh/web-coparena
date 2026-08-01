@@ -94,14 +94,42 @@
      * partido que no llevas.
      */
     const relevo = datos.anotador ? datos.anotador.puedeAnotar === false : false;
+    const sinFranja = relevo || decidir;
     pintarRelevo(relevo);
     pintarDecision(!relevo && decidir);
-    $("[data-anot-pista]").hidden = relevo || decidir;
-    $("[data-anot-pulgar]").hidden = relevo || decidir;
+    $("[data-anot-pista]").hidden = sinFranja;
+    $("[data-anot-pulgar]").hidden = sinFranja;
+    pintarDestinoDelAviso(sinFranja);
 
     pintarPista(alineacion, terminado);
     pintarReposo(terminado);
     pintarExtras();
+  }
+
+  /**
+   * Dónde vive el aviso de error (`data-anot-error`), y no lo decide su propio
+   * `hidden`: lo decide dónde cuelga.
+   *
+   * Su sitio de siempre es dentro de `.anot-pulgar` —pegado a la franja, que es
+   * donde está la mirada mientras se anota—, pero relevo y decisión ocupan
+   * justo el hueco de la pista y la franja para no pintar botones que van a
+   * responder 409. `[hidden] { display: none !important }` no distingue: un
+   * error dentro de una franja oculta no se ve, así que si «Tomar el relevo» o
+   * «Seguir desde…» fallan, el aviso desaparece con la franja que lo escondía.
+   *
+   * La solución es mover el mismo nodo, no crear uno nuevo: sin franja no hay a
+   * qué pegarse, así que cuelga en su lugar de `data-anot-error-destino` —justo
+   * debajo de las cajas de relevo/decisión, que es donde está la mirada en ese
+   * estado— y pierde el posicionamiento absoluto que lo pegaba a la franja. El
+   * caso normal (franja visible) no cambia: mismo nodo, mismo padre, mismas
+   * clases.
+   */
+  function pintarDestinoDelAviso(sinFranja) {
+    const aviso = $("[data-anot-error]");
+    if (!aviso) return;
+    const destino = sinFranja ? $("[data-anot-error-destino]") : $("[data-anot-pulgar]");
+    if (destino && aviso.parentElement !== destino) destino.appendChild(aviso);
+    aviso.classList.toggle("anot-alerta--pulgar", !sinFranja);
   }
 
   const nombreEquipo = (lado) => datos.equipos[lado]?.nombre || (lado === "A" ? "Equipo A" : "Equipo B");
