@@ -254,6 +254,52 @@ export type Regla = {
   pirata?: boolean;
 };
 
+/**
+ * La puntuación de la fase de grupos, tal y como se le cuenta al público.
+ *
+ * Es copia, igual que `event.phases`: las reglas que de verdad rigen viven en
+ * `torneo_fases.reglas` / `torneo_grupos.reglas` en D1 y se editan desde
+ * /admin/torneo/. Si allí se cambian los valores, hay que volver aquí a mano —
+ * no hay nada que ate las dos cosas. Hoy coinciden con la fase de grupos de la
+ * edición en curso (3 / 2 / 1 / 0) y con el grupo C, que juega a un set.
+ */
+export const puntuacion = {
+  titulo: "Cómo se puntúa en los grupos",
+  intro:
+    "En la fase de grupos cada partido reparte puntos a los dos equipos. No decide solo quién gana: también cuenta si el partido se resuelve en dos sets o llega al tercero.",
+  columnas: ["En 2 sets", "En 3 sets"],
+  filas: [
+    {
+      resultado: "Ganas",
+      casillas: [
+        { marcador: "2–0", puntos: 3 },
+        { marcador: "2–1", puntos: 2 }
+      ]
+    },
+    {
+      resultado: "Pierdes",
+      casillas: [
+        { marcador: "0–2", puntos: 0 },
+        { marcador: "1–2", puntos: 1 }
+      ]
+    }
+  ],
+  nota: "El tercer set cambia el reparto: quien gana se lleva 2 en vez de 3, y quien pierde se lleva 1 en vez de 0.",
+  ejemplo: {
+    texto: "Por eso ganar los tres partidos del grupo no siempre son 9 puntos. Dos victorias en dos sets y una en el tercero suman:",
+    cuenta: "3 + 3 + 2 = 8"
+  },
+  excepcion: "El grupo C se juega a un set. Allí ganar son 3 puntos y perder, 0.",
+  desempates: {
+    texto: "Si dos equipos acaban con los mismos puntos, se miran en este orden:",
+    criterios: [
+      "El partido entre ellos.",
+      "Ratio de sets ganados y perdidos.",
+      "Ratio de puntos a favor y en contra."
+    ]
+  }
+};
+
 export const competicion = {
   fases: [
     {
