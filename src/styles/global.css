@@ -2096,6 +2096,203 @@ html.js .hero-content > *:nth-child(5) {
   line-height: 1.55;
 }
 
+/* Puntuación de los grupos: la tabla 2x2 y lo que la acompaña.
+   No va dentro de una tarjeta como .regla-card: las casillas ya son pegatinas
+   con su filo y su sombra, y meterlas en otra caja las apagaría. */
+.puntuacion {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 46px);
+  align-items: start;
+  margin-top: clamp(32px, 5vw, 56px);
+}
+
+.puntuacion-title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+  line-height: 1.05;
+}
+
+.puntuacion-intro {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.puntos-tabla {
+  width: 100%;
+  margin: clamp(18px, 2.6vw, 26px) 0 0;
+  border-collapse: separate;
+  border-spacing: 10px;
+  table-layout: fixed;
+}
+
+/* La primera columna solo lleva la etiqueta de la fila: que no robe ancho a las
+   casillas, que son las que tienen que respirar en móvil. */
+/* El ancho va en `em` sobre la misma medida de letra que la etiqueta, no sobre
+   la del `td`: así «Pierdes» cabe a cualquier ancho sin números a ojo. */
+.puntos-esquina {
+  width: 5.5em;
+  font-size: clamp(0.95rem, 2.4vw, 1.2rem);
+}
+
+.puntos-tabla th[scope="row"] {
+  padding-right: 4px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 2.4vw, 1.2rem);
+  text-align: right;
+}
+
+.puntos-tabla th[scope="col"] {
+  padding-bottom: 2px;
+  color: var(--muted);
+  font-size: clamp(0.72rem, 1.9vw, 0.85rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.puntos-tabla tbody td {
+  padding: clamp(10px, 1.8vw, 16px) 6px;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  background: var(--foam);
+  box-shadow: 4px 4px 0 var(--ink);
+  text-align: center;
+}
+
+/* Una sola rampa de verde, del 3 al 0. El degradado hace visible la diagonal
+   que cuenta el texto: el tercer set mueve un punto del que gana al que pierde,
+   y el 1 se ve teñido justo al lado del 0, que se queda en crema. */
+.puntos-tabla td[data-puntos="3"] { background: var(--lime); }
+.puntos-tabla td[data-puntos="2"] { background: rgba(183, 230, 91, 0.55); }
+.puntos-tabla td[data-puntos="1"] { background: rgba(183, 230, 91, 0.26); }
+
+.puntos-num {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 7vw, 2.9rem);
+  line-height: 1;
+}
+
+.puntos-marcador {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: clamp(0.75rem, 2vw, 0.88rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+.puntos-nota {
+  margin: clamp(14px, 2vw, 20px) 0 0;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.puntuacion-aparte {
+  display: grid;
+  gap: clamp(18px, 2.6vw, 26px);
+}
+
+.puntos-ejemplo {
+  padding: clamp(18px, 2.6vw, 26px);
+  border: 2px solid var(--ink);
+  border-radius: 20px;
+  background: var(--sun);
+  box-shadow: 5px 5px 0 var(--ink);
+  rotate: -0.7deg;
+}
+
+.puntos-ejemplo p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 620;
+  line-height: 1.5;
+}
+
+/* Con la clase sola perdería contra `.puntos-ejemplo p`, que la precede y tiene
+   más especificidad: por eso va calificada en vez de con un !important. */
+.puntos-ejemplo .puntos-cuenta {
+  margin-top: 12px;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5vw, 2.1rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+.puntos-excepcion {
+  position: relative;
+  margin: 0;
+  padding-left: 26px;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.puntos-excepcion::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--aqua);
+}
+
+.puntos-desempates > p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Numerados porque el orden es la información: se aplican en cascada. */
+.puntos-desempates ol {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: desempate;
+}
+
+.puntos-desempates li {
+  position: relative;
+  padding-left: 36px;
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.5;
+  counter-increment: desempate;
+}
+
+.puntos-desempates li::before {
+  content: counter(desempate);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--foam);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
 /* -------------------------------- cursor blob ------------------------------- */
 
 .cursor-blob {
@@ -4546,6 +4743,16 @@ html.js .reveal.in-view {
     padding: clamp(20px, 2.2vw, 28px);
   }
 
+  /* En escritorio el vw de los clamp se dispara: la casilla no necesita un
+     numeral de 2,9rem para leerse a 60cm de pantalla. */
+  .puntos-num {
+    font-size: clamp(1.9rem, 2.6vw, 2.4rem);
+  }
+
+  .puntos-ejemplo .puntos-cuenta {
+    font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+  }
+
   .podio-detalle dt {
     font-size: 1rem;
   }
@@ -4753,7 +4960,8 @@ html.js .reveal.in-view {
   }
 
   .fases,
-  .reglas {
+  .reglas,
+  .puntuacion {
     grid-template-columns: 1fr;
   }
 }
@@ -4984,6 +5192,20 @@ html.js .reveal.in-view {
 
   .sec-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* A 360px la banda deja 328px de ancho útil. Se recorta el aire de la tabla y
+     la columna de la etiqueta, nunca el numeral: es lo único que hay que leer. */
+  .puntos-tabla {
+    border-spacing: 7px;
+  }
+
+  .puntos-esquina {
+    width: 4.8em;
+  }
+
+  .puntos-tabla tbody td {
+    padding: 12px 4px;
   }
 
   .podio {
