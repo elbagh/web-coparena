@@ -50,12 +50,25 @@ const structuredData = [
         </div>
 
         {/*
-          En la columna del medio solo van los números. El «Set 1 · Sets 0–0 · a
-          21» iría aquí de forma natural, pero es una línea larga: en un móvil de
-          360px se comía la mitad del ancho y dejaba las dos mitades del equipo
-          en 60px. Va debajo, donde puede ocupar todo el ancho.
+          En la columna del medio solo van los números. El «Set 1 · a 21» iría
+          aquí de forma natural, pero es una línea larga: en un móvil de 360px se
+          comía la mitad del ancho y dejaba las dos mitades del equipo en 60px.
+          Va debajo, donde puede ocupar todo el ancho.
+
+          Manda el par de SETS, y los puntos del set en curso van debajo, más
+          pequeños. Los sets dicen quién va ganando el partido —que es lo que se
+          quiere saber al mirar el marcador de refilón— y hasta ahora vivían
+          dentro de esa línea pequeña de detalle, que es donde menos se ven.
+          Ninguno de los dos lleva rótulo: la línea de abajo dice «Set 2 · a 21»
+          y con eso queda dicho cuál es cuál, sin gastar dos líneas más de alto en
+          una pantalla que se mira de pie.
         */}
         <div class="versus-marcador" aria-live="polite">
+          <p class="versus-sets">
+            <span class="versus-puntos versus-puntos--a" data-versus-sets-a>0</span>
+            <span class="versus-guion">–</span>
+            <span class="versus-puntos versus-puntos--b" data-versus-sets-b>0</span>
+          </p>
           <p class="versus-tanteo">
             <span class="versus-puntos versus-puntos--a" data-versus-puntos-a>0</span>
             <span class="versus-guion">–</span>

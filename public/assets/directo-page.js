@@ -282,10 +282,25 @@
 
   // ------------------------------------------------------------ vibración ---
 
-  /** El retrato de quien acaba de hacer el punto se sacude. La animación es de
-   * `cromo.js`, que es de donde es el retrato: el anotador hace lo mismo. */
-  function celebrar(jugadorId) {
-    cromo.vibrar(retratos.get(jugadorId));
+  /**
+   * El retrato de quien acaba de hacer la acción reacciona. Las dos animaciones
+   * son de `cromo.js`, que es de donde es el retrato: el anotador hace lo mismo.
+   *
+   * Cuál de las dos lo dice el lado del punto, no el tipo: si el punto se lo
+   * lleva el lado contrario al de quien hizo la acción, esa persona acaba de
+   * regalarlo y la sacudida —que es la animación de celebrar— estaba diciendo lo
+   * contrario de lo que pasó. Sirve igual para el saque fallado y para el error
+   * no forzado sin nombrar a ninguno de los dos.
+   *
+   * `linea.p` se compara con `linea.l`, NUNCA con `null`: un `lado_punto` que
+   * existe no significa «lo ganó mi lado». Ese atajo ya costó un hallazgo de
+   * severidad crítica en el anotador.
+   */
+  function reaccionar(linea) {
+    const retrato = retratos.get(linea.j);
+    if (!retrato) return;
+    if (linea.p && linea.l && linea.p !== linea.l) cromo.fallar(retrato);
+    else cromo.vibrar(retrato);
   }
 
   /** Lo que ha entrado en el historial desde el sondeo anterior. */
@@ -344,14 +359,15 @@
 
     const pista = plantilla.partido.pista ? `${plantilla.partido.pista} · ` : "";
     texto($("[data-versus-ronda]"), `${pista}${partido.ronda}`);
+    texto($("[data-versus-sets-a]"), String(partido.sets.A));
+    texto($("[data-versus-sets-b]"), String(partido.sets.B));
     texto($("[data-versus-puntos-a]"), String(partido.points.A));
     texto($("[data-versus-puntos-b]"), String(partido.points.B));
 
+    // Los sets ya van arriba, en grande: repetirlos aquí sería decirlo dos
+    // veces y esta línea es la que tiene que caber a 360px.
     const objetivo = utils.setTarget(partido, partido.setNumber);
-    texto(
-      $("[data-versus-detalle]"),
-      `Set ${partido.setNumber} · Sets ${partido.sets.A}–${partido.sets.B} · a ${objetivo}`
-    );
+    texto($("[data-versus-detalle]"), `Set ${partido.setNumber} · a ${objetivo}`);
     partidoDelReloj = partido;
     pintarReloj();
 
@@ -365,9 +381,9 @@
     const nuevas = novedades(estado.feed || [], ultimoEstado && ultimoEstado.feed);
     pintarFeed(estado, partido);
 
-    // La celebración va después de pintar: el retrato ya está donde toca.
+    // La reacción va después de pintar: el retrato ya está donde toca.
     for (const linea of nuevas) {
-      if (linea.t !== "cambio" && linea.t !== "ajuste" && linea.j) celebrar(linea.j);
+      if (linea.t !== "cambio" && linea.t !== "ajuste" && linea.j) reaccionar(linea);
     }
 
     // En pantalla grande el historial cabe abierto; en móvil manda el marcador.

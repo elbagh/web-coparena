@@ -15,7 +15,14 @@ import { ganadorDelPartido, ganadorDelSet, type ReglasPartido } from "./reglas";
 
 export type Lado = "A" | "B";
 
-export type TipoEvento = "punto" | "ace" | "saque_fallado" | "bloqueo" | "chilena" | "ajuste";
+export type TipoEvento =
+  | "punto"
+  | "ace"
+  | "saque_fallado"
+  | "error_no_forzado"
+  | "bloqueo"
+  | "chilena"
+  | "ajuste";
 
 export interface Accion {
   clave: TipoEvento;
@@ -46,12 +53,22 @@ export interface Accion {
  * regla de quién se lleva el punto: la lee de aquí. La tenía copiada a mano
  * («todo menos defensa puntúa») y era una copia esperando a quedarse vieja.
  *
- * `bloqueo` y `chilena` no llevan `ayuda`: de las cinco, son las únicas cuyo
+ * `bloqueo` y `chilena` no llevan `ayuda`: de las seis, son las únicas cuyo
  * subtítulo se limitaba a repetir la etiqueta («Bloqueo» / «Bloqueo suyo»,
- * «Chilena» / «Chilena suya»). Las otras tres añaden algo que la etiqueta sola
+ * «Chilena» / «Chilena suya»). Las otras cuatro añaden algo que la etiqueta sola
  * no dice — a quién beneficia el punto o cómo se hizo—; estas dos, no. Que de
  * paso el botón vuelva a caber en una línea y devuelva el suelo táctil a 56px
  * es la confirmación de que sobraba, no el motivo de quitarlo.
+ *
+ * Los dos tipos `aRival` van juntos y al final de los que puntúan siempre,
+ * porque comparten fila en la botonera: el orden de esta lista es el orden en
+ * que se pintan los botones.
+ *
+ * `saque_fallado` dice ahora «Punto del rival» y no «El punto es del rival». Con
+ * un solo botón `aRival` la ayuda ocupaba la fila entera y le sobraba sitio; con
+ * dos a lo ancho de 140px, la versión larga rompe a dos líneas y sube la
+ * botonera en una pantalla cuyo alto ya está gastado. La flecha y el doble filo
+ * de tinta dicen lo mismo sin ocupar nada.
  */
 export const TIPOS: readonly Accion[] = [
   { clave: "punto", etiqueta: "Punto", ayuda: "Gana el rally", punto: "siempre", aRival: false },
@@ -59,7 +76,20 @@ export const TIPOS: readonly Accion[] = [
   {
     clave: "saque_fallado",
     etiqueta: "Falló saque",
-    ayuda: "El punto es del rival",
+    ayuda: "Punto del rival",
+    punto: "siempre",
+    aRival: true
+  },
+  {
+    /*
+     * El punto que no gana nadie: lo pierde alguien. Es `aRival` y no «un punto
+     * del rival» porque la acción es de quien la comete —su ficha lo recoge— y
+     * el punto cruza la red; atribuirlo a alguien del otro equipo le regalaría
+     * un mérito que no tuvo, que es justo lo que había que hacer sin este tipo.
+     */
+    clave: "error_no_forzado",
+    etiqueta: "Error",
+    ayuda: "Fuera o a la red",
     punto: "siempre",
     aRival: true
   },

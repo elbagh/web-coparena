@@ -47,6 +47,16 @@ describe("ladoDelPunto", () => {
     expect(ladoDelPunto("saque_fallado", "B")).toBe("A");
   });
 
+  /*
+   * El otro tipo que cruza el punto. Es una acción de quien la comete —su ficha
+   * la recoge— y el punto se lo lleva el rival sin que nadie de ese equipo haya
+   * hecho nada, que es exactamente lo que no se podía expresar sin este tipo.
+   */
+  it("el error no forzado da el punto al rival", () => {
+    expect(ladoDelPunto("error_no_forzado", "A")).toBe("B");
+    expect(ladoDelPunto("error_no_forzado", "B")).toBe("A");
+  });
+
   it("un punto y un ace son de quien los hace", () => {
     for (const tipo of ["punto", "ace"] as TipoEvento[]) {
       expect(ladoDelPunto(tipo, "A")).toBe("A");
@@ -75,8 +85,28 @@ describe("ladoDelPunto", () => {
    * El ajuste es un saldo de apertura, no una acción: nadie lo pulsa, así que no
    * puede salir en la botonera. Es el único tipo que existe sin estar en TIPOS.
    */
-  it("TIPOS son las cinco acciones que se pueden anotar, y no el ajuste", () => {
-    expect(TIPOS.map((t) => t.clave)).toEqual(["punto", "ace", "saque_fallado", "bloqueo", "chilena"]);
+  it("TIPOS son las seis acciones que se pueden anotar, y no el ajuste", () => {
+    expect(TIPOS.map((t) => t.clave)).toEqual([
+      "punto",
+      "ace",
+      "saque_fallado",
+      "error_no_forzado",
+      "bloqueo",
+      "chilena"
+    ]);
+  });
+
+  /*
+   * El orden importa: es el orden en que se pintan los botones, y los dos
+   * `aRival` comparten fila en la botonera. Separados, cada uno arrastraría a
+   * uno de los otros a su fila y la franja del pulgar crecería en una pantalla
+   * cuyo alto ya está gastado.
+   */
+  it("los dos tipos que cruzan el punto van seguidos", () => {
+    const aRival = TIPOS.map((t) => t.aRival);
+    const primero = aRival.indexOf(true);
+    expect(aRival.filter(Boolean)).toHaveLength(2);
+    expect(aRival[primero + 1]).toBe(true);
   });
 });
 

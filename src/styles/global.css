@@ -4036,15 +4036,23 @@ html.js .reveal.in-view {
  * de 96px se sale de su mitad; el `clamp` lo baja a ~75px ahí y lo deja en 96
  * en cuanto hay sitio. Los atributos `width`/`height` de la imagen se quedan
  * como proporción para que la rejilla no salte mientras carga.
+ *
+ * La medida sale a variable porque la marca de fallo tiene que cuadrar
+ * exactamente encima del marco, y no puede leer su tamaño: cuelga de `.retrato`,
+ * que mide además el nombre y el apellido de debajo. Con el clamp repetido, un
+ * retoque en uno de los dos sitios descuadraba la equis y nada lo diría.
  */
-.retrato--grande .retrato-marco {
-  height: clamp(64px, 21vw, 96px);
-  width: clamp(64px, 21vw, 96px);
+.retrato--grande {
+  --retrato-lado: clamp(64px, 21vw, 96px);
 }
 
-.retrato--pequeno .retrato-marco {
-  height: clamp(44px, 13vw, 56px);
-  width: clamp(44px, 13vw, 56px);
+.retrato--pequeno {
+  --retrato-lado: clamp(44px, 13vw, 56px);
+}
+
+.retrato-marco {
+  height: var(--retrato-lado);
+  width: var(--retrato-lado);
 }
 
 .retrato-foto {
@@ -4121,6 +4129,84 @@ html.js .reveal.in-view {
 
 .retrato--pequeno .retrato-apellidos {
   max-width: 68px;
+}
+
+/*
+ * La marca de fallo: la equis y la cara triste de quien acaba de regalar el
+ * punto (saque fallado o error no forzado). La pinta `fallar()` en cromo.js y se
+ * va sola a los cinco segundos.
+ *
+ * La caja se cuadra a mano sobre el marco en vez de usar `inset: 0`, porque su
+ * bloque contenedor es `.retrato` entero — que mide también el nombre y el
+ * apellido de debajo— y la equis quedaría centrada por debajo de la cara. El
+ * `3px` es el relleno de `.retrato`, que es lo que separa el marco de su borde
+ * superior, y el centrado horizontal repite el `align-items: center` del padre.
+ */
+.retrato-fallo {
+  height: var(--retrato-lado);
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  width: var(--retrato-lado);
+}
+
+.retrato-fallo > svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+/*
+ * A un 34% del marco, pegada a la esquina de abajo a la derecha, el centro de la
+ * cara cae sobre el aro (83%, 83% ≈ los 45° de la circunferencia). Dentro de la
+ * caja del marco y no asomando: `.retrato` lleva `contain: layout paint` y lo
+ * que se saliera de su caja de relleno se recortaría en silencio. Al ir en
+ * porcentaje, el retrato pequeño del banquillo la encoge sin una regla aparte.
+ */
+.retrato-cara {
+  bottom: 0;
+  height: 34%;
+  position: absolute;
+  right: 0;
+  width: 34%;
+}
+
+.retrato-cara > svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+/* La foto en gris y el aro en coral: el color dice lo mismo que la equis para
+   quien la ve de lejos y no llega a distinguir el dibujo. */
+.retrato.is-fallo .retrato-foto {
+  filter: grayscale(1) brightness(0.82) contrast(0.9);
+}
+
+.retrato.is-fallo .retrato-marco {
+  border-color: var(--coral);
+}
+
+/* La entrada es lo único que se salta con menos movimiento. La marca en sí no:
+   es información, no adorno, y sin ella no hay forma de saber de quién fue. */
+@media (prefers-reduced-motion: no-preference) {
+  .retrato.is-fallo .retrato-fallo {
+    animation: retrato-fallo-entra 320ms ease-out;
+  }
+
+  @keyframes retrato-fallo-entra {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) scale(1.18);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+  }
 }
 
 /* ------- ranking ------- */
@@ -5959,6 +6045,7 @@ html.js .banda-directo-llama {
   text-align: center;
 }
 
+.versus-sets,
 .versus-tanteo {
   align-items: center;
   display: flex;
@@ -5972,6 +6059,43 @@ html.js .banda-directo-llama {
   font-size: clamp(2rem, 9vw, 3.2rem);
   line-height: 1;
   min-width: 1.4ch;
+}
+
+/*
+ * Los sets mandan y los puntos del set bajan un escalón. Es el único sitio del
+ * sitio donde el número grande no es el que más cambia: los puntos se mueven en
+ * cada rally y los sets un par de veces por partido, pero lo que dice quién va
+ * ganando el partido es el segundo.
+ *
+ * Medido a 390px: el par de sets a 11vw y el de puntos a 5,6vw caben los dos en
+ * la columna del medio, que es `minmax(72px, 26%)` y no se toca — ensancharla
+ * dejaría las dos mitades de equipo sin sitio para los retratos.
+ */
+.versus-sets .versus-puntos {
+  font-size: clamp(2.4rem, 11vw, 3.8rem);
+  /*
+   * Sin el hueco de dos cifras. `.versus-puntos` reserva `1.4ch` para que el
+   * tanteo no dé un salto de ancho al pasar de 9 a 10, pero un marcador de sets
+   * no pasa de 3: ahí ese hueco es aire que nadie va a ocupar. Medido a 390px,
+   * eran 42px de los 114 que pedía la fila en una columna de 83 — las cifras se
+   * salían quince píxeles por cada lado y caían encima de los retratos. Sin él
+   * la misma fila mide 72 y sobra sitio.
+   */
+  min-width: 0;
+}
+
+/* El guion no compite con las cifras: si va al mismo cuerpo, a dos dígitos por
+   lado la fila se lee como tres números en vez de como un marcador. */
+.versus-sets .versus-guion {
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+}
+
+.versus-marcador .versus-tanteo {
+  margin-top: 2px;
+}
+
+.versus-marcador .versus-tanteo .versus-puntos {
+  font-size: clamp(1.35rem, 5.6vw, 2rem);
 }
 
 .versus-puntos--a {

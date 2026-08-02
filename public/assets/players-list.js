@@ -36,11 +36,13 @@
     { clave: "bloqueos", etiqueta: "Bloqueos" },
     { clave: "chilenas", etiqueta: "Chilenas" },
     { clave: "aces", etiqueta: "Aces" },
-    { clave: "saquesFallados", etiqueta: "Saques fallados" }
+    { clave: "saquesFallados", etiqueta: "Saques fallados" },
+    { clave: "errores", etiqueta: "Errores no forzados" }
   ];
 
-  // Lo que se corona en el ranking. Ni partidos (no es mérito) ni los saques
-  // fallados (coronar al que más falla no es un ranking, es una broma).
+  // Lo que se corona en el ranking. Ni partidos (no es mérito) ni lo que se
+  // falla —saques fallados y errores no forzados—: coronar al que más falla no
+  // es un ranking, es una broma.
   const RANKING = ["puntos", "bloqueos", "chilenas", "aces"];
 
   // La lista de atributos no se repite aquí: se le pasa a CopaCromo el objeto

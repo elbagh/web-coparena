@@ -58,7 +58,9 @@ const leer = async (user: UsuarioSesion, partidoId: string): Promise<Respuesta> 
 
 const estadisticasDe = async (jugadorId: number) =>
   await env.DB
-    .prepare("SELECT puntos, bloqueos, chilenas, aces, saques_fallados FROM estadisticas WHERE jugador_id = ?1")
+    .prepare(
+      "SELECT puntos, bloqueos, chilenas, aces, saques_fallados, errores FROM estadisticas WHERE jugador_id = ?1"
+    )
     .bind(jugadorId)
     .first<Record<string, number>>();
 
@@ -216,6 +218,68 @@ describe("anotar un punto", () => {
     const despues = await leer(admin, partidoId);
     expect(despues.estado.puntos).toEqual({ A: 0, B: 1 });
     expect(await estadisticasDe(ana)).toMatchObject({ saques_fallados: 1, puntos: 0 });
+  });
+
+  /*
+   * El otro tipo que cruza el punto. Lo que importa aquí es que las dos mitades
+   * del invariante se cumplen a la vez: el error suma a la ficha de quien lo
+   * comete (se cuenta POR TIPO) y no le suma puntos a nadie, porque `puntos`
+   * cuenta sólo las filas donde `lado_punto = lado_jugador` y aquí no lo es.
+   * Nadie del equipo que se lleva el punto lo recibe en su ficha, que es
+   * exactamente lo que había que poder decir.
+   */
+  it("un error no forzado de A da el punto a B y sólo suma a la ficha de quien lo comete", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local, visitante } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "error_no_forzado");
+
+    const despues = await leer(admin, partidoId);
+    expect(despues.estado.puntos).toEqual({ A: 0, B: 1 });
+    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, puntos: 0, saques_fallados: 0 });
+    // Al rival no le aparece ficha en este partido: no hizo nada.
+    expect(await estadisticasDe(visitante.jugadores[0]!.id)).toBeNull();
+  });
+
+  it("deshacer un error no forzado lo borra de la ficha y devuelve el punto", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "punto");
+    await punto(admin, partidoId, ana, "error_no_forzado");
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 1, B: 1 });
+
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, { accion: "deshacer", ordenEsperado: siguienteOrden - 1 });
+
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 1, B: 0 });
+    expect(await estadisticasDe(ana)).toMatchObject({ errores: 0, puntos: 1 });
+  });
+
+  /*
+   * Corregir entre los dos tipos que cruzan el punto no mueve el marcador —los
+   * dos se lo dan al rival— pero sí cambia de columna en la ficha. Es el caso
+   * que distingue «se cuenta por tipo» de «se cuenta por lado_punto».
+   */
+  it("corregir un saque fallado a error no forzado cambia la ficha y deja el marcador", async () => {
+    const admin = await crearAdmin();
+    const { partidoId, local } = await montarPartido(admin);
+    const ana = local.jugadores[0]!.id;
+
+    await punto(admin, partidoId, ana, "saque_fallado");
+    const { siguienteOrden } = await leer(admin, partidoId);
+    await anotar(admin, partidoId, {
+      accion: "corregir",
+      orden: 0,
+      ordenEsperado: siguienteOrden,
+      tipo: "error_no_forzado",
+      jugadorId: ana
+    });
+
+    expect((await leer(admin, partidoId)).estado.puntos).toEqual({ A: 0, B: 1 });
+    expect(await estadisticasDe(ana)).toMatchObject({ errores: 1, saques_fallados: 0, puntos: 0 });
   });
 
   it("cierra el set y el partido cuando toca", async () => {
@@ -504,15 +568,17 @@ describe("bloqueo y chilena: el punto lo decide quien anota", () => {
     await punto(admin, partidoId, ana, "bloqueo", true);
     await punto(admin, partidoId, ana, "chilena", false);
     await punto(admin, partidoId, ana, "saque_fallado");
+    await punto(admin, partidoId, ana, "error_no_forzado");
 
     // Tres puntos: el punto, el ace y el bloqueo que ganó. Ni la chilena que no
-    // ganó ni el saque fallado, que se lo lleva el rival.
+    // ganó, ni el saque fallado ni el error, que se los lleva el rival.
     expect(await estadisticasDe(ana)).toEqual({
       puntos: 3,
       bloqueos: 1,
       chilenas: 1,
       aces: 1,
-      saques_fallados: 1
+      saques_fallados: 1,
+      errores: 1
     });
   });
 });

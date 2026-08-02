@@ -25,7 +25,14 @@ export const METRICAS: Metrica[] = [
   { clave: "bloqueos", columna: "bloqueos", etiqueta: "Bloqueos" },
   { clave: "chilenas", columna: "chilenas", etiqueta: "Chilenas" },
   { clave: "aces", columna: "aces", etiqueta: "Aces" },
-  { clave: "saquesFallados", columna: "saques_fallados", etiqueta: "Saques fallados" }
+  { clave: "saquesFallados", columna: "saques_fallados", etiqueta: "Saques fallados" },
+  /*
+   * La columna `errores` existe desde la 0009 y estuvo muerta entre la 0028 —que
+   * retiró el tipo `error` genérico— y la 0032, que la vació y la devolvió al
+   * uso con el error no forzado detrás. No se creó una columna nueva porque
+   * habría dejado dos diciendo lo mismo, y la vieja sin nadie que la borrase.
+   */
+  { clave: "errores", columna: "errores", etiqueta: "Errores no forzados" }
 ];
 
 export type Estadisticas = Record<string, number>;

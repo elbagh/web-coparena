@@ -268,6 +268,106 @@
     nodo.animate(VIBRA, { duration: 420, easing: "ease-out" });
   }
 
+  /*
+   * La marca de fallo: la contraria de `vibrar`.
+   *
+   * Hay acciones cuyo punto se lo lleva el otro equipo —el saque fallado y el
+   * error no forzado—, y hasta ahora sacudían el retrato de quien las cometió,
+   * que es la animación de celebrar. Aquí la cara se pone en gris, le cruza una
+   * equis y le sale una cara triste en la esquina.
+   *
+   * Dura cinco segundos y no dos: la sacudida es un acento sobre algo que ya se
+   * ve en el marcador, mientras que esto cuenta algo que el marcador no dice —de
+   * quién fue el fallo—, y quien mira desde la arena no está pendiente de la
+   * pantalla en el segundo exacto.
+   */
+  const MARCA_MS = 5000;
+  const relojes = new WeakMap();
+
+  /*
+   * La marca entera, en UN solo nodo: la equis y, dentro, la cara triste.
+   *
+   * Va suelto sobre el retrato y no dentro de `.retrato-marco` porque el marco
+   * es un círculo con `overflow: hidden` y le comería las cuatro puntas a la
+   * equis. Pero tampoco puede colgar del retrato a secas con `inset: 0`: el
+   * retrato mide también el nombre y el apellido de debajo, así que la equis
+   * quedaría centrada más abajo que la cara. El CSS le da el tamaño exacto del
+   * marco (`--retrato-lado`) y lo cuadra encima; la cara va dentro para que
+   * herede esa misma caja y no haya que repetir la medida.
+   *
+   * La equis lleva dos trazos, el de tinta debajo y el coral encima, para que se
+   * lea igual sobre una foto clara y sobre una oscura.
+   */
+  function marcaDeFallo() {
+    const svg = nodo("svg", { viewBox: "0 0 100 100", "aria-hidden": "true" });
+    const grupo = nodo("g", { "stroke-linecap": "round", fill: "none" });
+    const trazo = "M26 26 L74 74 M74 26 L26 74";
+    grupo.appendChild(nodo("path", { d: trazo, stroke: "var(--ink)", "stroke-width": "13" }));
+    grupo.appendChild(nodo("path", { d: trazo, stroke: "var(--coral)", "stroke-width": "8" }));
+    svg.appendChild(grupo);
+
+    const caja = el("span", "retrato-fallo");
+    caja.appendChild(svg);
+    caja.appendChild(caraTriste());
+    return caja;
+  }
+
+  /*
+   * La cara triste ocupa la esquina de abajo a la derecha del marco, que es la
+   * única libre: el dorsal está arriba a la derecha y la nota del cromo arriba a
+   * la izquierda. Queda dentro de la caja del marco a propósito — `.retrato`
+   * lleva `contain: layout paint`, así que lo que se saliera de su caja de
+   * relleno se recortaría sin avisar.
+   */
+  function caraTriste() {
+    const svg = nodo("svg", { viewBox: "0 0 32 32", "aria-hidden": "true" });
+    svg.appendChild(
+      nodo("circle", { cx: "16", cy: "16", r: "14", fill: "var(--coral)", stroke: "var(--ink)", "stroke-width": "2.5" })
+    );
+    svg.appendChild(nodo("circle", { cx: "11", cy: "13", r: "2.1", fill: "var(--ink)" }));
+    svg.appendChild(nodo("circle", { cx: "21", cy: "13", r: "2.1", fill: "var(--ink)" }));
+    svg.appendChild(
+      nodo("path", {
+        d: "M10 23q6-6 12 0",
+        stroke: "var(--ink)",
+        "stroke-width": "2.5",
+        fill: "none",
+        "stroke-linecap": "round"
+      })
+    );
+    const caja = el("span", "retrato-cara");
+    caja.appendChild(svg);
+    return caja;
+  }
+
+  function limpiarMarca(nodoRetrato) {
+    nodoRetrato.classList.remove("is-fallo");
+    nodoRetrato.querySelectorAll(".retrato-fallo").forEach((hijo) => hijo.remove());
+  }
+
+  function fallar(nodoRetrato) {
+    if (!nodoRetrato || !nodoRetrato.isConnected) return;
+
+    /*
+     * Dos fallos seguidos de la misma persona: se reinicia la cuenta en vez de
+     * dejar que el temporizador viejo apague una marca que acaba de encenderse.
+     */
+    const reloj = relojes.get(nodoRetrato);
+    if (reloj) window.clearTimeout(reloj);
+    limpiarMarca(nodoRetrato);
+
+    nodoRetrato.appendChild(marcaDeFallo());
+    nodoRetrato.classList.add("is-fallo");
+
+    relojes.set(
+      nodoRetrato,
+      window.setTimeout(() => {
+        relojes.delete(nodoRetrato);
+        limpiarMarca(nodoRetrato);
+      }, MARCA_MS)
+    );
+  }
+
   function statTile(valor, etiqueta, variante) {
     const tile = el("div", "stat-tile" + (variante ? " stat-tile--" + variante : ""));
     tile.appendChild(el("span", "stat-value", valor));
@@ -390,5 +490,5 @@
     return card;
   }
 
-  window.CopaCromo = { crear, retrato, vibrar, corona, punta, el, iniciales, statTile, ATRIBUTOS, NIVELES };
+  window.CopaCromo = { crear, retrato, vibrar, fallar, corona, punta, el, iniciales, statTile, ATRIBUTOS, NIVELES };
 })();

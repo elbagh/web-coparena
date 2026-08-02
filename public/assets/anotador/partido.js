@@ -812,9 +812,21 @@
     } finally {
       guardando = false;
       pintar();
-      // El retrato de quien lo hizo se sacude. Va después de pintar, cuando el
-      // nodo ya está donde toca.
-      cromo.vibrar(retratos.get(jugadorId));
+      /*
+       * El retrato de quien lo hizo reacciona. Va después de pintar, cuando el
+       * nodo ya está donde toca.
+       *
+       * Con los tipos que dan el punto al rival —el saque fallado y el error no
+       * forzado— la marca es de fallo y no la sacudida, que es la de celebrar.
+       * Quién es cuál lo dice `aRival` del catálogo del servidor, igual que en
+       * `predecir`: es la misma regla que allí decide de quién es el punto, así
+       * que la pantalla no vuelve a escribirla. Y es lo mismo que hace
+       * `/directo/`, para que quien anota y quien mira vean lo mismo.
+       */
+      const meta = datos.tipos.find((t) => t.clave === tipo);
+      const retrato = retratos.get(jugadorId);
+      if (meta && meta.aRival) cromo.fallar(retrato);
+      else cromo.vibrar(retrato);
     }
   }
 

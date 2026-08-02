@@ -984,10 +984,10 @@ describe("los dos toques", () => {
 
   /*
    * Quién va en cada grupo lo dice `tipos[].punto`, que manda el servidor: los
-   * que suman siempre (punto, ace, saque_fallado) en un lado, los que sólo
-   * cuentan estadística mientras no se confirme el punto (bloqueo, chilena) en
-   * el otro. No hay una lista de claves escrita aquí a propósito — sería una
-   * copia de la regla del servidor esperando a desincronizarse.
+   * que suman siempre (punto, ace, saque_fallado, error_no_forzado) en un lado,
+   * los que sólo cuentan estadística mientras no se confirme el punto (bloqueo,
+   * chilena) en el otro. No hay una lista de claves escrita aquí a propósito —
+   * sería una copia de la regla del servidor esperando a desincronizarse.
    */
   it("separa las acciones que suman punto de las que sólo cuentan", async () => {
     await montar(respuesta());
@@ -1000,7 +1000,7 @@ describe("los dos toques", () => {
       (b) => b.querySelector(".anot-tipo-nombre")!.textContent
     );
 
-    expect(suman).toEqual(["Punto", "Ace", "Falló saque"]);
+    expect(suman).toEqual(["Punto", "Ace", "Falló saque", "Error"]);
     expect(cuentan).toEqual(["Bloqueo", "Chilena"]);
   });
 
@@ -1021,7 +1021,7 @@ describe("los dos toques", () => {
       (b) => b.querySelector(".anot-tipo-ayuda") !== null
     );
 
-    expect(conAyuda).toEqual([true, true, true]);
+    expect(conAyuda).toEqual([true, true, true, true]);
     expect(sinAyuda).toEqual([false, false]);
   });
 });
