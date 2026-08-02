@@ -152,19 +152,8 @@
   padding: 0 12px 10px;
 }
 
-.edicion-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--adm-muted);
-  cursor: pointer;
-}
-
-.edicion-toggle input {
-  cursor: pointer;
-}
+/* El interruptor de «inscripciones abiertas» es `.admin-toggle`, en tables.css:
+   lo comparte con la entrega de camisetas. */
 
 .edicion-borrar {
   margin-left: auto;

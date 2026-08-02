@@ -34,6 +34,7 @@ interface CamisetaRow {
   cantidad: number;
   notas: string | null;
   created_at: string;
+  entregada: number;
   owner_email: string | null;
   owner_name: string | null;
 }
@@ -86,6 +87,7 @@ export const onRequestGet: PagesFunction<AdminEnv> = async ({ request, env }) =>
         cantidad: item.cantidad,
         notas: item.notas,
         createdAt: item.created_at,
+        entregada: item.entregada === 1,
         ownerEmail: item.owner_email,
         ownerName: item.owner_name
       }))
@@ -122,7 +124,7 @@ async function cargarJugadores(db: D1Database) {
 async function cargarCamisetas(db: D1Database) {
   const { results } = await db
     .prepare(
-      `SELECT r.id, r.nombre, r.talla, r.cantidad, r.notas, r.created_at,
+      `SELECT r.id, r.nombre, r.talla, r.cantidad, r.notas, r.created_at, r.entregada,
               u.email AS owner_email, u.nombre AS owner_name
        FROM camisetas_reservas r
        LEFT JOIN usuarios u ON u.id = r.owner_user_id

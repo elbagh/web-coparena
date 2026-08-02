@@ -15,13 +15,20 @@
   const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
   const CAMPOS = ["nombre", "talla", "cantidad", "notas"];
 
+  const plural = (n, singular) => `${n} ${n === 1 ? singular : `${singular}s`}`;
+
   onReady(async () => {
     const datos = await resumen();
     const reservas = Array.isArray(datos.camisetas) ? datos.camisetas : [];
 
     if (contador) {
       const unidades = reservas.reduce((total, r) => total + (r.cantidad || 0), 0);
-      contador.textContent = `${reservas.length} reservas · ${unidades} camisetas`;
+      const entregadas = reservas.filter((r) => r.entregada).length;
+      contador.textContent = [
+        plural(reservas.length, "reserva"),
+        plural(unidades, "camiseta"),
+        `${entregadas} entregada${entregadas === 1 ? "" : "s"}`
+      ].join(" · ");
     }
 
     clear(raiz);
@@ -36,6 +43,7 @@
           { etiqueta: "Unidades", clase: "is-num is-shrink", render: (r) => String(r.cantidad) },
           { etiqueta: "Cuenta", clase: "is-clip", render: (r) => text(r.ownerEmail) },
           { etiqueta: "Notas", clase: "is-clip", render: (r) => text(r.notas) },
+          { etiqueta: "Entregada", clase: "is-shrink", render: (r) => interruptorEntrega(r) },
           {
             etiqueta: "Acciones",
             clase: "is-actions",
@@ -50,6 +58,41 @@
       })
     );
   });
+
+  /*
+   * La entrega se marca en la propia fila, sin confirmación: en el puesto se
+   * reparten muchas seguidas y un diálogo por persona estorba. Es reversible
+   * desde aquí mismo, que es lo que la hace segura sin preguntar.
+   */
+  function interruptorEntrega(reserva) {
+    const label = document.createElement("label");
+    label.className = "admin-toggle";
+    const casilla = document.createElement("input");
+    casilla.type = "checkbox";
+    casilla.checked = Boolean(reserva.entregada);
+    casilla.setAttribute("aria-label", `Camiseta entregada a ${reserva.nombre}`);
+    casilla.addEventListener("change", () => marcarEntrega(reserva, casilla));
+    label.append(casilla, document.createTextNode(reserva.entregada ? "Sí" : "No"));
+    return label;
+  }
+
+  async function marcarEntrega(reserva, casilla) {
+    const entregada = casilla.checked;
+    casilla.disabled = true;
+    try {
+      await apiJson(`/api/admin/camisetas?id=${encodeURIComponent(reserva.id)}&accion=entrega`, "PATCH", {
+        entregada
+      });
+      setError("");
+      // Recarga porque el contador de la cabecera lleva las entregadas: sin
+      // esto diría una cifra vieja hasta la siguiente visita.
+      await recargar();
+    } catch (err) {
+      casilla.checked = Boolean(reserva.entregada);
+      casilla.disabled = false;
+      setError(err.message);
+    }
+  }
 
   async function borrar(reserva) {
     const ok = await confirmar({

@@ -162,6 +162,27 @@
   color: var(--adm-muted);
 }
 
+/* ------------------------------- interruptores ---------------------------- */
+
+/* Un booleano que se cambia en la propia fila, sin abrir nada. Vive aquí y no
+   en la hoja de una sección porque lo usan `/admin/ediciones/` (inscripciones
+   abiertas) y `/admin/camisetas/` (entregada). Es casilla y no botón porque su
+   ancho no cambia al pulsarla: con la etiqueta alternando, los botones de al
+   lado se movían de sitio justo entre dos clics. */
+.admin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--adm-muted);
+  cursor: pointer;
+}
+
+.admin-toggle input {
+  cursor: pointer;
+}
+
 /* -------------------------------- miniaturas ------------------------------ */
 
 .admin-thumb {
