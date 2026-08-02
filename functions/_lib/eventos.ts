@@ -386,8 +386,14 @@ function sentenciasDerivadas(
      * Las estadísticas sí son un agregado puro, así que caben en una sentencia
      * sea cual sea el número de jugadores. `puntos` cuenta las acciones que
      * ganaron el punto para el propio equipo, y quien lo dice es `lado_punto`:
-     * el saque fallado apunta al rival y por eso no suma puntos a nadie, y el
-     * mismo bloqueo suma punto o no según el evento.
+     * el saque fallado y el error no forzado apuntan al rival y por eso no suman
+     * puntos a nadie, y el mismo bloqueo suma punto o no según el evento.
+     *
+     * Las demás cifras se cuentan POR TIPO, no por `lado_punto`: la acción
+     * ocurrió con independencia de a dónde fuera el punto. Por eso un bloqueo
+     * que solo levantó la pelota sigue siendo un bloqueo, y por eso `errores`
+     * cuenta todas las filas de su tipo — todas regalan el punto, así que
+     * preguntar por `lado_punto` aquí sería preguntar algo que ya se sabe.
      *
      * Es la ÚNICA implementación de este reparto. Había un espejo en TS
      * (`estadisticasDeEventos`) que sólo veían los tests; se borró para que no
@@ -397,19 +403,21 @@ function sentenciasDerivadas(
      */
     db
       .prepare(
-        `INSERT INTO estadisticas (jugador_id, partido_id, puntos, bloqueos, chilenas, aces, saques_fallados)
+        `INSERT INTO estadisticas (jugador_id, partido_id, puntos, bloqueos, chilenas, aces, saques_fallados, errores)
          SELECT jugador_id, partido_id,
                 SUM(CASE WHEN lado_punto = lado_jugador THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo = 'bloqueo' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo = 'chilena' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo = 'ace' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN tipo = 'saque_fallado' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN tipo = 'saque_fallado' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN tipo = 'error_no_forzado' THEN 1 ELSE 0 END)
            FROM partido_eventos
           WHERE partido_id = ?1 AND jugador_id IS NOT NULL AND tipo <> 'ajuste'
           GROUP BY jugador_id, partido_id
          ON CONFLICT(jugador_id, partido_id) DO UPDATE SET
            puntos = excluded.puntos, bloqueos = excluded.bloqueos, chilenas = excluded.chilenas,
            aces = excluded.aces, saques_fallados = excluded.saques_fallados,
+           errores = excluded.errores,
            updated_at = datetime('now')`
       )
       .bind(partido.id),

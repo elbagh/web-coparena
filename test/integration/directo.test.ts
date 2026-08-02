@@ -287,8 +287,8 @@ describe("el versus y el historial", () => {
         tipo,
         lado,
         jugadorId,
-        // El saque fallado es el único cuyo punto cruza la red.
-        tipo === "saque_fallado" ? (lado === "A" ? "B" : "A") : lado
+        // Los dos tipos cuyo punto cruza la red.
+        tipo === "saque_fallado" || tipo === "error_no_forzado" ? (lado === "A" ? "B" : "A") : lado
       )
       .run();
     await env.DB.prepare("UPDATE partidos SET log_version = log_version + 1 WHERE id = ?1").bind(partidoId).run();
@@ -322,6 +322,19 @@ describe("el versus y el historial", () => {
     // El saque fallado cruza la red: quien lo hace es de A y el punto es de B.
     expect(estado.feed[1]).toMatchObject({ o: 1, t: "saque_fallado", l: "A" });
     expect(JSON.stringify(estado.feed)).not.toContain("Ana");
+  });
+
+  /*
+   * La línea del error no forzado lleva los DOS lados, y distintos. Es lo que
+   * `/directo/` necesita para saber que a esa persona hay que marcarla en vez de
+   * sacudirla: la pantalla compara `p` con `l`, no `p` con `null`.
+   */
+  it("el error no forzado viaja con el lado del punto cambiado", async () => {
+    const { id, a } = await enJuegoConGente();
+    await anotarEvento(id, 0, a.jugadores[0]!.id, "A", "error_no_forzado");
+
+    const { estado } = await leer();
+    expect(estado.feed[0]).toMatchObject({ t: "error_no_forzado", l: "A", p: "B" });
   });
 
   it("la ventana acota el historial pero dice cuántos hay en total", async () => {

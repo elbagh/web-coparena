@@ -40,6 +40,8 @@ const MARCADO = `
           </details>
         </div>
         <div>
+          <span data-versus-sets-a>0</span>
+          <span data-versus-sets-b>0</span>
           <span data-versus-puntos-a>0</span>
           <span data-versus-puntos-b>0</span>
           <p><span data-versus-detalle></span><span data-versus-reloj hidden></span></p>
@@ -88,6 +90,7 @@ const PLANTILLA = {
     { clave: "punto", etiqueta: "Punto" },
     { clave: "ace", etiqueta: "Ace" },
     { clave: "saque_fallado", etiqueta: "Falló saque" },
+    { clave: "error_no_forzado", etiqueta: "Error" },
     { clave: "bloqueo", etiqueta: "Bloqueo" },
     { clave: "chilena", etiqueta: "Chilena" }
   ]
@@ -382,6 +385,70 @@ describe("el historial", () => {
   });
 });
 
+/*
+ * Los sets mandan y los puntos del set van debajo. Antes los sets solo salían
+ * dentro de la línea pequeña de detalle, que es donde menos se ven — y son el
+ * dato que dice quién va ganando el partido.
+ */
+describe("el marcador", () => {
+  it("pinta los sets y los puntos en huecos distintos", async () => {
+    await montar();
+    const estado = estadoBase();
+    estado.partidos[0]!.sets = { A: 1, B: 0 };
+    estado.partidos[0]!.points = { A: 18, B: 14 };
+    await sondeo(estado);
+
+    expect($("[data-versus-sets-a]").textContent).toBe("1");
+    expect($("[data-versus-sets-b]").textContent).toBe("0");
+    expect($("[data-versus-puntos-a]").textContent).toBe("18");
+    expect($("[data-versus-puntos-b]").textContent).toBe("14");
+  });
+
+  /*
+   * Y la línea de detalle ya no los repite. Es la línea que tiene que caber a
+   * 360px, así que lo que sobra sale.
+   */
+  it("la línea de detalle deja de repetir los sets", async () => {
+    await montar();
+    const estado = estadoBase();
+    estado.partidos[0]!.sets = { A: 1, B: 0 };
+    estado.partidos[0]!.setNumber = 2;
+    await sondeo(estado);
+
+    expect($("[data-versus-detalle]").textContent).toBe("Set 2 · a 21");
+  });
+
+  /*
+   * `MARCADO` es copia a mano del `.astro`, así que sin esto la página podría
+   * quedarse sin los huecos de los sets con todo lo de arriba en verde: el
+   * marcador se pintaría a medias y nada lo diría.
+   */
+  it("la página trae los cuatro huecos del marcador", () => {
+    const astro = readFileSync(path.resolve(import.meta.dirname, "../../src/pages/directo.astro"), "utf8");
+
+    for (const marca of ["data-versus-sets-a", "data-versus-sets-b", "data-versus-puntos-a", "data-versus-puntos-b"]) {
+      expect(astro).toContain(marca);
+    }
+  });
+
+  /*
+   * Y la jerarquía es lo que se pidió: el par de sets, más grande que el de
+   * puntos. Invertirla es un retoque de una cifra en la hoja, sin nada que
+   * avise.
+   */
+  it("los sets se pintan más grandes que los puntos del set", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../../src/styles/global.css"), "utf8");
+    const cuerpo = (selector: string) => {
+      const regla = new RegExp(`${selector}\\s*\\{[^}]*font-size:\\s*clamp\\(([^,]+),`).exec(css);
+      return parseFloat(regla![1]!);
+    };
+
+    expect(cuerpo("\\.versus-sets \\.versus-puntos")).toBeGreaterThan(
+      cuerpo("\\.versus-marcador \\.versus-tanteo \\.versus-puntos")
+    );
+  });
+});
+
 describe("la vibración", () => {
   it("sacude el retrato de quien acaba de puntuar, y solo el suyo", async () => {
     await montar();
@@ -407,6 +474,76 @@ describe("la vibración", () => {
 
     const { fotogramas } = animados[0]!;
     expect(fotogramas.every((paso) => Object.keys(paso).every((k) => k === "transform" || k === "offset"))).toBe(true);
+  });
+});
+
+/*
+ * Cuál de las dos reacciones toca lo dice el lado del punto, no el tipo: si el
+ * punto se lo lleva el lado contrario al de quien hizo la acción, esa persona
+ * acaba de regalarlo y la sacudida —que es la de celebrar— decía lo contrario de
+ * lo que pasó.
+ *
+ * Se compara `p` con `l` y NUNCA con `null`. Un `lado_punto` que existe no
+ * significa «lo ganó mi lado»: ese atajo ya costó un hallazgo de severidad
+ * crítica en el anotador, y aquí volvería a marcar mal a quien no falló.
+ */
+describe("la marca de fallo", () => {
+  const conFeed = (linea: Record<string, unknown>) => {
+    const nuevo = estadoBase();
+    nuevo.feed = [...estadoBase().feed, linea as (typeof nuevo.feed)[number]];
+    return nuevo;
+  };
+
+  const retratoDe = (id: string) => todos(".retrato").find((n) => n.dataset.jugador === id)!;
+
+  it("marca a quien comete un error no forzado en vez de sacudirlo", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    await sondeo(conFeed({ o: 3, t: "error_no_forzado", j: 1, l: "A", p: "B", s: 1 }));
+
+    const ana = retratoDe("1");
+    expect(ana.querySelector(".retrato-fallo")).not.toBe(null);
+    expect(animados.map((a) => a.nodo)).not.toContain(ana);
+  });
+
+  it("el saque fallado lleva la misma marca", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    await sondeo(conFeed({ o: 3, t: "saque_fallado", j: 2, l: "A", p: "B", s: 1 }));
+
+    expect(retratoDe("2").querySelector(".retrato-fallo")).not.toBe(null);
+  });
+
+  /*
+   * Un bloqueo que solo levantó la pelota no lleva `p`. No es un fallo: la
+   * acción ocurrió y el rally siguió, así que se sacude como siempre.
+   */
+  it("una acción sin punto se sacude, no se marca", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    await sondeo(conFeed({ o: 3, t: "bloqueo", j: 1, l: "A", p: null, s: 1 }));
+
+    const ana = retratoDe("1");
+    expect(ana.querySelector(".retrato-fallo")).toBe(null);
+    expect(animados.map((a) => a.nodo)).toContain(ana);
+  });
+
+  it("un punto propio se sacude aunque `p` no sea nulo", async () => {
+    await montar();
+    await sondeo(estadoBase());
+    await sondeo(conFeed({ o: 3, t: "punto", j: 1, l: "A", p: "A", s: 1 }));
+
+    const ana = retratoDe("1");
+    expect(ana.querySelector(".retrato-fallo")).toBe(null);
+    expect(animados.map((a) => a.nodo)).toContain(ana);
+  });
+
+  it("el historial escribe la etiqueta del error", async () => {
+    await montar();
+    await sondeo(conFeed({ o: 3, t: "error_no_forzado", j: 1, l: "A", p: "B", s: 1 }));
+
+    const lineas = todos("[data-feed-lista] li").map((li) => li.querySelector(".feed-que")!.textContent);
+    expect(lineas).toContain("Error de Ana");
   });
 });
 

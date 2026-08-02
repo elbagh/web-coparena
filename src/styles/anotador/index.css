@@ -827,20 +827,27 @@ body.is-anotador {
 }
 
 /*
- * El saque fallado es el único que cambia de dueño el punto, así que ocupa la
- * fila entera: el ancho lo dice antes de leer la etiqueta. Ya no en rojo —desde
- * que los equipos son azul y rojo de equipación, un botón rojo se lee como «el
- * botón del equipo rojo», que es lo contrario de lo que hace—. Lo distinguen el
- * doble filo de tinta y la flecha, que dice lo único que importa: el punto cruza
- * la red.
+ * Los dos que cambian de dueño el punto: el saque fallado y el error no
+ * forzado. Ya no en rojo —desde que los equipos son azul y rojo de equipación,
+ * un botón rojo se lee como «el botón del equipo rojo», que es lo contrario de
+ * lo que hace—. Los distinguen el doble filo de tinta y la flecha, que dice lo
+ * único que importa: el punto cruza la red.
+ *
+ * Comparten fila, y por eso NO llevan `grid-column: 1 / -1`. Cuando el saque
+ * fallado era el único, ocupar la fila entera decía por el ancho lo que la
+ * etiqueta tardaba en decir. Con dos, esa fila entera son dos filas y ~76px más
+ * de alto, y el panel ya mide 742 de los 844 de un móvil: la zona del pulgar
+ * caería por debajo del borde. Juntos en la misma fila dicen lo mismo —van
+ * aparte de los otros dos y llevan el mismo remate— y no cuestan un píxel.
  */
-.anot-btn--saque_fallado {
+.anot-btn--saque_fallado,
+.anot-btn--error_no_forzado {
   border-color: var(--anot-tinta);
   box-shadow: inset 0 0 0 3px var(--anot-superficie), inset 0 0 0 6px var(--anot-tinta);
-  grid-column: 1 / -1;
 }
 
-.anot-btn--saque_fallado .anot-tipo-nombre::after {
+.anot-btn--saque_fallado .anot-tipo-nombre::after,
+.anot-btn--error_no_forzado .anot-tipo-nombre::after {
   content: " ⇢";
   font-weight: 900;
 }

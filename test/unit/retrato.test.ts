@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cargarScriptPublico } from "../helpers/dom";
 
 /*
@@ -19,6 +19,7 @@ import { cargarScriptPublico } from "../helpers/dom";
 
 interface Cromo {
   retrato: (datos: Record<string, unknown>) => HTMLElement;
+  fallar: (nodo: HTMLElement | null | undefined) => void;
   NIVELES: string[];
 }
 
@@ -126,5 +127,104 @@ describe("el retrato", () => {
 
     expect(nodo.querySelectorAll("button, a, input, select, textarea")).toHaveLength(0);
     expect(nodo.tagName).toBe("SPAN");
+  });
+});
+
+/*
+ * La marca de fallo: la contraria de la sacudida. La llevan las dos acciones
+ * cuyo punto se lleva el rival —el saque fallado y el error no forzado—, que
+ * hasta ahora sacudían el retrato de quien las cometió, o sea la animación de
+ * celebrar.
+ *
+ * Dura cinco segundos y se va sola. Que se vaya no es cosmético: el retrato se
+ * reutiliza durante todo el partido (se mueve entre la pista y el banquillo en
+ * vez de recrearse), así que una marca que no se limpiara se quedaría puesta
+ * hasta el final.
+ */
+describe("la marca de fallo", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Sin estar en el documento no se marca: `fallar` exige `isConnected`. */
+  const montado = (api: Cromo) => {
+    const nodo = api.retrato({ nombre: "Marta", dorsal: 7, fotoUrl: "/f/1" });
+    document.body.appendChild(nodo);
+    return nodo;
+  };
+
+  it("pone la equis, la cara triste y la clase", () => {
+    const api = cromo();
+    const nodo = montado(api);
+
+    api.fallar(nodo);
+
+    expect(nodo.classList.contains("is-fallo")).toBe(true);
+    expect(nodo.querySelector(".retrato-fallo")).not.toBe(null);
+    expect(nodo.querySelector(".retrato-cara")).not.toBe(null);
+  });
+
+  /*
+   * La cara va DENTRO de la caja de la equis, que es la que el CSS cuadra sobre
+   * el marco. Suelta en el retrato heredaría su caja —que mide también el nombre
+   * y el apellido— y caería por debajo de la cara.
+   */
+  it("la cara cuelga de la caja que se cuadra sobre el marco", () => {
+    const api = cromo();
+    const nodo = montado(api);
+
+    api.fallar(nodo);
+
+    expect(nodo.querySelector(".retrato-fallo > .retrato-cara")).not.toBe(null);
+    expect(nodo.querySelectorAll(":scope > .retrato-cara")).toHaveLength(0);
+  });
+
+  it("se va sola a los cinco segundos", () => {
+    const api = cromo();
+    const nodo = montado(api);
+
+    api.fallar(nodo);
+    vi.advanceTimersByTime(4999);
+    expect(nodo.querySelector(".retrato-fallo")).not.toBe(null);
+
+    vi.advanceTimersByTime(1);
+    expect(nodo.classList.contains("is-fallo")).toBe(false);
+    expect(nodo.querySelector(".retrato-fallo")).toBe(null);
+  });
+
+  /*
+   * Dos fallos seguidos de la misma persona. Sin reiniciar la cuenta, el
+   * temporizador del primero apagaría la marca del segundo antes de tiempo; y
+   * sin limpiar antes de volver a pintar, quedarían dos equis superpuestas.
+   */
+  it("un segundo fallo reinicia la cuenta y no deja dos marcas", () => {
+    const api = cromo();
+    const nodo = montado(api);
+
+    api.fallar(nodo);
+    vi.advanceTimersByTime(4000);
+    api.fallar(nodo);
+
+    expect(nodo.querySelectorAll(".retrato-fallo")).toHaveLength(1);
+
+    // Con la cuenta del primero, aquí ya estaría apagada.
+    vi.advanceTimersByTime(1500);
+    expect(nodo.querySelector(".retrato-fallo")).not.toBe(null);
+
+    vi.advanceTimersByTime(3500);
+    expect(nodo.querySelector(".retrato-fallo")).toBe(null);
+  });
+
+  it("un retrato que no está en pantalla no se marca", () => {
+    const api = cromo();
+    const suelto = api.retrato({ nombre: "Marta", fotoUrl: "/f/1" });
+
+    expect(() => api.fallar(suelto)).not.toThrow();
+    expect(() => api.fallar(null)).not.toThrow();
+    expect(suelto.querySelector(".retrato-fallo")).toBe(null);
   });
 });
