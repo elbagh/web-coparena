@@ -7,7 +7,7 @@ import SceneForest from "../../components/SceneForest.astro";
 import SceneHorizon from "../../components/SceneHorizon.astro";
 import Trofeo from "../../components/Trofeo.astro";
 import Podio from "../../components/Podio.astro";
-import { premiosSecundarios, competicion, inscripcion } from "../../data/event";
+import { premiosSecundarios, competicion, puntuacion, inscripcion } from "../../data/event";
 import { breadcrumb } from "../../data/seo";
 
 const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }, { name: "Premios y reglas", path: "/torneo/premios/" }])];
@@ -108,6 +108,59 @@ const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }, { name
           </div>
         ))
       }
+    </div>
+
+    <div class="puntuacion reveal" id="puntuacion">
+      <div class="puntuacion-explica">
+        <h3 class="puntuacion-title">{puntuacion.titulo}</h3>
+        <p class="puntuacion-intro">{puntuacion.intro}</p>
+
+        <table class="puntos-tabla">
+          <caption class="sr-only">Puntos que reparte cada partido de la fase de grupos</caption>
+          <thead>
+            <tr>
+              {/* La esquina vacía manda: con `table-layout: fixed` los anchos
+                  salen de la primera fila, así que es aquí donde se estrecha la
+                  columna de las etiquetas. */}
+              <td class="puntos-esquina"></td>
+              {puntuacion.columnas.map((columna) => <th scope="col">{columna}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {
+              puntuacion.filas.map((fila) => (
+                <tr>
+                  <th scope="row">{fila.resultado}</th>
+                  {fila.casillas.map((casilla) => (
+                    <td data-puntos={casilla.puntos}>
+                      <span class="puntos-num">{casilla.puntos}</span>
+                      <span class="puntos-marcador">{casilla.marcador}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+
+        <p class="puntos-nota">{puntuacion.nota}</p>
+      </div>
+
+      <div class="puntuacion-aparte">
+        <div class="puntos-ejemplo">
+          <p>{puntuacion.ejemplo.texto}</p>
+          <p class="puntos-cuenta">{puntuacion.ejemplo.cuenta}</p>
+        </div>
+
+        <p class="puntos-excepcion">{puntuacion.excepcion}</p>
+
+        <div class="puntos-desempates">
+          <p>{puntuacion.desempates.texto}</p>
+          <ol>
+            {puntuacion.desempates.criterios.map((criterio) => <li>{criterio}</li>)}
+          </ol>
+        </div>
+      </div>
     </div>
   </section>
 
