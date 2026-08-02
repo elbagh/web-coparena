@@ -1,7 +1,8 @@
 // /api/admin/camisetas
-//   POST            crea una reserva a nombre del administrador
-//   PATCH ?id=N     edita nombre, talla, cantidad, notas, edición y propietario
-//   DELETE ?id=N    borra una reserva
+//   POST                          crea una reserva a nombre del administrador
+//   PATCH ?id=N                   edita nombre, talla, cantidad, notas, edición y propietario
+//   PATCH ?id=N&accion=entrega    marca la reserva como entregada, o la devuelve a pendiente
+//   DELETE ?id=N                  borra una reserva
 
 import { requirePermiso, jsonAdmin, accionNoValida, idDeQuery, type AdminEnv } from "../../_lib/admin";
 import { edicionActual } from "../../_lib/ediciones";
@@ -65,11 +66,19 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   const acceso = await requirePermiso(request, env, "camisetas.editar");
   if (acceso instanceof Response) return acceso;
 
-  const id = idDeQuery(new URL(request.url));
+  const url = new URL(request.url);
+  const id = idDeQuery(url);
   if (id === null) return accionNoValida();
 
   const existe = await env.DB.prepare("SELECT id FROM camisetas_reservas WHERE id = ?1").bind(id).first();
   if (!existe) return jsonAdmin({ error: "Esa reserva ya no existe." }, 404);
+
+  // La entrega va en su propia acción y no como un campo más de la edición:
+  // el PATCH normal valida nombre, talla y cantidad, así que marcar una entrega
+  // obligaría a reenviar la reserva entera desde un botón de una fila.
+  if (url.searchParams.get("accion") === "entrega") {
+    return marcarEntrega(env, id, await request.json().catch(() => null));
+  }
 
   const body = await request.json().catch(() => null);
   const resultado = validarReservaCamiseta(body);
@@ -78,6 +87,8 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   }
 
   // Edición y propietario son opcionales: se dejan como estaban si no llegan.
+  // `entregada` no aparece aquí a propósito: la escribe sólo `accion=entrega`,
+  // y así corregir el nombre de una reserva no la devuelve a pendiente.
   const datos = (body ?? {}) as Record<string, unknown>;
   const sets = ["nombre = ?1", "talla = ?2", "cantidad = ?3", "notas = ?4", "updated_at = datetime('now')"];
   const binds: (string | number | null)[] = [
@@ -140,6 +151,27 @@ export const onRequestDelete: PagesFunction<AdminEnv> = async ({ request, env })
     return jsonAdmin({ error: "No se ha podido borrar la reserva." }, 500);
   }
 };
+
+/**
+ * Marca o desmarca la entrega. El panel es la salida de emergencia: desde aquí
+ * se puede volver a pendiente, mientras que a su dueño una reserva entregada ya
+ * no le deja borrarla (ver `DELETE /api/camisetas`).
+ */
+async function marcarEntrega(env: AdminEnv, id: number, body: unknown): Promise<Response> {
+  const entregada = (body as { entregada?: unknown } | null)?.entregada;
+  if (typeof entregada !== "boolean") return accionNoValida();
+
+  try {
+    await env.DB
+      .prepare("UPDATE camisetas_reservas SET entregada = ?1, updated_at = datetime('now') WHERE id = ?2")
+      .bind(entregada ? 1 : 0, id)
+      .run();
+    return jsonAdmin({ ok: true, entregada });
+  } catch (err) {
+    console.error("Error marcando la entrega de una camiseta:", err);
+    return jsonAdmin({ error: "No se ha podido guardar la entrega." }, 500);
+  }
+}
 
 function validarReservaCamiseta(raw: unknown):
   | { reserva: { nombre: string; talla: string; cantidad: number; notas: string | null } }

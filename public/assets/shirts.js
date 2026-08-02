@@ -116,12 +116,36 @@
               <p></p>
             </div>
           </div>
-          <button type="button" class="player-remove" data-shirt-delete>Quitar</button>
         `;
         card.querySelector(".shirt-size").textContent = reserva.talla;
         card.querySelector("h3").textContent = `${reserva.cantidad} camiseta${reserva.cantidad === 1 ? "" : "s"}`;
-        card.querySelector("p").textContent = [reserva.nombre, reserva.notas].filter(Boolean).join(" · ");
-        card.querySelector("[data-shirt-delete]").addEventListener("click", () => deleteReserva(reserva.id));
+        // El año va delante porque la lista es también el historial: las
+        // entregadas se quedan, y sin él no se sabe de qué verano son.
+        card.querySelector("p").textContent = [
+          reserva.anio ? `Copa Arena ${reserva.anio}` : null,
+          reserva.nombre,
+          reserva.notas
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        if (reserva.entregada) {
+          // Ya la tiene en la mano: el registro se queda como recuerdo de esa
+          // edición. El servidor rechaza el borrado igualmente.
+          const sello = document.createElement("span");
+          sello.className = "shirt-entregada";
+          sello.textContent = "Entregada";
+          card.appendChild(sello);
+        } else {
+          const quitar = document.createElement("button");
+          quitar.type = "button";
+          quitar.className = "player-remove";
+          quitar.dataset.shirtDelete = "";
+          quitar.textContent = "Quitar";
+          quitar.addEventListener("click", () => deleteReserva(reserva.id));
+          card.appendChild(quitar);
+        }
+
         list.appendChild(card);
       });
     });

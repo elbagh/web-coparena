@@ -458,6 +458,39 @@ export async function fijarNivel(jugadorId: number, nivel: string): Promise<void
   await env.DB.prepare("UPDATE jugadores SET nivel = ?2 WHERE id = ?1").bind(jugadorId, nivel).run();
 }
 
+export interface OpcionesReservaCamiseta {
+  talla?: string;
+  cantidad?: number;
+  notas?: string | null;
+  entregada?: boolean;
+  /** Por defecto, la edición actual. Se pasa para sembrar historial. */
+  edicionId?: number | null;
+}
+
+/** Una reserva de camiseta de una cuenta. Nace pendiente, como en producción. */
+export async function crearReservaCamiseta(
+  usuarioId: number,
+  opciones: OpcionesReservaCamiseta = {}
+): Promise<number> {
+  const n = siguiente();
+  const edicionId = opciones.edicionId === undefined ? await edicionActualId() : opciones.edicionId;
+  const fila = await env.DB.prepare(
+    `INSERT INTO camisetas_reservas (owner_user_id, nombre, talla, cantidad, notas, edicion_id, entregada)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id`
+  )
+    .bind(
+      usuarioId,
+      `Persona ${n}`,
+      opciones.talla ?? "L",
+      opciones.cantidad ?? 1,
+      opciones.notas ?? null,
+      edicionId,
+      opciones.entregada ? 1 : 0
+    )
+    .first<{ id: number }>();
+  return fila!.id;
+}
+
 /** Sube un objeto a R2 y devuelve su key, para los tests de fotos. */
 export async function sembrarFoto(key: string, contenido = "foto"): Promise<string> {
   await env.FOTOS.put(key, contenido);

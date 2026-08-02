@@ -3090,6 +3090,25 @@ html.js .reveal.in-view {
   margin-left: auto;
 }
 
+/* El sello de entregada ocupa el sitio del botón «Quitar», que desaparece: la
+   camiseta ya está en su poder y la reserva se queda como historial. Es la
+   receta del sello de rol de Mi zona (píldora inclinada, Titan One, sombra
+   dura), en verde para que se lea de un vistazo en una lista de varios años. */
+.shirt-entregada {
+  margin-left: auto;
+  flex: none;
+  padding: 8px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--pine);
+  box-shadow: 2px 2px 0 var(--ink);
+  color: var(--foam);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  rotate: -3deg;
+}
+
 /* Foto de grupo en la zona del capitán: solo lectura, la sube la organización
    desde el panel. */
 .mi-equipo-foto {
@@ -5159,7 +5178,8 @@ html.js .reveal.in-view {
     box-shadow: 3px 3px 0 var(--ink);
   }
 
-  .shirt-card .player-remove {
+  .shirt-card .player-remove,
+  .shirt-entregada {
     margin-left: 0;
   }
 

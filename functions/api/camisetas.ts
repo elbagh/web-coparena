@@ -14,6 +14,8 @@ interface ReservaRow {
   cantidad: number;
   notas: string | null;
   created_at: string;
+  entregada: number;
+  anio: number | null;
 }
 
 const TALLAS = new Set(["XS", "S", "M", "L", "XL", "XXL"]);
@@ -82,6 +84,22 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
+    // Una camiseta ya entregada no se borra: está en su poder y el registro es
+    // lo que la deja en su historial. El bloqueo va aquí y no sólo en la
+    // pantalla, que se puede saltar. Desde el panel sí se puede deshacer.
+    const reserva = await env.DB
+      .prepare("SELECT entregada FROM camisetas_reservas WHERE id = ?1 AND owner_user_id = ?2")
+      .bind(id, user.id)
+      .first<{ entregada: number }>();
+
+    if (reserva?.entregada === 1) {
+      return json(
+        { error: "Esta camiseta ya te la hemos entregado, así que se queda en tu historial." },
+        409,
+        { "Cache-Control": "no-store" }
+      );
+    }
+
     await env.DB
       .prepare("DELETE FROM camisetas_reservas WHERE id = ?1 AND owner_user_id = ?2")
       .bind(id, user.id)
@@ -95,12 +113,16 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
 };
 
 async function cargarReservas(db: D1Database, userId: number) {
+  // El año viene de la edición porque la lista es también el historial: una
+  // reserva ya entregada se queda ahí, y sin año no se distingue de la de este
+  // verano. Puede ser null en reservas creadas sin edición activa.
   const { results } = await db
     .prepare(
-      `SELECT id, nombre, talla, cantidad, notas, created_at
-       FROM camisetas_reservas
-       WHERE owner_user_id = ?1
-       ORDER BY created_at DESC, id DESC`
+      `SELECT r.id, r.nombre, r.talla, r.cantidad, r.notas, r.created_at, r.entregada, e.anio
+       FROM camisetas_reservas r
+       LEFT JOIN ediciones e ON e.id = r.edicion_id
+       WHERE r.owner_user_id = ?1
+       ORDER BY r.created_at DESC, r.id DESC`
     )
     .bind(userId)
     .all<ReservaRow>();
@@ -111,7 +133,9 @@ async function cargarReservas(db: D1Database, userId: number) {
     talla: reserva.talla,
     cantidad: reserva.cantidad,
     notas: reserva.notas,
-    createdAt: reserva.created_at
+    createdAt: reserva.created_at,
+    entregada: reserva.entregada === 1,
+    anio: reserva.anio
   }));
 }
 

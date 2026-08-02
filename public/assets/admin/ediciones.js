@@ -120,7 +120,7 @@
       acciones.append(estadoSelect);
 
       const abiertasLabel = document.createElement("label");
-      abiertasLabel.className = "edicion-toggle";
+      abiertasLabel.className = "admin-toggle";
       const abiertasInput = document.createElement("input");
       abiertasInput.type = "checkbox";
       abiertasInput.checked = ed.inscripcionesAbiertas;
