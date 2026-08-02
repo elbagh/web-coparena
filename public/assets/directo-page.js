@@ -13,9 +13,14 @@
  * se quita. Por eso el servidor manda la ventana completa y no un incremento: un
  * incremento no sabe decir «ese punto ya no existe».
  *
- * `CopaDirecto` y `CopaCromo` se leen de frente, sin `?.`: la página los carga
- * antes que esto justamente para que estén, y si algún día dejan de estarlo hay
- * que enterarse.
+ * Lo que esta página comparte con `/torneo/partido/` —el versus, los retratos y
+ * las frases del historial— vive en `partido-vista.js`. Aquí se queda lo que sólo
+ * pasa en directo: el sondeo, la reconciliación por clave y la reacción del
+ * retrato de quien acaba de hacer la acción.
+ *
+ * `CopaDirecto`, `CopaCromo` y `CopaPartidoVista` se leen de frente, sin `?.`: la
+ * página los carga antes que esto justamente para que estén, y si algún día dejan
+ * de estarlo hay que enterarse.
  */
 (() => {
   const raiz = document.querySelector("[data-directo-pagina]");
@@ -24,18 +29,10 @@
   const directo = window.CopaDirecto;
   const cromo = window.CopaCromo;
   const utils = window.CopaArenaMatches;
+  const vista = window.CopaPartidoVista;
 
   const $ = (sel) => document.querySelector(sel);
-  const el = (tag, clase, texto) => {
-    const nodo = document.createElement(tag);
-    if (clase) nodo.className = clase;
-    if (texto !== undefined) nodo.textContent = texto;
-    return nodo;
-  };
-  /** Escribe solo si cambia: por punto se repintan tres o cuatro textos. */
-  const texto = (nodo, valor) => {
-    if (nodo && nodo.textContent !== valor) nodo.textContent = valor;
-  };
+  const { texto, claveDe, crearLinea } = vista;
 
   const cajaEstado = $("[data-directo-estado]");
   const cajaVersus = $("[data-versus]");
@@ -45,6 +42,7 @@
 
   /** La plantilla del partido que se está pintando. Se pide una sola vez. */
   let plantilla = null;
+  let consulta = null;
   let partidoDePlantilla = null;
   let pidiendoPlantilla = null;
   /**
@@ -59,7 +57,7 @@
   const ESPERA_TRAS_FALLO_MS = 30000;
   let plantillaFallida = null;
   /** Retratos vivos, por jugador: se mueven, no se recrean. */
-  const retratos = new Map();
+  const retratos = vista.pista();
   /** Líneas del historial, por clave: `e:orden` o `c:id`. */
   const lineas = new Map();
   let ultimoEstado = null;
@@ -94,6 +92,7 @@
       .then((datos) => {
         if (!datos) return fallo();
         plantilla = datos;
+        consulta = vista.plantilla(datos);
         partidoDePlantilla = partidoId;
         plantillaFallida = null;
         return datos;
@@ -106,95 +105,7 @@
     return pidiendoPlantilla;
   }
 
-  const jugadorDe = (id) => {
-    if (!plantilla) return null;
-    for (const lado of ["A", "B"]) {
-      const encontrado = plantilla.equipos[lado].jugadores.find((jugador) => jugador.id === id);
-      if (encontrado) return { ...encontrado, lado };
-    }
-    return null;
-  };
-
-  /** Cómo se llama alguien en el historial, respetando a quien está oculto. */
-  function comoSeLlama(id) {
-    const jugador = jugadorDe(id);
-    if (!jugador) return "alguien";
-    if (jugador.oculto) {
-      if (jugador.dorsal !== null && jugador.dorsal !== undefined) return `el ${jugador.dorsal}`;
-      return plantilla.equipos[jugador.lado].nombre;
-    }
-    return jugador.nombre;
-  }
-
-  const etiquetaDe = (tipo) => {
-    const encontrado = (plantilla?.tipos || []).find((t) => t.clave === tipo);
-    return encontrado ? encontrado.etiqueta : tipo;
-  };
-
-  // ------------------------------------------------------------- retratos ---
-
-  function retratoDe(jugador, tamano) {
-    const guardado = retratos.get(jugador.id);
-    if (guardado && guardado.dataset.tamano === tamano) return guardado;
-
-    const nodo = cromo.retrato({
-      nivel: jugador.nivel,
-      dorsal: jugador.dorsal,
-      media: jugador.media,
-      nombre: jugador.nombre,
-      apellidos: jugador.apellidos,
-      fotoUrl: jugador.tieneFoto ? `/api/jugadores?foto=${jugador.id}` : null,
-      tamano,
-      // Los titulares se ven de entrada; el banquillo vive en un desplegable
-      // que en móvil arranca cerrado, así que sus fotos esperan.
-      prioridad: tamano === "grande" ? "alta" : "baja",
-      etiqueta: jugador.oculto && jugador.dorsal ? `Dorsal ${jugador.dorsal}` : undefined
-    });
-    nodo.dataset.tamano = tamano;
-    nodo.dataset.jugador = String(jugador.id);
-    retratos.set(jugador.id, nodo);
-    return nodo;
-  }
-
-  /**
-   * Pone en cada caja exactamente los retratos que tocan, moviendo los nodos que
-   * ya existen. Un cambio de jugador es entonces mover un `<span>` de sitio: la
-   * foto no se vuelve a pedir y la transición sale gratis.
-   */
-  function colocar(caja, jugadores, tamano) {
-    const quieren = jugadores.map((jugador) => retratoDe(jugador, tamano));
-    const hay = [...caja.children];
-    if (hay.length === quieren.length && hay.every((nodo, i) => nodo === quieren[i])) return;
-    caja.replaceChildren(...quieren);
-  }
-
-  function pintarLado(lado, estado) {
-    const equipo = plantilla.equipos[lado];
-    const enPista = new Set((estado.enPista && estado.enPista[lado]) || []);
-
-    texto($(`[data-versus-nombre-${lado.toLowerCase()}]`), equipo.nombre);
-
-    /*
-     * Quién es titular lo dice la alineación del partido, no `esSuplente` de la
-     * inscripción: en cuanto entra un suplente, ese suplente está jugando.
-     */
-    const titulares = equipo.jugadores.filter((jugador) => enPista.has(jugador.id));
-    const banquillo = equipo.jugadores.filter((jugador) => !enPista.has(jugador.id));
-
-    colocar($(`[data-versus-pista-${lado.toLowerCase()}]`), titulares, "grande");
-    colocar($(`[data-versus-suplentes-${lado.toLowerCase()}]`), banquillo, "pequeno");
-
-    const caja = $(`[data-versus-banquillo-${lado.toLowerCase()}]`);
-    caja.hidden = banquillo.length === 0;
-    texto(
-      $(`[data-versus-banquillo-${lado.toLowerCase()}-titulo]`),
-      banquillo.length === 1 ? "Banquillo (1)" : `Banquillo (${banquillo.length})`
-    );
-  }
-
   // ------------------------------------------------------------ historial ---
-
-  const claveDe = (linea) => (linea.c ? `c:${linea.c}` : `e:${linea.o}`);
 
   /**
    * El marcador que dejó cada punto del set en curso.
@@ -219,19 +130,6 @@
     return marcadores;
   }
 
-  function textoDeLinea(linea) {
-    if (linea.t === "cambio") return `Entra ${comoSeLlama(linea.j)} por ${comoSeLlama(linea.x)}`;
-    if (linea.t === "ajuste") return "Marcador adoptado";
-    return `${etiquetaDe(linea.t)} de ${comoSeLlama(linea.j)}`;
-  }
-
-  function crearLinea(linea) {
-    const item = el("li", `feed-linea feed-linea--${linea.t}`);
-    if (linea.l) item.classList.add(`feed-linea--lado-${linea.l.toLowerCase()}`);
-    item.append(el("span", "feed-cuando"), el("span", "feed-que"));
-    return item;
-  }
-
   function pintarFeed(estado, partido) {
     const feed = estado.feed || [];
     cajaFeed.hidden = feed.length === 0;
@@ -253,7 +151,7 @@
         lineas.set(clave, item);
       }
       texto(item.querySelector(".feed-cuando"), marcadores.get(clave) || `Set ${linea.s}`);
-      texto(item.querySelector(".feed-que"), textoDeLinea(linea));
+      texto(item.querySelector(".feed-que"), vista.textoDeLinea(linea, consulta));
 
       // El orden solo se toca si de verdad cambió: mover nodos cuesta.
       const deberiaIrTras = anterior;
@@ -297,7 +195,7 @@
    * severidad crítica en el anotador.
    */
   function reaccionar(linea) {
-    const retrato = retratos.get(linea.j);
+    const retrato = retratos.retrato(linea.j);
     if (!retrato) return;
     if (linea.p && linea.l && linea.p !== linea.l) cromo.fallar(retrato);
     else cromo.vibrar(retrato);
@@ -348,7 +246,7 @@
 
     // Otro partido: los retratos y el historial del anterior ya no valen.
     if (partidoPintado !== partido.id) {
-      retratos.clear();
+      retratos.vaciar();
       lineas.clear();
       listaFeed.replaceChildren();
       partidoPintado = partido.id;
@@ -375,8 +273,8 @@
     parciales.hidden = !partido.history || partido.history.length === 0;
     texto(parciales, (partido.history || []).map((set) => `${set.a}–${set.b}`).join(" · "));
 
-    pintarLado("A", estado);
-    pintarLado("B", estado);
+    retratos.pintarLado("A", consulta, estado.enPista && estado.enPista.A);
+    retratos.pintarLado("B", consulta, estado.enPista && estado.enPista.B);
 
     const nuevas = novedades(estado.feed || [], ultimoEstado && ultimoEstado.feed);
     pintarFeed(estado, partido);

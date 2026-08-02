@@ -1,0 +1,129 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import SiteFooter from "../../components/SiteFooter.astro";
+import Versus from "../../components/Versus.astro";
+import { breadcrumb } from "../../data/seo";
+
+/*
+ * Cómo fue un partido, punto a punto: `/torneo/partido/?p=ID`.
+ *
+ * Lo que `/directo/` enseña mientras se juega, pero de un partido ya jugado y
+ * con el log entero: la pista, la cronología completa partida por sets y una
+ * barra que lleva el marcador a cualquier momento del partido.
+ *
+ * `noindex`, y no entra en `publicPages`, ni en el menú, ni en el pie: sin `?p`
+ * no tiene contenido, así que indexarla sería indexar una página vacía. Se llega
+ * desde el cuadro, que es donde están los partidos.
+ */
+const structuredData = [
+  breadcrumb([
+    { name: "Torneo", path: "/torneo/" },
+    { name: "El partido", path: "/torneo/partido/" }
+  ])
+];
+---
+
+<BaseLayout
+  title="Cómo fue el partido | La Copa Arena"
+  description="El partido punto a punto: cada acción, cada cambio y el marcador en cada momento."
+  structuredData={structuredData}
+  noindex={true}
+>
+  <SiteHeader />
+
+  <main class="legal-page partido-pagina" data-partido-pagina>
+    <p class="directo-estado" data-partido-estado aria-live="polite">Cargando el partido…</p>
+
+    <section class="partido-cabecera" data-partido-cabecera hidden>
+      <p class="eyebrow" data-partido-fase></p>
+      <h1 data-partido-titulo></h1>
+      <p class="partido-cuando" data-partido-cuando></p>
+      {/*
+        Se puede llegar aquí con el partido todavía en juego, escribiendo la URL
+        o volviendo atrás. Lo que se enseña entonces es el log hasta ese momento,
+        que es correcto pero no se actualiza solo: el marcador que sí lo hace está
+        en /directo/, y esta línea es el camino.
+      */}
+      <p class="partido-vivo" data-partido-vivo hidden>
+        Se está jugando ahora mismo. <a href="/directo/">Ver el directo</a>
+      </p>
+    </section>
+
+    {/*
+      La pista es la misma que la del directo, sin reloj: un partido terminado no
+      tiene nada que contar segundo a segundo. Enseña quién estaba jugando en el
+      momento al que apunta la barra, no quién acabó jugando.
+    */}
+    <Versus />
+
+    <section class="feed partido-feed" data-feed hidden aria-label="Cómo fue">
+      <h2 class="feed-titulo">Cómo fue</h2>
+      <div data-feed-sets></div>
+    </section>
+
+    <section class="partido-resumen" data-resumen hidden>
+      <h2>Cómo acabó cada uno</h2>
+      <p class="torneo-nota">Lo que hizo cada jugador en este partido.</p>
+      <div class="torneo-tabla-scroll">
+        <table class="torneo-tabla" data-resumen-tabla></table>
+      </div>
+    </section>
+
+    {/*
+      La barra va pegada abajo, no bajo el marcador. Es el único control de la
+      página y se usa mientras se lee la cronología, que ocupa varias pantallas:
+      arriba se habría ido de la vista al segundo scroll. Abajo cae además donde
+      alcanza el pulgar en un móvil.
+
+      Y va AQUÍ, casi al final del documento, porque `position: sticky` con
+      `bottom` sólo tira del elemento hacia arriba: pega a quien todavía no ha
+      llegado, no retiene a quien ya pasó. Puesta bajo el marcador se despegaba
+      al primer scroll. De paso el orden de tabulación queda bien: primero se lee
+      el partido y luego se llega al control que lo recorre.
+
+      El carril y el `input` son dos elementos: el carril pinta los sets en tramos
+      y el `input` es un control nativo, con su teclado, su foco y su lector de
+      pantalla. Un `div` con `pointerdown` habría costado las tres cosas.
+    */}
+    <div class="repaso" data-repaso hidden>
+      <p class="repaso-momento">
+        <span class="repaso-marcador" data-repaso-marcador></span>
+        <span class="repaso-que" data-repaso-que></span>
+      </p>
+      <div class="repaso-pista">
+        <div class="repaso-carril" data-repaso-carril aria-hidden="true"></div>
+        <input
+          type="range"
+          class="repaso-barra"
+          data-repaso-barra
+          min="0"
+          max="0"
+          value="0"
+          step="1"
+          aria-label="Momento del partido"
+        />
+      </div>
+      <p class="repaso-saltos">
+        <button type="button" class="repaso-salto" data-repaso-inicio>Al principio</button>
+        <button type="button" class="repaso-salto" data-repaso-final>Al final</button>
+      </p>
+    </div>
+
+    <p class="directo-pie">
+      <a href="/torneo/">Volver al cuadro</a>
+    </p>
+  </main>
+
+  <SiteFooter />
+
+  {/*
+    El orden importa y se ejecutan en orden de documento: `cromo.js` publica el
+    retrato, del que tira `partido-vista.js`, y `match-utils.js` sabe a cuántos
+    puntos va cada set.
+  */}
+  <script is:inline src="/assets/match-utils.js" defer></script>
+  <script is:inline src="/assets/cromo.js" defer></script>
+  <script is:inline src="/assets/partido-vista.js" defer></script>
+  <script is:inline src="/assets/partido-page.js" defer></script>
+</BaseLayout>

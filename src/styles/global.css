@@ -6252,6 +6252,298 @@ html.js .banda-directo-llama {
   }
 }
 
+/* --------------------- torneo: cómo fue un partido ------------------------- */
+
+/*
+ * `/torneo/partido/` reutiliza entera la pista de `/directo/` y las líneas de su
+ * historial: lo que añade es lo que sólo tiene sentido en un partido terminado
+ * —la cronología partida por sets y la barra que la recorre— y el resumen de lo
+ * que hizo cada jugador.
+ */
+.partido-pagina {
+  padding-bottom: 32px;
+  width: min(760px, calc(100% - 24px));
+}
+
+.partido-cabecera {
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.partido-cabecera h1 {
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  margin: 4px 0 0;
+}
+
+.partido-cuando {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 6px 0 0;
+}
+
+.partido-cuando:empty {
+  display: none;
+}
+
+.partido-vivo {
+  background: var(--coral);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin: 12px 0 0;
+  padding: 6px 16px;
+}
+
+.partido-vivo a {
+  color: var(--ink);
+}
+
+.partido-feed {
+  margin-top: 22px;
+}
+
+/* Aquí el título no despliega nada: la cronología entera está a la vista. */
+.partido-feed .feed-titulo {
+  cursor: default;
+}
+
+/*
+ * La cabecera de cada set, con el parcial con el que acabó a la derecha. Es lo
+ * que convierte una lista de noventa líneas en tres tramos legibles.
+ */
+.feed-set {
+  align-items: baseline;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 22px 0 0;
+  padding-bottom: 4px;
+}
+
+.feed-set-parcial {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Dónde está la barra, dicho sobre la propia cronología. Lo posterior se atenúa
+ * en vez de esconderse: el partido entero sigue ahí para leerlo de corrido, y lo
+ * que la barra hace es señalar, no filtrar.
+ */
+.feed-linea.is-ahora {
+  background: var(--sand);
+  border-radius: 8px;
+}
+
+.feed-linea.is-futuro {
+  opacity: 0.42;
+}
+
+/* ------------------------------ la barra de avance ------------------------- */
+
+/*
+ * Pegada abajo y no bajo el marcador: es el único control de la página y se usa
+ * mientras se lee la cronología, que ocupa varias pantallas. Arriba se habría
+ * ido de la vista al segundo scroll, y abajo cae además donde alcanza el pulgar.
+ *
+ * Es `sticky` y no `fixed` porque al final del documento tiene que dejar de
+ * flotar y apoyarse sobre el pie en vez de taparlo. Eso obliga a que el elemento
+ * viva casi al final del `<main>`: `sticky` con `bottom` sólo desplaza el
+ * elemento hacia ARRIBA, así que pega a quien todavía no ha llegado por abajo y
+ * no retiene a quien ya ha pasado.
+ */
+.repaso {
+  background: var(--foam);
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  bottom: 12px;
+  box-shadow: 6px 6px 0 var(--ink);
+  margin: 28px auto 0;
+  max-width: 620px;
+  padding: 10px 14px 12px;
+  position: sticky;
+  z-index: 20;
+}
+
+/* La banda de «ver como» es `fixed` abajo: la barra se sube por encima de ella. */
+html.ver-como .repaso {
+  bottom: 84px;
+}
+
+.repaso-momento {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 8px;
+  min-width: 0;
+}
+
+.repaso-marcador {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.repaso-que {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * El carril y el `input` van superpuestos. El carril pinta la forma del partido
+ * y el `input` es un control nativo de verdad, con teclado, foco y lector de
+ * pantalla; un `div` con `pointerdown` habría costado las tres cosas.
+ */
+.repaso-pista {
+  position: relative;
+}
+
+.repaso-carril {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  display: flex;
+  height: 18px;
+  overflow: hidden;
+}
+
+/*
+ * Un tramo por set, tan ancho como puntos costó: un tercer set largo se ve largo
+ * antes de leer nada. Alternan para que la frontera entre dos se vea sin gastar
+ * una línea en decirlo.
+ */
+.repaso-tramo {
+  align-items: center;
+  color: var(--foam);
+  display: flex;
+  font-size: 0.62rem;
+  font-weight: 800;
+  justify-content: center;
+  min-width: 0;
+}
+
+.repaso-tramo--par {
+  background: var(--sea);
+}
+
+.repaso-tramo--impar {
+  background: var(--dusk);
+}
+
+.repaso-barra {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 34px;
+  inset: -8px 0;
+  margin: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.repaso-barra::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 34px;
+}
+
+.repaso-barra::-moz-range-track {
+  background: transparent;
+  height: 34px;
+}
+
+/* Cuadrado y con filo de tinta, como el resto de las piezas de la casa. */
+.repaso-barra::-webkit-slider-thumb {
+  appearance: none;
+  background: var(--sun);
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  height: 26px;
+  width: 16px;
+}
+
+.repaso-barra::-moz-range-thumb {
+  background: var(--sun);
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  height: 26px;
+  width: 16px;
+}
+
+.repaso-barra:focus-visible {
+  outline: 3px solid var(--coral);
+  outline-offset: 4px;
+}
+
+.repaso-saltos {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0 0;
+}
+
+.repaso-salto {
+  background: none;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 4px 12px;
+}
+
+.repaso-salto:hover,
+.repaso-salto:focus-visible {
+  background: var(--ink);
+  color: var(--foam);
+}
+
+/* ------------------------------ resumen del partido ------------------------ */
+
+.partido-resumen {
+  margin: 28px auto 0;
+  max-width: 620px;
+}
+
+.partido-resumen h2 {
+  font-size: clamp(1.3rem, 4.5vw, 1.7rem);
+  margin: 0;
+}
+
+/*
+ * Siete columnas con rótulos largos («Errores no forzados») no caben en un móvil
+ * estrecho sin partirse en tres líneas cada uno. Aquí sí se prefiere el scroll
+ * horizontal a apretar, al revés que en la tabla de un grupo: aquella vive dentro
+ * de una columna y su scroll escondería justo los puntos, y ésta ocupa el ancho
+ * entero de la página, donde arrastrar de lado es un gesto que se ve venir.
+ */
+.partido-resumen .torneo-tabla {
+  min-width: 440px;
+}
+
+/*
+ * El filo de color dice de qué equipo es cada fila, igual que en la cronología:
+ * la tabla mezcla a los dos y sin él haría falta una columna más para decirlo.
+ */
+.partido-resumen tbody tr.is-lado-a td:first-child {
+  border-left: 4px solid var(--equipo-azul);
+}
+
+.partido-resumen tbody tr.is-lado-b td:first-child {
+  border-left: 4px solid var(--equipo-rojo);
+}
+
+.partido-resumen tbody td:first-child {
+  padding-left: 10px;
+}
+
 /* La puerta al directo desde el cuadro, solo mientras hay alguien jugando. */
 .torneo-directo {
   background: var(--dusk);
@@ -6427,6 +6719,27 @@ html.js .banda-directo-llama {
   font-size: 0.76rem;
   margin: 4px 0 0;
   text-align: center;
+}
+
+/*
+ * La puerta al historial de un partido ya jugado. Va centrada y discreta debajo
+ * del cruce: la tarjeta existe para decir el resultado, y esto es lo que se
+ * ofrece a quien además quiera saber cómo se llegó a él.
+ */
+.torneo-partido-historial {
+  color: var(--deep);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  margin-top: 6px;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.torneo-partido-historial:hover,
+.torneo-partido-historial:focus-visible {
+  color: var(--coral);
 }
 
 .torneo-cuadro {
