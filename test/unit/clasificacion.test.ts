@@ -292,7 +292,8 @@ describe("un partido a un solo set", () => {
     winner: "A",
     reglas: JSON.stringify(reglas),
     siguiente_partido_id: null,
-    perdedor_partido_id: null
+    perdedor_partido_id: null,
+    tiene_log: 0
   });
 
   const equipos = [

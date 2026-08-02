@@ -1,0 +1,85 @@
+---
+/*
+ * La pista: cada equipo en su lado con su color de equipación, y el marcador en
+ * medio.
+ *
+ * Vive en un componente porque lo pintan dos páginas —`/directo/` mientras se
+ * juega y `/torneo/partido/` cuando ya se jugó— con el mismo script de pintado.
+ * Los `data-*` son la interfaz: `partido-vista.js` los busca por nombre, así que
+ * renombrar uno aquí deja las dos pantallas mudas a la vez. Ese acoplamiento es
+ * deliberado, y es lo que garantiza que las dos vistas no se separen.
+ *
+ * `reloj` es la única diferencia entre las dos. En el directo el tictac es la
+ * señal continua de que la página sigue viva cuando el marcador lleva un minuto
+ * quieto; en un partido terminado no hay nada que contar.
+ */
+interface Props {
+  reloj?: boolean;
+}
+
+const { reloj = false } = Astro.props;
+---
+
+<section class="versus" data-versus hidden aria-label="El partido">
+  <p class="versus-ronda" data-versus-ronda></p>
+
+  <div class="versus-tablero">
+    <div class="versus-equipo versus-equipo--a" data-versus-lado="A">
+      <p class="versus-nombre" data-versus-nombre-a></p>
+      <div class="versus-pista" data-versus-pista-a></div>
+      <details class="versus-banquillo" data-versus-banquillo-a hidden>
+        <summary data-versus-banquillo-a-titulo>Banquillo</summary>
+        <div class="versus-suplentes" data-versus-suplentes-a></div>
+      </details>
+    </div>
+
+    {/*
+      En la columna del medio solo van los números. El «Set 1 · a 21» iría aquí
+      de forma natural, pero es una línea larga: en un móvil de 360px se comía la
+      mitad del ancho y dejaba las dos mitades del equipo en 60px. Va debajo,
+      donde puede ocupar todo el ancho.
+
+      Manda el par de SETS, y los puntos del set van debajo, más pequeños. Los
+      sets dicen quién va ganando el partido —que es lo que se quiere saber al
+      mirar el marcador de refilón— y hasta hace poco vivían dentro de esa línea
+      pequeña de detalle, que es donde menos se ven. Ninguno de los dos lleva
+      rótulo: la línea de abajo dice «Set 2 · a 21» y con eso queda dicho cuál es
+      cuál, sin gastar dos líneas más de alto en una pantalla que se mira de pie.
+    */}
+    <div class="versus-marcador" aria-live="polite">
+      <p class="versus-sets">
+        <span class="versus-puntos versus-puntos--a" data-versus-sets-a>0</span>
+        <span class="versus-guion">–</span>
+        <span class="versus-puntos versus-puntos--b" data-versus-sets-b>0</span>
+      </p>
+      <p class="versus-tanteo">
+        <span class="versus-puntos versus-puntos--a" data-versus-puntos-a>0</span>
+        <span class="versus-guion">–</span>
+        <span class="versus-puntos versus-puntos--b" data-versus-puntos-b>0</span>
+      </p>
+    </div>
+
+    <div class="versus-equipo versus-equipo--b" data-versus-lado="B">
+      <p class="versus-nombre" data-versus-nombre-b></p>
+      <div class="versus-pista" data-versus-pista-b></div>
+      <details class="versus-banquillo" data-versus-banquillo-b hidden>
+        <summary data-versus-banquillo-b-titulo>Banquillo</summary>
+        <div class="versus-suplentes" data-versus-suplentes-b></div>
+      </details>
+    </div>
+  </div>
+
+  {/*
+    El reloj en su propio <span>: el detalle se escribe con textContent y se
+    llevaría cualquier hijo, y los dígitos necesitan `tabular-nums` para no
+    cambiar de ancho cada segundo.
+  */}
+  <p class="versus-detalle">
+    <span data-versus-detalle></span>{
+      reloj && <span class="versus-reloj" data-versus-reloj hidden />
+    }
+  </p>
+  <p class="versus-parciales" data-versus-parciales hidden></p>
+
+  <slot />
+</section>

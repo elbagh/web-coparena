@@ -442,3 +442,64 @@ describe("los partidos de un grupo en /torneo/", () => {
     expect(cruces).toEqual(["Free Copa Arena vs Croquetillas de Arena", "Calvos de Orion vs Bye Bye Bye"]);
   });
 });
+
+/*
+ * La puerta al historial de un partido. El enlace sólo existe cuando hay algo que
+ * abrir: `conHistorial` sale de que el partido tenga log de anotación, no de que
+ * esté terminado. Un partido llevado a mano desde el panel no tiene nada que
+ * recorrer, y un enlace a una página que va a decir «no se anotó punto a punto»
+ * es peor que ningún enlace.
+ */
+describe("el enlace a cómo fue un partido", () => {
+  const suelto = (extra: Record<string, unknown> = {}) => ({
+    id: "p-1",
+    ronda: "Final",
+    grupoId: null,
+    scheduledAt: null,
+    status: "finished",
+    winner: "A",
+    sets: { A: 2, B: 0 },
+    history: [{ a: 21, b: 18 }],
+    teams: { A: { name: "Calvos de Orion" }, B: { name: "Bye Bye Bye" } },
+    conHistorial: true,
+    ...extra
+  });
+
+  const responderSueltos = (partidos: Record<string, unknown>[]) => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ fases: [], sueltos: partidos, edicion: { anio: 2026, nombre: "La Copa Arena 2026" } })
+    });
+  };
+
+  const pintadoSuelto = async () => {
+    ejecutarScriptPublico("torneo-page.js");
+    await vi.waitFor(() => {
+      if (document.querySelectorAll(".torneo-partido").length === 0) throw new Error("todavía no ha pintado");
+    });
+  };
+
+  it("aparece en un partido terminado que se anotó, y apunta a su historial", async () => {
+    responderSueltos([suelto()]);
+    await pintadoSuelto();
+
+    const enlace = document.querySelector(".torneo-partido-historial") as HTMLAnchorElement;
+    expect(enlace).not.toBeNull();
+    expect(enlace.textContent).toBe("Cómo fue");
+    expect(enlace.getAttribute("href")).toBe("/torneo/partido/?p=p-1");
+  });
+
+  it("no aparece si el partido no se anotó punto a punto", async () => {
+    responderSueltos([suelto({ conHistorial: false })]);
+    await pintadoSuelto();
+
+    expect(document.querySelector(".torneo-partido-historial")).toBeNull();
+  });
+
+  it("no aparece mientras el partido se está jugando: ahí manda el directo", async () => {
+    responderSueltos([suelto({ status: "live", winner: null })]);
+    await pintadoSuelto();
+
+    expect(document.querySelector(".torneo-partido-historial")).toBeNull();
+  });
+});

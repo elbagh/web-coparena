@@ -174,6 +174,7 @@ async function montar(plantilla: unknown = PLANTILLA) {
   // El orden de la página: match-utils y cromo antes que el script propio.
   cargarScriptPublico("match-utils.js", "CopaArenaMatches");
   cargarScriptPublico("cromo.js", "CopaCromo");
+  cargarScriptPublico("partido-vista.js", "CopaPartidoVista");
   ejecutarScriptPublico("directo-page.js");
 }
 
@@ -419,16 +420,26 @@ describe("el marcador", () => {
   });
 
   /*
-   * `MARCADO` es copia a mano del `.astro`, así que sin esto la página podría
+   * `MARCADO` es copia a mano del marcado real, así que sin esto la página podría
    * quedarse sin los huecos de los sets con todo lo de arriba en verde: el
    * marcador se pintaría a medias y nada lo diría.
+   *
+   * El marcado vive en `Versus.astro` desde que `/torneo/partido/` pinta el mismo
+   * versus, así que se lee de allí. Y se comprueba además que `/directo/` monte
+   * ese componente: sin eso, esta prueba pasaría sobre un fichero que la página
+   * ya no usa.
    */
   it("la página trae los cuatro huecos del marcador", () => {
+    const componente = readFileSync(
+      path.resolve(import.meta.dirname, "../../src/components/Versus.astro"),
+      "utf8"
+    );
     const astro = readFileSync(path.resolve(import.meta.dirname, "../../src/pages/directo.astro"), "utf8");
 
     for (const marca of ["data-versus-sets-a", "data-versus-sets-b", "data-versus-puntos-a", "data-versus-puntos-b"]) {
-      expect(astro).toContain(marca);
+      expect(componente).toContain(marca);
     }
+    expect(astro).toContain("<Versus reloj />");
   });
 
   /*

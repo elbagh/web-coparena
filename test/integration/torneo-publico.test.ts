@@ -32,7 +32,7 @@ interface Salida {
     }[];
     partidos: { id: string; status: string; teams: { A: { name: string } } }[];
   }[];
-  sueltos: { id: string; ronda: string }[];
+  sueltos: { id: string; ronda: string; conHistorial: boolean }[];
 }
 
 const leer = async (): Promise<Salida> => {
@@ -277,5 +277,50 @@ describe("condición de clasificación", () => {
     expect(salida.grupos.find((g) => g.nombre === "C")!.enRepesca).toBe(false);
     expect(condicion("A dos")).toBe("repesca");
     expect(condicion("C dos")).toBeNull();
+  });
+});
+
+/*
+ * `conHistorial` es lo que decide si el cuadro ofrece el enlace a «Cómo fue». No
+ * puede salir de `origen_marcador` ni de `log_version`: `soltarAnotacion` devuelve
+ * el primero a 'manual' con el log intacto, y el segundo sube también al publicar
+ * el partido o al mover el cronómetro, sin que exista un solo evento. Las dos
+ * columnas ofrecerían un historial vacío o esconderían uno que sí está.
+ */
+describe("qué partidos tienen historial", () => {
+  const sembrarEvento = async (partidoId: string, orden: number) =>
+    await env.DB.prepare(
+      `INSERT INTO partido_eventos (partido_id, orden, set_numero, tipo, lado_jugador, lado_punto)
+       VALUES (?1, ?2, 1, 'punto', 'A', 'A')`
+    )
+      .bind(partidoId, orden)
+      .run();
+
+  it("sólo los que tienen log", async () => {
+    const conLog = await crearPartido({ ronda: "Final", status: "finished" });
+    await crearPartido({ ronda: "Amistoso", status: "finished" });
+    await sembrarEvento(conLog, 0);
+
+    const sueltos = (await leer()).sueltos;
+    expect(sueltos.find((p) => p.id === conLog)!.conHistorial).toBe(true);
+    expect(sueltos.find((p) => p.ronda === "Amistoso")!.conHistorial).toBe(false);
+  });
+
+  it("un partido que soltó la anotación conserva su historial", async () => {
+    const partidoId = await crearPartido({ ronda: "Final", status: "finished" });
+    await sembrarEvento(partidoId, 0);
+    // Soltar devuelve el mando al panel, pero no borra lo anotado.
+    await env.DB.prepare("UPDATE partidos SET origen_marcador = 'manual' WHERE id = ?1")
+      .bind(partidoId)
+      .run();
+
+    expect((await leer()).sueltos.find((p) => p.id === partidoId)!.conHistorial).toBe(true);
+  });
+
+  it("uno publicado sin anotar nada no lo tiene, por mucho que suba log_version", async () => {
+    const partidoId = await crearPartido({ ronda: "Final", status: "live" });
+    await env.DB.prepare("UPDATE partidos SET log_version = 5 WHERE id = ?1").bind(partidoId).run();
+
+    expect((await leer()).sueltos.find((p) => p.id === partidoId)!.conHistorial).toBe(false);
   });
 });

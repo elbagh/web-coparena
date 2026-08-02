@@ -309,8 +309,23 @@
     if (partido.status === "finished" && partido.history?.length > 0) {
       caja.append(el("p", "torneo-partido-sets", partido.history.map((set) => `${set.a}-${set.b}`).join(" · ")));
     }
+
+    /*
+     * El historial solo se ofrece cuando existe: `conHistorial` sale de que el
+     * partido tenga log de anotación, no de que esté terminado. Un partido
+     * llevado a mano desde el panel no tiene nada que recorrer, y un enlace a una
+     * página que va a decir «no se anotó punto a punto» es peor que ningún
+     * enlace. En pasado, porque el partido lo está.
+     */
+    if (partido.status === "finished" && partido.conHistorial) {
+      const enlace = el("a", "torneo-partido-historial", "Cómo fue");
+      enlace.href = enlaceAlHistorial(partido);
+      caja.append(enlace);
+    }
     return caja;
   }
+
+  const enlaceAlHistorial = (partido) => `/torneo/partido/?p=${encodeURIComponent(partido.id)}`;
 
   /** Ronda, fecha y pista: la de un partido suelto, sin columna que lo sitúe. */
   function metaSuelta(partido) {
@@ -368,12 +383,16 @@
   }
 
   /*
-   * El cuadro lleva al directo, que desde el rediseño es su propia página. Solo
-   * si ese partido se está jugando: mandar a alguien a un marcador que no es el
-   * suyo es peor que no llevarle a ninguna parte.
+   * Una casilla del cuadro lleva a donde ese partido tenga algo que enseñar: al
+   * directo si se está jugando, y a su historial si ya se jugó y se anotó punto a
+   * punto. Sin ninguna de las dos cosas no navega — mandar a alguien a un
+   * marcador que no es el suyo es peor que no llevarle a ninguna parte.
    */
   const irAlPartido = (partido) => {
     if (partido?.status === "live") location.href = "/directo/";
+    else if (partido?.status === "finished" && partido.conHistorial) {
+      location.href = enlaceAlHistorial(partido);
+    }
   };
 
   // --------------------------------------------------------------- directo ---

@@ -34,6 +34,16 @@ export interface PartidoVistaRow {
   reglas: string;
   siguiente_partido_id: string | null;
   perdedor_partido_id: string | null;
+  /**
+   * 1 si el partido tiene log de anotación, y por tanto hay historial que abrir.
+   *
+   * No sale de una columna de `partidos` porque ninguna de las dos que lo parecen
+   * sirve: `soltarAnotacion` devuelve `origen_marcador` a `'manual'` dejando el
+   * log intacto, y `log_version` sube también al publicar el partido o al mover
+   * el cronómetro, sin que exista un solo evento. Las dos ofrecerían el enlace a
+   * un historial vacío o lo esconderían habiéndolo.
+   */
+  tiene_log: number;
 }
 
 export async function cargarTorneo(db: D1Database, edicionId: number) {
@@ -64,9 +74,14 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
       .all<{ grupo_id: number; equipo_id: number; nombre: string }>(),
     db
       .prepare(
-        `SELECT * FROM partidos
-          WHERE edicion_id = ?1
-          ORDER BY ronda_orden ASC, posicion ASC, sort_order ASC, created_at ASC`
+        // El EXISTS es una sonda al índice de UNIQUE(partido_id, orden) por
+        // partido: son treinta en una lectura que está cacheada 30 s y no se
+        // sondea. Contar los eventos sería leer el log entero del torneo.
+        `SELECT p.*,
+                EXISTS (SELECT 1 FROM partido_eventos e WHERE e.partido_id = p.id) AS tiene_log
+           FROM partidos p
+          WHERE p.edicion_id = ?1
+          ORDER BY p.ronda_orden ASC, p.posicion ASC, p.sort_order ASC, p.created_at ASC`
       )
       .bind(edicionId)
       .all<PartidoVistaRow>(),
@@ -214,7 +229,9 @@ export const mapPartido = (partido: PartidoVistaRow) => ({
     B: { id: partido.equipo_b_id, name: partido.equipo_b_nombre }
   },
   siguientePartidoId: partido.siguiente_partido_id,
-  perdedorPartidoId: partido.perdedor_partido_id
+  perdedorPartidoId: partido.perdedor_partido_id,
+  /** Si hay log, `/torneo/` ofrece el historial; si no, el enlace no existe. */
+  conHistorial: partido.tiene_log === 1
 });
 
 function leerHistorial(valor: string) {
