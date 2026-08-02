@@ -94,7 +94,7 @@ Jugadores inscritos:
 ${lista}
 
 Lo importante:
-- Fechas: fase de grupos del 1 al 3 de agosto y fase final del 8 al 9 de agosto, en la Playa O Pozo (Porto do Son).
+- Fechas: fase de grupos del 1 al 6 de agosto y fase final del 8 al 9 de agosto, en la Playa O Pozo (Porto do Son).
 - Inscripción: 30 € por equipo. Se pagan en el primer partido, en mano.
 - El calendario y los horarios se publicarán en nuestro Instagram:
   https://www.instagram.com/la_copa_arena/

@@ -10,10 +10,10 @@ export const event = {
   // 9 Ago» durante un tiempo en el que no había ningún partido programado ni el
   // 31 ni el 7, así que la portada prometía un viernes que no existía. Al mover
   // el calendario hay que volver aquí: no hay nada que las ate solas.
-  //   Grupos      A sáb 01/08 · B dom 02/08 · C lun 03/08
+  //   Grupos      A sáb 01/08 · B dom 02/08 · C jue 06/08
   //   Fase final  cuartos sáb 08/08 · semis, 3.º y final dom 09/08
   phases: [
-    { label: "Fase de grupos", dates: "1 Ago - 3 Ago", startISO: "2026-08-01", endISO: "2026-08-03" },
+    { label: "Fase de grupos", dates: "1 Ago - 6 Ago", startISO: "2026-08-01", endISO: "2026-08-06" },
     { label: "Fase final", dates: "8 Ago - 9 Ago", startISO: "2026-08-08", endISO: "2026-08-09" }
   ],
   location: "Playa O Pozo, Porto do Son",
