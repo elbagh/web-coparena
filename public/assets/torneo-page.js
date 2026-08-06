@@ -138,6 +138,11 @@
         fase.repesca === 1 ? "Se juega la última plaza" : `Se juegan las ${fase.repesca} últimas plazas`
       ]);
     }
+    // Sale de los datos, así que aparece sola el año que alguien no puede
+    // competir y desaparece sola el año que no pasa.
+    if (fase.grupos.some((grupo) => grupo.clasificacion.some((fila) => fila.clasifica === "retirado"))) {
+      entradas.push(["retirado", "No compite"]);
+    }
 
     const leyenda = el("p", "torneo-leyenda");
     entradas.forEach(([clave, texto]) => {
@@ -219,7 +224,8 @@
   const EXPLICACION = {
     directo: "Pasa al cuadro.",
     repesca: "Ahora mismo ocupa la plaza de repesca.",
-    aspirante: "Se juega la plaza de repesca."
+    aspirante: "Se juega la plaza de repesca.",
+    retirado: "No compite: no ocupa plaza."
   };
 
   /*
@@ -267,6 +273,17 @@
         // con una tabla en la que no pasa nada.
         if (indice === 0 && EXPLICACION[fila.clasifica]) {
           td.append(el("span", "sr-only", ` ${EXPLICACION[fila.clasifica]}`));
+        }
+        /*
+         * La cruz de quien no compite, delante del nombre. Va como nodo y no
+         * como ::after para que se pueda probar, y `aria-hidden` porque la
+         * primera celda ya lo dice con palabras: sin eso se anunciaría dos
+         * veces.
+         */
+        if (indice === 1 && fila.clasifica === "retirado") {
+          const cruz = el("span", "torneo-tabla-cruz", "✕");
+          cruz.setAttribute("aria-hidden", "true");
+          td.prepend(cruz);
         }
         tr.append(td);
       });

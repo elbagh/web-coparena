@@ -16,18 +16,27 @@
 import { valorDeCriterio, type FilaClasificacion } from "./clasificacion";
 import type { CriterioDesempate } from "./reglas";
 
-// Tres condiciones, dos de ellas plaza y la tercera no:
+// Cuatro condiciones, dos de ellas plaza y las otras dos no:
 //   - `directo`   pasa por su grupo, no depende de nadie más.
 //   - `repesca`   ahora mismo ocupa la plaza que se disputa entre grupos.
 //   - `aspirante` está en ese mismo bote y hoy se queda fuera.
+//   - `retirado`  no puede competir, así que no ocupa plaza.
 //
 // `aspirante` existe porque la tabla tiene que enseñar a los DOS que se juegan
 // la plaza, no solo al que va ganando. Pintar únicamente a uno decía que el otro
 // está eliminado, y no lo está: le basta con ganar el último partido.
-export type Condicion = "directo" | "repesca" | "aspirante";
+export type Condicion = "directo" | "repesca" | "aspirante" | "retirado";
 
-/** Las que de verdad dan plaza. Un aspirante no se siembra: todavía no ha pasado. */
-export type CondicionClasificado = Exclude<Condicion, "aspirante">;
+/**
+ * Las que de verdad dan plaza. Un aspirante no se siembra porque todavía no ha
+ * pasado, y un retirado porque ya no va a pasar.
+ *
+ * Enumerada a mano y no con `Exclude`: con `Exclude<Condicion, "aspirante">`,
+ * añadir un valor a `Condicion` lo mete aquí sin que nada falle, y un retirado
+ * acabaría siendo una semilla legítima del cuadro sin un solo error de
+ * compilación.
+ */
+export type CondicionClasificado = "directo" | "repesca";
 
 export interface GrupoParaClasificar {
   id: number;
@@ -36,6 +45,14 @@ export interface GrupoParaClasificar {
   clasifican: number;
   /** Si el siguiente de este grupo entra al bote de la repesca. */
   enRepesca: boolean;
+  /**
+   * Quién de este grupo no puede competir la fase siguiente.
+   *
+   * Obligatorio, no opcional: el sembrado del cuadro monta esta estructura a
+   * mano en otro fichero, y si se lo pudiera saltar la tabla pintaría a alguien
+   * retirado y el cuadro lo colocaría igual.
+   */
+  retirados: ReadonlySet<number>;
   clasificacion: readonly FilaClasificacion[];
 }
 
@@ -62,6 +79,26 @@ export function calcularClasificados(
   const semillas: Semilla[] = [];
 
   /*
+   * La tabla conserva la posición de quien se retira: se la ganó en el campo, y
+   * sus partidos siguen contando para los demás. Lo que se cuenta sobre la
+   * lista SIN él es el reparto de plazas — si no, saltarse al segundo dejaría
+   * la segunda plaza vacía en vez de pasársela al tercero.
+   *
+   * Un retirado se marca aquí y ya no vuelve a aparecer en ninguno de los dos
+   * bucles de abajo, así que su condición no la puede pisar nada.
+   */
+  const enJuego = new Map<number, readonly FilaClasificacion[]>();
+  for (const grupo of grupos) {
+    for (const fila of grupo.clasificacion) {
+      if (grupo.retirados.has(fila.equipoId)) condiciones.set(fila.equipoId, "retirado");
+    }
+    enJuego.set(
+      grupo.id,
+      grupo.clasificacion.filter((fila) => !grupo.retirados.has(fila.equipoId))
+    );
+  }
+
+  /*
    * Se siembra por posición y no grupo a grupo: primero todos los primeros,
    * luego todos los segundos. Así el emparejamiento 1.º contra último cruza
    * cabezas de serie con colistas, que es lo que hace que un cuadro tenga
@@ -72,7 +109,10 @@ export function calcularClasificados(
   for (let posicion = 1; posicion <= maximo; posicion += 1) {
     for (const grupo of grupos) {
       if (posicion > grupo.clasifican) continue;
-      const fila = grupo.clasificacion.find((f) => f.posicion === posicion);
+      // Por orden dentro de la lista en juego, no por `posicion`: son la misma
+      // fila mientras no haya retirados, y cuando los hay es esta la que pasa
+      // la plaza al siguiente en vez de dejarla sin dueño.
+      const fila = (enJuego.get(grupo.id) ?? [])[posicion - 1];
       if (!fila) continue;
       condiciones.set(fila.equipoId, "directo");
       semillas.push({ equipoId: fila.equipoId, nombre: fila.nombre, grupoId: grupo.id, condicion: "directo" });
@@ -89,7 +129,8 @@ export function calcularClasificados(
     .filter((grupo) => grupo.enRepesca)
     .map((grupo) => ({
       grupo,
-      fila: grupo.clasificacion.find((f) => f.posicion === grupo.clasifican + 1)
+      // El primero que se queda fuera de las plazas directas, retirados aparte.
+      fila: (enJuego.get(grupo.id) ?? [])[grupo.clasifican]
     }))
     .filter((candidato): candidato is { grupo: GrupoParaClasificar; fila: FilaClasificacion } =>
       candidato.fila !== undefined

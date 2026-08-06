@@ -186,8 +186,30 @@
     }
 
     grupo.equipos.forEach((equipo) => {
-      const item = el("li", "torneo-chip");
+      const item = el("li", `torneo-chip${equipo.retirado ? " is-retirado" : ""}`);
+      if (equipo.retirado) {
+        const cruz = el("span", "torneo-chip-cruz", "✕");
+        cruz.setAttribute("aria-hidden", "true");
+        item.append(cruz);
+      }
       item.append(el("span", "", equipo.nombre));
+
+      /*
+       * Retirar no es sacar del grupo: el equipo sigue en la tabla con la
+       * posición que se ganó y sus partidos siguen contando para los demás.
+       * Lo que deja de hacer es ocupar plaza.
+       */
+      const baja = el("button", "torneo-chip-baja", equipo.retirado ? "Vuelve" : "Retirar");
+      baja.type = "button";
+      baja.setAttribute(
+        "aria-label",
+        equipo.retirado
+          ? `${equipo.nombre} vuelve a competir`
+          : `Marcar que ${equipo.nombre} no compite la fase siguiente`
+      );
+      baja.addEventListener("click", () => cambiarRetirado(grupo, equipo));
+      item.append(baja);
+
       const quitar = el("button", "torneo-chip-quitar", "×");
       quitar.type = "button";
       quitar.setAttribute("aria-label", `Sacar a ${equipo.nombre} de ${grupo.nombre}`);
@@ -416,6 +438,28 @@
   async function sacarEquipo(grupo, equipo) {
     await escribir(() =>
       apiJson(`/api/admin/torneo?accion=asignar&grupo=${grupo.id}&equipo=${equipo.id}`, "DELETE")
+    );
+  }
+
+  /*
+   * Cambia quién puede competir la fase siguiente. Marcar pide confirmación
+   * porque mueve las plazas de todo el grupo —y con ellas la repesca— en cuanto
+   * se guarda; desmarcar no, porque devuelve las cosas a su sitio.
+   */
+  async function cambiarRetirado(grupo, equipo) {
+    if (!equipo.retirado) {
+      const ok = await confirmar({
+        titulo: `${equipo.nombre} no compite`,
+        texto: "Seguirá en la clasificación con su posición, pero su plaza pasará al siguiente del grupo.",
+        accion: "Marcar la baja"
+      });
+      if (!ok) return;
+    }
+    await escribir(() =>
+      apiJson(`/api/admin/torneo?accion=retirado&id=${grupo.id}`, "PATCH", {
+        equipoId: equipo.id,
+        retirado: !equipo.retirado
+      })
     );
   }
 

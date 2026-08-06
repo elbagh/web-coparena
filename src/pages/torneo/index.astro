@@ -3,6 +3,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import SiteFooter from "../../components/SiteFooter.astro";
 import { breadcrumb } from "../../data/seo";
+import { avisoTorneo } from "../../data/event";
 
 const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
 ---
@@ -31,6 +32,24 @@ const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
     <p class="torneo-directo" data-torneo-directo hidden aria-live="polite">
       Se está jugando ahora: <a href="/directo/" data-torneo-directo-enlace>ver el directo</a>
     </p>
+
+    {/*
+      Va en el marcado y no en torneo-page.js a propósito: explica por qué la
+      tabla del grupo B no se lee como de costumbre, así que tiene que seguir
+      ahí cuando /api/torneo falla y no pinta ninguna tabla. Las dos fichas
+      repiten los colores que llevarán esas filas, para reconocerlas al llegar.
+    */}
+    <aside class="torneo-aviso">
+      <p class="torneo-aviso-eyebrow">{avisoTorneo.eyebrow}</p>
+      <h2>{avisoTorneo.titulo}</h2>
+      {avisoTorneo.parrafos.map((parrafo) => <p>{parrafo}</p>)}
+      <p class="torneo-aviso-fichas">
+        <span class="torneo-aviso-ficha is-retirado">
+          <span class="torneo-tabla-cruz" aria-hidden="true">✕</span>{avisoTorneo.equipos.fuera}
+        </span>
+        <span class="torneo-aviso-ficha is-directo">{avisoTorneo.equipos.dentro}</span>
+      </p>
+    </aside>
 
     <p class="teams-status" data-torneo-status aria-live="polite">Cargando el torneo…</p>
     <button type="button" class="button button-secondary" data-torneo-retry hidden>Reintentar</button>

@@ -91,6 +91,7 @@ export const onRequestPatch: PagesFunction<AdminEnv> = async ({ request, env }) 
   try {
     if (accion === "fase") return await editarFase(env.DB, id, body);
     if (accion === "grupo") return await editarGrupo(env.DB, id, body);
+    if (accion === "retirado") return await marcarRetirado(env.DB, id, body);
     return accionNoValida();
   } catch (err) {
     console.error(`Error editando el torneo (${accion}):`, err);
@@ -292,6 +293,34 @@ async function editarGrupo(db: D1Database, id: number, body: Record<string, unkn
   return await respuesta(db);
 }
 
+/*
+ * Marcar o desmarcar que un equipo no puede competir la fase siguiente.
+ *
+ * Va en su propia acción y no como un campo más del PATCH del grupo por lo
+ * mismo que `camisetas ?accion=entrega`: aquél valida nombre, orden, reglas y
+ * cupo, así que marcar una baja desde el botón de un chip obligaría a reenviar
+ * el grupo entero. Y el UPDATE de `editarGrupo` no menciona esta columna, igual
+ * que `_lib/equipo-editor.ts` no menciona las del cromo: si se añadiera ahí,
+ * corregir el nombre de un grupo desharía la baja sin que nadie lo viera.
+ */
+async function marcarRetirado(db: D1Database, grupoId: number, body: Record<string, unknown>): Promise<Response> {
+  const equipoId = Number(body.equipoId);
+  if (!Number.isInteger(equipoId) || equipoId <= 0) return accionNoValida();
+
+  const asignacion = await db
+    .prepare("SELECT equipo_id FROM torneo_grupo_equipos WHERE grupo_id = ?1 AND equipo_id = ?2")
+    .bind(grupoId, equipoId)
+    .first();
+  if (!asignacion) return jsonAdmin({ error: "Ese equipo ya no está en ese grupo." }, 404);
+
+  await db
+    .prepare("UPDATE torneo_grupo_equipos SET retirado = ?1 WHERE grupo_id = ?2 AND equipo_id = ?3")
+    .bind(body.retirado === false ? 0 : 1, grupoId, equipoId)
+    .run();
+
+  return await respuesta(db);
+}
+
 async function asignarEquipo(db: D1Database, url: URL, body: Record<string, unknown>): Promise<Response> {
   const grupoId = idDeQuery(url, "grupo");
   const equipoId = Number(body.equipoId);
@@ -420,6 +449,9 @@ async function accionSembrar(db: D1Database, url: URL, body: Record<string, unkn
       nombre: grupo.nombre,
       clasifican: grupo.clasifican,
       enRepesca: grupo.enRepesca,
+      // Sin esto un retirado entraría en las semillas y acabaría colocado en el
+      // cuadro, con la tabla pintándolo en gris.
+      retirados: new Set(grupo.equipos.filter((e) => e.retirado).map((e) => e.id)),
       clasificacion: grupo.clasificacion
     })),
     origen.repesca,

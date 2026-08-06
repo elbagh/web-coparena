@@ -45,6 +45,11 @@
   --clasifica-directo: #d2ed91;
   --clasifica-repesca: #ffeaa9;
   --clasifica-repesca-borde: #c79a1f;
+  /* Gris de «no compite»: --dune desaturado. Los otros dos estados añaden
+     color; este lo quita, que es exactamente lo que significa. La tinta encima
+     sigue por encima de 4.5:1, así que el texto no se atenúa — la fila lleva el
+     balance real del equipo y hay que poder leerlo. */
+  --clasifica-retirado: #ddd7c8;
   /*
    * Azul y rojo de equipación: los dos lados de un partido, en el directo y en
    * el anotador. No son --sea y --coral porque en un versus el color ES la
@@ -6560,6 +6565,72 @@ html.ver-como .repaso {
   color: var(--aqua);
 }
 
+/*
+ * El aviso de una decisión de la organización que la tabla sola no explica.
+ * Pegatina de la casa —filo de tinta y sombra dura— sobre el ámbar que en la
+ * clasificación significa «esto se está decidiendo». Sin inclinación: son dos
+ * párrafos y hay que leerlos, no mirarlos.
+ *
+ * Su h2 lleva tamaño propio porque el de `.torneo-seccion h2` es escala de
+ * título de sección y aquí competiría con el h1 de la página.
+ */
+.torneo-aviso {
+  background: var(--clasifica-repesca);
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 5px 5px 0 var(--ink);
+  /* Alineado a la izquierda y no centrado como `.torneo-directo`: el título, el
+     de cada sección y la rejilla de grupos arrancan todos en el margen, y un
+     bloque de este tamaño centrado en una página de 1240px se lee como si no
+     fuera de aquí. */
+  margin: 0 0 26px;
+  max-width: 620px;
+  padding: 16px 18px;
+}
+
+.torneo-aviso-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.torneo-aviso h2 {
+  font-size: clamp(1.15rem, 4.4vw, 1.45rem);
+  line-height: 1.15;
+  margin: 0 0 10px;
+}
+
+.torneo-aviso p:not(.torneo-aviso-eyebrow):not(.torneo-aviso-fichas) {
+  font-size: 0.92rem;
+  margin: 0 0 8px;
+}
+
+/* Las dos filas que van a cambiar de color, con su color puesto ya aquí. */
+.torneo-aviso-fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.torneo-aviso-ficha {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 4px 12px;
+}
+
+.torneo-aviso-ficha.is-directo {
+  background: var(--clasifica-directo);
+}
+
+.torneo-aviso-ficha.is-retirado {
+  background: var(--clasifica-retirado);
+}
+
 .torneo-seccion {
   margin: 0 auto 32px;
   max-width: 900px;
@@ -6624,17 +6695,23 @@ html.ver-como .repaso {
 }
 
 /*
- * Quién asciende es la lectura principal de una clasificación, y son tres
- * estados con solo dos colores:
+ * Quién asciende es la lectura principal de una clasificación, y son cuatro
+ * estados con tres colores:
  *
  *   verde              pasa por su grupo, no depende de nadie
  *   ámbar + barra      ahora mismo ocupa la plaza que se disputa entre grupos
  *   ámbar sin barra    está en ese mismo bote y hoy se queda fuera
+ *   gris + cruz        no puede competir, así que no ocupa plaza
  *
  * Los dos ámbar comparten fondo a propósito: el mensaje es «de estos pasa uno».
  * El tercer color sería un color para un matiz, y la barra ya lo cuenta. Y el
  * borde ámbar va oscurecido porque --sun (#ffd95d) a 3px sobre el propio fondo
  * ámbar no se distingue.
+ *
+ * El gris sí es un color aparte porque no es un matiz de los otros: es la
+ * ausencia de estado. Y no basta con el fondo, porque una fila sin marca ya
+ * existe (blanca): de ahí la cruz. Dos señales y no tres — el nombre no va
+ * tachado, que sería decir lo mismo una vez más.
  */
 .torneo-tabla tbody tr.is-directo {
   background: var(--clasifica-directo);
@@ -6658,6 +6735,23 @@ html.ver-como .repaso {
 .torneo-tabla tbody tr.is-directo td:nth-child(2),
 .torneo-tabla tbody tr.is-repesca td:nth-child(2) {
   font-weight: 700;
+}
+
+.torneo-tabla tbody tr.is-retirado {
+  background: var(--clasifica-retirado);
+}
+
+.torneo-tabla tbody tr.is-retirado td:first-child {
+  box-shadow: inset 3px 0 0 var(--muted);
+}
+
+.torneo-tabla-cruz {
+  font-weight: 800;
+  margin-right: 6px;
+}
+
+.torneo-leyenda-muestra.is-retirado {
+  background: var(--clasifica-retirado);
 }
 
 .torneo-partidos {

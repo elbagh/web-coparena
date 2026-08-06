@@ -440,6 +440,33 @@
   color: var(--adm-danger);
 }
 
+/* Marcado como que no compite la fase siguiente. Sigue en el grupo y en la
+   tabla: lo que pierde es la plaza, así que el chip se apaga en vez de irse. */
+.torneo-chip.is-retirado {
+  background: var(--adm-surface-alt);
+  border-style: dashed;
+  color: var(--adm-muted);
+}
+
+.torneo-chip-cruz {
+  font-weight: 700;
+}
+
+.torneo-chip-baja {
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  color: var(--adm-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+}
+
+.torneo-chip-baja:hover {
+  background: var(--adm-line);
+  color: var(--adm-ink);
+}
+
 .torneo-anadir {
   margin-bottom: 10px;
 }
@@ -605,4 +632,15 @@
 .torneo-clasificacion tbody tr.is-repesca td:first-child {
   box-shadow: inset 3px 0 0 var(--adm-warn);
   font-weight: 700;
+}
+
+/* Quien no compite: conserva su posición y pierde la plaza. Gris y no un color
+   más, porque no es un grado de clasificación sino su ausencia. */
+.torneo-clasificacion tbody tr.is-retirado {
+  background: var(--adm-surface-alt);
+  color: var(--adm-muted);
+}
+
+.torneo-clasificacion tbody tr.is-retirado td:first-child {
+  box-shadow: inset 3px 0 0 var(--adm-muted);
 }

@@ -1,0 +1,21 @@
+-- Migration number: 0033 	 equipo_retirado
+-- Un equipo puede clasificarse y aun asi no poder jugar la fase siguiente.
+-- Eso no se deduce de ningun partido: no es un resultado, es una baja, asi que
+-- hay que guardarlo. Sin esta columna la unica forma de reflejarlo era borrar
+-- al equipo del grupo, y eso se llevaria por delante su clasificacion y la de
+-- los demas, que jugaron contra el.
+--
+-- Vive en torneo_grupo_equipos y no en equipos porque es de esta edicion y de
+-- esta fase. El equipo sigue existiendo, sigue en el album y conserva sus
+-- estadisticas; lo unico que ocurre es que no ocupa plaza.
+--
+-- La clasificacion NO lo mueve de sitio: conserva la posicion que se gano en el
+-- campo. Lo que cambia es el reparto de plazas, que en clasificados.ts cuenta
+-- sobre la lista sin el, para que saltarse al segundo le pase la plaza al
+-- tercero en vez de dejarla vacia.
+--
+-- Aditiva y con DEFAULT 0, como pide el orden de despliegue: durante los
+-- segundos que tarda el deploy, el codigo viejo sigue sirviendo trafico contra
+-- un esquema que es un superconjunto del que conoce.
+ALTER TABLE torneo_grupo_equipos
+  ADD COLUMN retirado INTEGER NOT NULL DEFAULT 0 CHECK (retirado IN (0, 1));

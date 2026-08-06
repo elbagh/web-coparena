@@ -531,3 +531,101 @@ describe("plazas por grupo y repesca", () => {
     expect(colocados.sort()).toEqual(["A dos", "A uno", "B uno"]);
   });
 });
+
+/*
+ * Un equipo que se clasificó y no puede jugar la fase siguiente. No es un
+ * resultado, así que no se deduce de ningún partido: lo marca la organización.
+ * Y no es sacarlo del grupo — sigue en la tabla con lo que hizo en el campo, y
+ * sus partidos siguen contando para los demás.
+ */
+describe("retirar a un equipo de la fase siguiente", () => {
+  const montar = async () => {
+    const admin = await crearAdmin();
+    const fase = await crearFase({ clave: "grupos", tipo: "grupos", clasifican: 2 });
+    const grupo = await crearGrupo(fase.id, { nombre: "B", orden: 0 });
+    const equipo = await crearEquipo({ nombre: "Limens" });
+    await asignarEquipoAGrupo(grupo, fase.id, equipo.id);
+    return { admin, fase, grupo, equipo };
+  };
+
+  const equipoEnSalida = async (admin: UsuarioSesion, equipoId: number) => {
+    const torneo = (await leer(admin)) as unknown as {
+      fases: { grupos: { equipos: { id: number; retirado?: boolean }[] }[] }[];
+    };
+    return torneo.fases[0]!.grupos[0]!.equipos.find((e) => e.id === equipoId)!;
+  };
+
+  it("marca y desmarca la baja, y la respuesta lo refleja", async () => {
+    const { admin, grupo, equipo } = await montar();
+
+    expect((await equipoEnSalida(admin, equipo.id)).retirado).toBe(false);
+
+    expect((await patch(admin, `accion=retirado&id=${grupo}`, { equipoId: equipo.id, retirado: true })).status).toBe(200);
+    expect((await equipoEnSalida(admin, equipo.id)).retirado).toBe(true);
+
+    expect((await patch(admin, `accion=retirado&id=${grupo}`, { equipoId: equipo.id, retirado: false })).status).toBe(200);
+    expect((await equipoEnSalida(admin, equipo.id)).retirado).toBe(false);
+  });
+
+  it("404 si ese equipo no está en ese grupo", async () => {
+    const { admin, grupo } = await montar();
+    const ajeno = await crearEquipo({ nombre: "De otro grupo" });
+
+    expect((await patch(admin, `accion=retirado&id=${grupo}`, { equipoId: ajeno.id })).status).toBe(404);
+  });
+
+  /*
+   * El mismo cerrojo que `camisetas_reservas.entregada` y que las columnas del
+   * cromo: el UPDATE del grupo no menciona la columna. Si se añadiera ahí,
+   * corregir el nombre de un grupo desharía la baja sin que nadie lo viera.
+   */
+  it("editar el grupo no deshace la baja", async () => {
+    const { admin, grupo, equipo } = await montar();
+    await patch(admin, `accion=retirado&id=${grupo}`, { equipoId: equipo.id, retirado: true });
+
+    expect((await patch(admin, `accion=grupo&id=${grupo}`, { nombre: "B renombrado" })).status).toBe(200);
+
+    expect((await equipoEnSalida(admin, equipo.id)).retirado).toBe(true);
+  });
+
+  it("un retirado no se siembra en el cuadro, y su plaza baja al siguiente", async () => {
+    const admin = await crearAdmin();
+    const grupos = await crearFase({ clave: "grupos", tipo: "grupos", clasifican: 2 });
+    const grupo = await crearGrupo(grupos.id, { nombre: "B", orden: 0 });
+
+    const primero = await crearEquipo({ nombre: "Segarro" });
+    const segundo = await crearEquipo({ nombre: "Limens" });
+    const tercero = await crearEquipo({ nombre: "Croquetillas de Arena" });
+    const cuarto = await crearEquipo({ nombre: "Deportivo A Silva" });
+    await asignarEquipoAGrupo(grupo, grupos.id, primero.id);
+    await asignarEquipoAGrupo(grupo, grupos.id, segundo.id, { retirado: true });
+    await asignarEquipoAGrupo(grupo, grupos.id, tercero.id);
+    await asignarEquipoAGrupo(grupo, grupos.id, cuarto.id);
+
+    await crearPartido({
+      faseId: grupos.id, grupoId: grupo, equipoA: primero, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 30, puntosB: 10
+    });
+    await crearPartido({
+      faseId: grupos.id, grupoId: grupo, equipoA: segundo, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 30, puntosB: 12
+    });
+    await crearPartido({
+      faseId: grupos.id, grupoId: grupo, equipoA: tercero, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 1, puntosA: 40, puntosB: 35
+    });
+
+    const cuadro = await crearFase({ clave: "cuadro", tipo: "eliminatoria", orden: 1 });
+    await post(admin, `accion=generar-cuadro&fase=${cuadro.id}`, { tamano: 2 });
+    expect((await post(admin, `accion=sembrar&fase=${cuadro.id}`, { desdeFase: grupos.id })).status).toBe(200);
+
+    const { results } = await env.DB
+      .prepare("SELECT equipo_a_nombre, equipo_b_nombre FROM partidos WHERE fase_id = ?1")
+      .bind(cuadro.id)
+      .all<{ equipo_a_nombre: string; equipo_b_nombre: string }>();
+    const colocados = results.flatMap((p) => [p.equipo_a_nombre, p.equipo_b_nombre]).filter(Boolean);
+
+    expect(colocados).not.toContain("Limens");
+    expect(colocados.sort()).toEqual(["Croquetillas de Arena", "Segarro"]);
+  });
+});

@@ -250,6 +250,85 @@ describe("la tabla de un grupo en /torneo/", () => {
 
     expect(document.querySelectorAll(".torneo-leyenda-muestra.is-repesca")).toHaveLength(0);
   });
+
+  /*
+   * Un equipo que se clasificó pero no puede jugar la fase siguiente. Conserva
+   * su posición —se la ganó en el campo— y pierde la plaza, así que la tabla
+   * tiene que decir las dos cosas a la vez: el número sigue ahí y la fila sale
+   * apagada.
+   */
+  describe("quien no compite", () => {
+    const conRetirado = () =>
+      fase(
+        {},
+        {
+          clasificacion: [
+            fila(1, "Segarro", "directo"),
+            fila(2, "Limens", "retirado"),
+            fila(3, "Croquetillas de Arena", "directo"),
+            fila(4, "Deportivo A Silva", null)
+          ]
+        }
+      );
+
+    it("lleva su clase y ninguna de las de pasar", async () => {
+      responder(conRetirado());
+      await pintado();
+
+      const filas = [...document.querySelectorAll(".torneo-tabla tbody tr")];
+      expect(filas[1]!.classList.contains("is-retirado")).toBe(true);
+      expect(filas[1]!.classList.contains("is-directo")).toBe(false);
+      expect(filas[1]!.classList.contains("is-repesca")).toBe(false);
+      // Y el de abajo sí pasa: la plaza no se queda vacía.
+      expect(filas[2]!.classList.contains("is-directo")).toBe(true);
+    });
+
+    it("conserva la posición que se ganó", async () => {
+      responder(conRetirado());
+      await pintado();
+
+      const filas = [...document.querySelectorAll(".torneo-tabla tbody tr")];
+      expect(filas[1]!.querySelector("td")!.textContent).toContain("2");
+      expect(filas[1]!.querySelectorAll("td")[1]!.textContent).toContain("Limens");
+    });
+
+    it("lleva la cruz en la celda del nombre, y sin anunciarla dos veces", async () => {
+      responder(conRetirado());
+      await pintado();
+
+      const filas = [...document.querySelectorAll(".torneo-tabla tbody tr")];
+      const cruz = filas[1]!.querySelectorAll("td")[1]!.querySelector(".torneo-tabla-cruz")!;
+      expect(cruz).not.toBeNull();
+      expect(cruz.getAttribute("aria-hidden")).toBe("true");
+      // Solo la suya: las demás filas no llevan cruz.
+      expect(document.querySelectorAll(".torneo-tabla-cruz")).toHaveLength(1);
+    });
+
+    it("dice con palabras lo que significa el gris", async () => {
+      responder(conRetirado());
+      await pintado();
+
+      const filas = [...document.querySelectorAll(".torneo-tabla tbody tr")];
+      expect(filas[1]!.querySelector(".sr-only")!.textContent!.trim()).toBe("No compite: no ocupa plaza.");
+    });
+
+    it("la leyenda añade su muestra, y solo cuando hay alguien", async () => {
+      responder(conRetirado());
+      await pintado();
+
+      const leyenda = document.querySelector(".torneo-leyenda")!;
+      expect(leyenda.textContent).toContain("No compite");
+      expect(document.querySelectorAll(".torneo-leyenda-muestra.is-retirado")).toHaveLength(1);
+    });
+
+    it("sin nadie retirado, la leyenda no la menciona", async () => {
+      responder(fase());
+      await pintado();
+
+      expect(document.querySelectorAll(".torneo-leyenda-muestra.is-retirado")).toHaveLength(0);
+      expect(document.querySelector(".torneo-leyenda")!.textContent).not.toContain("No compite");
+    });
+  });
 });
 
 /*
