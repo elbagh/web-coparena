@@ -11,8 +11,7 @@
  *
  * Los huecos salen de una sola pista y de empezar a las 16:30 (grupos) y a las
  * 17:00 (eliminatoria):
- *   - Grupos A y B: 6 partidos al mejor de 3 a 15 -> 50 min por hueco.
- *   - Grupo C: 10 partidos a un set de 21 -> 30 min.
+ *   - Grupos A, B y C: 6 partidos al mejor de 3 a 15 -> 50 min por hueco.
  *   - Eliminatoria: 4 partidos al mejor de 3 a 21/21/15 -> 60 min.
  * Ninguna tarde pasa de las 21:30.
  */
@@ -41,7 +40,7 @@ const consultar = (sql) => {
 const TARDES = [
   { grupo: "A", fecha: "2026-08-01", inicio: "16:30", huecoMin: 50 },
   { grupo: "B", fecha: "2026-08-02", inicio: "16:30", huecoMin: 50 },
-  { grupo: "C", fecha: "2026-08-03", inicio: "16:30", huecoMin: 30 }
+  { grupo: "C", fecha: "2026-08-06", inicio: "16:30", huecoMin: 50 }
 ];
 
 const dosDigitos = (n) => String(n).padStart(2, "0");

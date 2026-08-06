@@ -3,7 +3,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import SiteFooter from "../../components/SiteFooter.astro";
 import { breadcrumb } from "../../data/seo";
-import { avisoTorneo } from "../../data/event";
+import { avisoTorneo, avisoGrupoC } from "../../data/event";
 
 const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
 ---
@@ -34,22 +34,32 @@ const structuredData = [breadcrumb([{ name: "Torneo", path: "/torneo/" }])];
     </p>
 
     {/*
-      Va en el marcado y no en torneo-page.js a propósito: explica por qué la
-      tabla del grupo B no se lee como de costumbre, así que tiene que seguir
-      ahí cuando /api/torneo falla y no pinta ninguna tabla. Las dos fichas
-      repiten los colores que llevarán esas filas, para reconocerlas al llegar.
+      Van en el marcado y no en torneo-page.js a propósito: explican por qué las
+      tablas de dos grupos no se leen como de costumbre, así que tienen que
+      seguir ahí cuando /api/torneo falla y no pinta ninguna tabla. Las dos
+      fichas del primero repiten los colores que llevarán esas filas, para
+      reconocerlas al llegar; el segundo no lleva fichas porque Dosilva ya no
+      tiene fila en ninguna tabla.
     */}
-    <aside class="torneo-aviso">
-      <p class="torneo-aviso-eyebrow">{avisoTorneo.eyebrow}</p>
-      <h2>{avisoTorneo.titulo}</h2>
-      {avisoTorneo.parrafos.map((parrafo) => <p>{parrafo}</p>)}
-      <p class="torneo-aviso-fichas">
-        <span class="torneo-aviso-ficha is-retirado">
-          <span class="torneo-tabla-cruz" aria-hidden="true">✕</span>{avisoTorneo.equipos.fuera}
-        </span>
-        <span class="torneo-aviso-ficha is-directo">{avisoTorneo.equipos.dentro}</span>
-      </p>
-    </aside>
+    <div class="torneo-avisos">
+      <aside class="torneo-aviso">
+        <p class="torneo-aviso-eyebrow">{avisoTorneo.eyebrow}</p>
+        <h2>{avisoTorneo.titulo}</h2>
+        {avisoTorneo.parrafos.map((parrafo) => <p>{parrafo}</p>)}
+        <p class="torneo-aviso-fichas">
+          <span class="torneo-aviso-ficha is-retirado">
+            <span class="torneo-tabla-cruz" aria-hidden="true">✕</span>{avisoTorneo.equipos.fuera}
+          </span>
+          <span class="torneo-aviso-ficha is-directo">{avisoTorneo.equipos.dentro}</span>
+        </p>
+      </aside>
+
+      <aside class="torneo-aviso is-neutro">
+        <p class="torneo-aviso-eyebrow">{avisoGrupoC.eyebrow}</p>
+        <h2>{avisoGrupoC.titulo}</h2>
+        {avisoGrupoC.parrafos.map((parrafo) => <p>{parrafo}</p>)}
+      </aside>
+    </div>
 
     <p class="teams-status" data-torneo-status aria-live="polite">Cargando el torneo…</p>
     <button type="button" class="button button-secondary" data-torneo-retry hidden>Reintentar</button>

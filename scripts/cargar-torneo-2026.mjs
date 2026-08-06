@@ -1,7 +1,12 @@
 /*
  * Genera el SQL que deja programado el torneo 2026: fase de grupos con sus tres
- * grupos, el calendario de los 22 partidos, la fase eliminatoria con su cuadro
+ * grupos, el calendario de los 18 partidos, la fase eliminatoria con su cuadro
  * de ocho, y los horarios de las cinco tardes.
+ *
+ * El calendario que se jugo de verdad no sale de aqui: el orden del grupo C se
+ * rehizo a mano en D1 cuando Dosilva se retiro, para que Showtime jugara los
+ * tres ultimos partidos. Este script vuelve a dar el orden del metodo del
+ * circulo.
  *
  * Lee los ids reales de los equipos de la base a la que apunte, para no
  * inventarlos ni depender del orden de inscripcion.
@@ -14,7 +19,7 @@
  * los endpoints de admin necesitan una sesion firmada con el SESSION_SECRET de
  * produccion, que no esta disponible desde fuera del worker.
  * test/integration/torneo-2026.test.ts prueba el mismo montaje contra los
- * endpoints de verdad y da los mismos 6 + 6 + 10.
+ * endpoints de verdad y da los mismos 6 + 6 + 6.
  */
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -40,23 +45,6 @@ const REGLAS_FASE = {
     puntosDerrota: 0,
     puntosVictoriaAjustada: 2,
     puntosDerrotaAjustada: 1,
-    desempates: ["puntos", "enfrentamiento_directo", "ratio_sets", "ratio_puntos"]
-  }
-};
-
-/*
- * El grupo de cinco juega a un set, y con `sets: 1` TODO partido cuenta como
- * resuelto en el set decisivo (setsMaximos vale 1). Sin igualar los valores
- * ajustados a los normales, cada victoria valdria 2 y cada derrota 1 en vez de
- * 3 y 0.
- */
-const REGLAS_GRUPO_C = {
-  partido: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 },
-  clasificacion: {
-    puntosVictoria: 3,
-    puntosDerrota: 0,
-    puntosVictoriaAjustada: 3,
-    puntosDerrotaAjustada: 0,
     desempates: ["puntos", "enfrentamiento_directo", "ratio_sets", "ratio_puntos"]
   }
 };
@@ -96,11 +84,11 @@ const GRUPOS = [
     orden: 2,
     clasifican: 3,
     enRepesca: 0,
-    reglas: REGLAS_GRUPO_C,
-    fecha: "2026-08-03",
+    reglas: null,
+    fecha: "2026-08-06",
     inicio: "16:30",
-    huecoMin: 30,
-    equipos: ["Showtime", "Dosilva", "Kylian dictador", "ONDA BRAVA", "Alejo Mouris"]
+    huecoMin: 50,
+    equipos: ["Showtime", "Kylian dictador", "ONDA BRAVA", "Alejo Mouris"]
   }
 ];
 
