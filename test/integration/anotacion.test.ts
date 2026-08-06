@@ -353,13 +353,13 @@ describe("anotar un punto", () => {
  * a 15, sin error, sin nada roto y sin que ninguna prueba de la pantalla se
  * enterase — las suyas se montan con un objeto a mano.
  *
- * Los tres formatos son los del torneo 2026: grupos de cuatro al mejor de tres a
- * 15, grupo de cinco a un set de 21, y cuadro a 21 con tercero de 15.
+ * Los tres formatos son los que sabe montar el panel: al mejor de tres a 15 (los
+ * grupos del torneo 2026), a un set de 21, y a 21 con tercero de 15 (el cuadro).
  */
 describe("las reglas que llegan a la pantalla", () => {
   const formatos = [
-    { que: "grupos de cuatro", reglas: { sets: 2, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 2 } },
-    { que: "grupo de cinco", reglas: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 } },
+    { que: "al mejor de tres a 15", reglas: { sets: 2, puntosPorSet: 15, puntosSetDecisivo: 15, diferencia: 2 } },
+    { que: "a un set de 21", reglas: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 } },
     { que: "cuadro", reglas: { sets: 2, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } }
   ];
 

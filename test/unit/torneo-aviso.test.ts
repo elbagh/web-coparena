@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { avisoTorneo } from "../../src/data/event";
+import { avisoGrupoC, avisoTorneo } from "../../src/data/event";
 
 /*
  * El aviso de /torneo/ que explica por qué la tabla de un grupo no se lee como
@@ -21,6 +21,7 @@ describe("el aviso de /torneo/", () => {
   it("vive en el marcado de la página, no en su script", () => {
     expect(PAGINA).toContain("torneo-aviso");
     expect(PAGINA).toContain("avisoTorneo");
+    expect(PAGINA).toContain("avisoGrupoC");
     expect(SCRIPT).not.toContain("torneo-aviso");
   });
 
@@ -28,6 +29,8 @@ describe("el aviso de /torneo/", () => {
     expect(PAGINA).toContain('from "../../data/event"');
     expect(PAGINA).not.toContain(avisoTorneo.titulo);
     expect(PAGINA).not.toContain(avisoTorneo.parrafos[0]);
+    expect(PAGINA).not.toContain(avisoGrupoC.titulo);
+    expect(PAGINA).not.toContain(avisoGrupoC.parrafos[0]);
   });
 
   /*
@@ -40,5 +43,24 @@ describe("el aviso de /torneo/", () => {
     expect(avisoTorneo.equipos.dentro).toBe("Croquetillas de Arena");
     expect(PAGINA).toContain("torneo-aviso-ficha is-retirado");
     expect(PAGINA).toContain("torneo-aviso-ficha is-directo");
+  });
+
+  /*
+   * El aviso del grupo C habla de un equipo que salió del grupo, así que no
+   * tiene fila en ninguna tabla. Las fichas de colores significan «así queda
+   * esta fila», y `is-neutro` le quita el ámbar de la repesca por lo mismo: un
+   * color de clasificación aquí prometería una fila que no existe.
+   */
+  it("el del grupo C no señala ninguna fila, y por eso va sin fichas ni color de clasificación", () => {
+    expect(avisoGrupoC).not.toHaveProperty("equipos");
+    expect(PAGINA).toContain("torneo-aviso is-neutro");
+  });
+
+  /*
+   * Los dos cuelgan de la misma rejilla. Sueltos y apilados, la primera tabla
+   * del torneo empezaba fuera de la pantalla en escritorio.
+   */
+  it("los dos van dentro de .torneo-avisos", () => {
+    expect(PAGINA).toContain("torneo-avisos");
   });
 });

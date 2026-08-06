@@ -261,7 +261,8 @@ export type Regla = {
  * `torneo_fases.reglas` / `torneo_grupos.reglas` en D1 y se editan desde
  * /admin/torneo/. Si allí se cambian los valores, hay que volver aquí a mano —
  * no hay nada que ate las dos cosas. Hoy coinciden con la fase de grupos de la
- * edición en curso (3 / 2 / 1 / 0) y con el grupo C, que juega a un set.
+ * edición en curso (3 / 2 / 1 / 0), y los tres grupos juegan con ese baremo:
+ * ninguno tiene reglas propias, así que la tabla vale para los tres.
  */
 export const puntuacion = {
   titulo: "Cómo se puntúa en los grupos",
@@ -289,7 +290,6 @@ export const puntuacion = {
     texto: "Por eso ganar los tres partidos del grupo no siempre son 9 puntos. Dos victorias en dos sets y una en el tercero suman:",
     cuenta: "3 + 3 + 2 = 8"
   },
-  excepcion: "El grupo C se juega a un set. Allí ganar son 3 puntos y perder, 0.",
   desempates: {
     texto: "Si dos equipos acaban con los mismos puntos, se miran en este orden:",
     criterios: [
@@ -319,6 +319,27 @@ export const avisoTorneo = {
   parrafos: [
     "Limens se clasificó segundo del grupo B, pero no puede competir el fin de semana de la fase eliminatoria. Su plaza pasa a Croquetillas de Arena, tercero del grupo B.",
     "Con esa plaza resuelta, la repesca ya no se disputa. Pasan los tres primeros del grupo A y Calvos de Orion se asegura el puesto."
+  ]
+};
+
+/**
+ * El aviso de la baja de Dosilva, que es otra cosa que la de Limens.
+ *
+ * Limens jugó su grupo y sigue en la tabla, en gris: aquel aviso explica una
+ * fila que se ve. Dosilva se retiró antes de jugar y salió de
+ * `torneo_grupo_equipos`, así que no hay ninguna fila que señalar — de ahí que
+ * este no lleve `equipos` ni fichas de color, que en /torneo/ significan
+ * «cómo queda esta fila en la tabla».
+ *
+ * Es copia escrita a mano, igual que las otras dos, y va también en el marcado
+ * estático de /torneo/ para que siga ahí si /api/torneo falla.
+ */
+export const avisoGrupoC = {
+  eyebrow: "Cambio en el grupo C",
+  titulo: "Dosilva se retira del torneo",
+  parrafos: [
+    "Dosilva no juega la fase de grupos. El grupo C se queda con cuatro equipos y se disputa igual que el A y el B: al mejor de tres sets a 15.",
+    "Su calendario se rehace: seis partidos, de 16:30 a 21:30. Siguen pasando tres equipos a la eliminatoria."
   ]
 };
 

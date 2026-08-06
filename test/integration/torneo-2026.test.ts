@@ -9,17 +9,21 @@ import { crearAdmin, crearEquipo, peticion } from "../helpers/db";
  * El torneo 2026, montado por los endpoints de verdad.
  *
  * No es un test de una función: es el procedimiento de programar la edición
- * escrito como código. Trece equipos en grupos de 4-4-5, una sola pista y cinco
- * tardes; los grupos de cuatro al mejor de tres a 15 y el de cinco a un set de
- * 21, porque con una pista 6 partidos a dos sets acaban más tarde que 10 a uno.
+ * escrito como código. Doce equipos en tres grupos de cuatro, una sola pista y
+ * cinco tardes, todos al mejor de tres sets a 15.
  *
  * Lo que fija es lo que se decidió y por qué:
- *   - que el calendario da 6 + 6 + 10 = 22 partidos;
- *   - que cada grupo se juega con SUS reglas y que el partido se las queda
- *     congeladas;
- *   - que el grupo de cinco puntúa 3-0 y no 2-1 pese a jugarse a un set;
+ *   - que el calendario da 6 + 6 + 6 = 18 partidos;
+ *   - que cada grupo se juega con las reglas que le tocan —heredadas de la fase
+ *     mientras no tenga las suyas— y que el partido se las queda congeladas;
  *   - y que de ahí salen exactamente 8 clasificados: 2 + 2 + 3 directos y 1 de
- *     repesca entre los terceros de los grupos de cuatro.
+ *     repesca entre los terceros de los grupos que la disputan.
+ *
+ * El grupo C empezó siendo de cinco y a un set, con su propio bloque de reglas.
+ * Dosilva se retiró antes de jugar y pasó a ser uno más de cuatro. Lo que
+ * aquello probaba —que un grupo puede sobrescribir las reglas de su fase, y que
+ * un partido a un set puntúa 3-0 y no 2-1— sigue cubierto en
+ * `test/unit/clasificacion.test.ts` y `test/unit/reglas.test.ts`.
  */
 
 const REGLAS_FASE = {
@@ -29,23 +33,6 @@ const REGLAS_FASE = {
     puntosDerrota: 0,
     puntosVictoriaAjustada: 2,
     puntosDerrotaAjustada: 1,
-    desempates: ["puntos", "enfrentamiento_directo", "ratio_sets", "ratio_puntos"]
-  }
-};
-
-/*
- * El grupo de cinco necesita su bloque `clasificacion` y no es decorativo: con
- * `sets: 1`, `setsMaximos` vale 1 y todos sus partidos cuentan como resueltos
- * en el set decisivo. Sin igualar los valores ajustados a los normales,
- * puntuaría 2-1 en vez de 3-0.
- */
-const REGLAS_GRUPO_C = {
-  partido: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 21, diferencia: 2 },
-  clasificacion: {
-    puntosVictoria: 3,
-    puntosDerrota: 0,
-    puntosVictoriaAjustada: 3,
-    puntosDerrotaAjustada: 0,
     desempates: ["puntos", "enfrentamiento_directo", "ratio_sets", "ratio_puntos"]
   }
 };
@@ -79,13 +66,21 @@ const SORTEO = [
     ]
   },
   {
+    /*
+     * Cupo propio de 3 y fuera de la repesca: es el grupo cuyo tercero pasa
+     * directo, así que su cuarto no compite por la plaza que se juegan los
+     * terceros de A y B.
+     */
     nombre: "C",
     orden: 2,
     clasifican: 3,
     enRepesca: false,
-    reglas: REGLAS_GRUPO_C,
-    equipos: ["Showtime", "Dosilva", "Kylian dictador", "ONDA BRAVA", "Alejo Mouris"],
-    sets: [{ a: 21, b: 15 }]
+    reglas: null as unknown,
+    equipos: ["Showtime", "Kylian dictador", "ONDA BRAVA", "Alejo Mouris"],
+    sets: [
+      { a: 15, b: 9 },
+      { a: 15, b: 9 }
+    ]
   }
 ];
 
@@ -213,22 +208,22 @@ beforeEach(() => {
  * a los tests vecinos cuando los tres proyectos corren a la vez.
  */
 describe("programar el torneo 2026", () => {
-  it("el calendario da 22 partidos y cada grupo se los queda con SUS reglas", async () => {
+  it("el calendario da 18 partidos y cada grupo se los queda con SUS reglas", async () => {
     const fase = await programarGrupos();
 
     const deGrupo = (nombre: string) => fase.partidos.filter((p) => p.grupoId === idDeGrupo.get(nombre));
 
-    // 6 + 6 + 10: dos grupos de cuatro y uno de cinco, todos contra todos.
+    // 6 + 6 + 6: tres grupos de cuatro, todos contra todos.
     expect(deGrupo("A")).toHaveLength(6);
     expect(deGrupo("B")).toHaveLength(6);
-    expect(deGrupo("C")).toHaveLength(10);
-    expect(fase.partidos).toHaveLength(22);
+    expect(deGrupo("C")).toHaveLength(6);
+    expect(fase.partidos).toHaveLength(18);
 
     // Las reglas del partido son una foto congelada, no un puntero a la fase.
-    // Los de cuatro heredan (al mejor de tres a 15); el de cinco sobrescribe.
+    // Ninguno de los tres las sobrescribe, así que los tres heredan las suyas.
     expect(deGrupo("A")[0]!.reglas).toMatchObject({ sets: 2, puntosPorSet: 15 });
     expect(deGrupo("B")[0]!.reglas).toMatchObject({ sets: 2, puntosPorSet: 15 });
-    expect(deGrupo("C")[0]!.reglas).toMatchObject({ sets: 1, puntosPorSet: 21 });
+    expect(deGrupo("C")[0]!.reglas).toMatchObject({ sets: 2, puntosPorSet: 15 });
   });
 
   it("de los grupos salen 8: 2 + 2 + 3 directos y 1 de repesca entre los terceros de A y B", async () => {
@@ -238,12 +233,8 @@ describe("programar el torneo 2026", () => {
     const fase = (await leerTorneo()).find((f) => f.clave === "grupos")!;
     const c = fase.grupos.find((g) => g.nombre === "C")!;
 
-    /*
-     * Cuatro partidos, cuatro victorias: 12 puntos y no 8. Con `sets: 1` todo
-     * partido cuenta como resuelto en el set decisivo, así que sin el bloque
-     * `clasificacion` propio del grupo puntuaría con los valores «ajustados».
-     */
-    expect(c.clasificacion[0]).toMatchObject({ nombre: "Showtime", puntos: 12 });
+    // Tres partidos ganados en dos sets: 9 puntos. El último los pierde todos.
+    expect(c.clasificacion[0]).toMatchObject({ nombre: "Showtime", puntos: 9 });
     expect(c.clasificacion.at(-1)).toMatchObject({ nombre: "Alejo Mouris", puntos: 0 });
 
     const filas = fase.grupos.flatMap((g) => g.clasificacion);
@@ -252,13 +243,13 @@ describe("programar el torneo 2026", () => {
 
     expect(directos.length + repescados.length).toBe(8);
     expect(directos.sort()).toEqual(
-      ["Bye Bye Bye", "Calvos de Orion", "Dosilva", "Kylian dictador", "Limens", "Los Julais", "Showtime"].sort()
+      ["Bye Bye Bye", "Calvos de Orion", "ONDA BRAVA", "Kylian dictador", "Limens", "Los Julais", "Showtime"].sort()
     );
     // El tercero de A gana la repesca al de B: mismos puntos, mejor ratio.
     expect(repescados).toEqual(["Free Copa Arena"]);
 
-    // Y el de cinco no aporta candidatos: juega otro formato, sus puntos no son
-    // comparables. Su cuarto se queda fuera aunque puntúe más que el tercero de A.
+    // Y el C no aporta candidatos: su tercero ya pasa directo, así que el cuarto
+    // se queda fuera aunque puntúe más que el tercero de A.
     expect(c.enRepesca).toBe(false);
     expect(c.clasificanPropio).toBe(3);
     expect(c.clasificacion[3]!.clasifica).toBeNull();

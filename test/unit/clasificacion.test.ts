@@ -265,14 +265,16 @@ describe("posiciones", () => {
  * hay—, pero significa que un grupo que juegue a un set puntúa con los valores
  * «ajustados» y no con los normales.
  *
- * El grupo de cinco del torneo 2026 depende de esto: lleva un bloque
- * `clasificacion` propio para compensarlo. Sin estos tests, alguien «arregla»
+ * El grupo C de 2026 se montó así —cinco equipos a un set— y llevaba un bloque
+ * `clasificacion` propio para compensarlo; dejó de jugarse a un set al retirarse
+ * un equipo. Los tests se quedan: el mecanismo sigue en `_lib/reglas.ts` y
+ * cualquier grupo puede volver a usarlo. Sin ellos, alguien «arregla»
  * setDecisivo algún día y ese grupo empieza a puntuar mal en silencio.
  */
 describe("un partido a un solo set", () => {
   const partidoAUnSet = (reglas: unknown): PartidoVistaRow => ({
     id: "p1",
-    ronda: "C · jornada 1",
+    ronda: "Grupo · partido 1",
     fase_id: 1,
     grupo_id: 1,
     ronda_orden: null,
@@ -302,7 +304,7 @@ describe("un partido a un solo set", () => {
   ];
 
   const SIN_OVERRIDE = { partido: { sets: 1, puntosPorSet: 21, puntosSetDecisivo: 15, diferencia: 2 } };
-  const GRUPO_C = {
+  const CON_BLOQUE_PROPIO = {
     ...SIN_OVERRIDE,
     clasificacion: {
       puntosVictoria: 3,
@@ -333,7 +335,7 @@ describe("un partido a un solo set", () => {
     expect(puntosDe(SIN_OVERRIDE)).toEqual({ ganador: 2, perdedor: 1 });
   });
 
-  it("con el bloque que lleva el grupo C, vuelve a puntuar 3-0", () => {
-    expect(puntosDe(GRUPO_C)).toEqual({ ganador: 3, perdedor: 0 });
+  it("con un bloque de clasificación propio, vuelve a puntuar 3-0", () => {
+    expect(puntosDe(CON_BLOQUE_PROPIO)).toEqual({ ganador: 3, perdedor: 0 });
   });
 });

@@ -2234,27 +2234,6 @@ html.js .hero-content > *:nth-child(5) {
   text-align: center;
 }
 
-.puntos-excepcion {
-  position: relative;
-  margin: 0;
-  padding-left: 26px;
-  color: var(--ink);
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-.puntos-excepcion::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 0;
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: var(--aqua);
-}
-
 .puntos-desempates > p {
   margin: 0;
   color: var(--ink);
@@ -6566,6 +6545,19 @@ html.ver-como .repaso {
 }
 
 /*
+ * Los avisos van en una rejilla y no sueltos uno detrás de otro. Cada uno mide
+ * unos 150px, así que con dos apilados la primera tabla del torneo empezaba
+ * fuera de la pantalla. En escritorio caben en dos columnas; en móvil siguen
+ * apilados, que es la única forma en la que caben.
+ */
+.torneo-avisos {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0 0 26px;
+}
+
+/*
  * El aviso de una decisión de la organización que la tabla sola no explica.
  * Pegatina de la casa —filo de tinta y sombra dura— sobre el ámbar que en la
  * clasificación significa «esto se está decidiendo». Sin inclinación: son dos
@@ -6582,10 +6574,21 @@ html.ver-como .repaso {
   /* Alineado a la izquierda y no centrado como `.torneo-directo`: el título, el
      de cada sección y la rejilla de grupos arrancan todos en el margen, y un
      bloque de este tamaño centrado en una página de 1240px se lee como si no
-     fuera de aquí. */
-  margin: 0 0 26px;
+     fuera de aquí. La separación la reparte `.torneo-avisos`. */
+  margin: 0;
   max-width: 620px;
   padding: 16px 18px;
+}
+
+/*
+ * El ámbar de arriba es el color que la clasificación da a «esto se está
+ * decidiendo», y las fichas del aviso de Limens lo usan porque repiten el de su
+ * fila. Un aviso sobre un equipo que ya no tiene fila en ninguna tabla no puede
+ * llevarlo sin prometer una fila que no existe: va en la crema clara de las
+ * tarjetas de grupo, con el mismo filo y la misma sombra.
+ */
+.torneo-aviso.is-neutro {
+  background: var(--foam);
 }
 
 .torneo-aviso-eyebrow {
@@ -6882,9 +6885,10 @@ html.ver-como .repaso {
 }
 
 /*
- * `align-items: start` y no el estirado por defecto: el grupo de cinco juega
- * diez partidos y los de cuatro seis, así que igualar alturas deja dos columnas
- * con un tercio de caja vacía, que se lee como que allí falta algo.
+ * `align-items: start` y no el estirado por defecto: los grupos no tienen por
+ * qué medir lo mismo —basta con que uno juegue más partidos que otro, o con que
+ * un nombre largo parta en dos líneas— e igualar alturas deja una columna con
+ * la caja a medio llenar, que se lee como que allí falta algo.
  */
 .torneo-grupos {
   align-items: start;
@@ -7009,6 +7013,13 @@ html.ver-como .repaso {
 
   .torneo-seccion:not(.is-grupos) .torneo-partidos {
     max-width: 760px;
+  }
+
+  /* Los dos avisos, uno al lado del otro: 620px cada uno son justo los 1240 de
+     la página. Con tres habría que volver aquí. */
+  .torneo-avisos {
+    gap: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .torneo-grupos {
