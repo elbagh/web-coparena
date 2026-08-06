@@ -30,8 +30,9 @@ const grupo = (
   nombre: string,
   clasifican: number,
   enRepesca: boolean,
-  clasificacion: FilaClasificacion[]
-): GrupoParaClasificar => ({ id, nombre, clasifican, enRepesca, clasificacion });
+  clasificacion: FilaClasificacion[],
+  retirados: ReadonlySet<number> = new Set()
+): GrupoParaClasificar => ({ id, nombre, clasifican, enRepesca, retirados, clasificacion });
 
 const DESEMPATES = ["puntos", "ratio_sets", "ratio_puntos"] as const;
 
@@ -123,7 +124,9 @@ describe("calcularClasificados", () => {
 
     const { condiciones, semillas } = calcularClasificados(grupos, 1, DESEMPATES);
 
-    const conPlaza = [...condiciones].filter(([, condicion]) => condicion !== "aspirante");
+    const conPlaza = [...condiciones].filter(
+      ([, condicion]) => condicion !== "aspirante" && condicion !== "retirado"
+    );
     expect(semillas.map((s) => s.equipoId).sort()).toEqual(conPlaza.map(([id]) => id).sort());
     semillas.forEach((s) => expect(condiciones.get(s.equipoId)).toBe(s.condicion));
     // Y el que se lo está jugando no se siembra: todavía no ha pasado.
@@ -136,5 +139,85 @@ describe("calcularClasificados", () => {
     const { semillas } = calcularClasificados(grupos, 1, DESEMPATES);
     // Solo hay una fila: una plaza directa y ninguna repesca posible.
     expect(semillas.map((s) => s.equipoId)).toEqual([10]);
+  });
+
+  /*
+   * Un equipo puede clasificarse y no poder jugar la fase siguiente. Su fila se
+   * queda donde está —se la ganó en el campo, y sus partidos siguen contando
+   * para los demás— pero su plaza baja al siguiente. Es lo contrario de sacarlo
+   * del grupo, que reescribiría la clasificación de todo el mundo.
+   */
+  describe("con alguien retirado", () => {
+    // La forma exacta del grupo B de 2026: el segundo no puede competir.
+    const grupoB = (retirados: number[]) =>
+      grupo(
+        2,
+        "B",
+        2,
+        true,
+        [fila(1, 30, "B1", 7), fila(2, 31, "B2", 5), fila(3, 32, "B3", 4), fila(4, 33, "B4", 2)],
+        new Set(retirados)
+      );
+
+    it("no ocupa plaza, y el hueco baja al siguiente", () => {
+      const { condiciones } = calcularClasificados([grupoB([31])], 0, DESEMPATES);
+
+      expect(condiciones.get(30)).toBe("directo");
+      expect(condiciones.get(31)).toBe("retirado");
+      expect(condiciones.get(32)).toBe("directo");
+      expect(condiciones.get(33)).toBeUndefined();
+    });
+
+    it("se marca aunque ya estuviera fuera de plaza, y entonces no mueve nada", () => {
+      const { condiciones } = calcularClasificados([grupoB([33])], 0, DESEMPATES);
+
+      expect(condiciones.get(30)).toBe("directo");
+      expect(condiciones.get(31)).toBe("directo");
+      expect(condiciones.get(32)).toBeUndefined();
+      expect(condiciones.get(33)).toBe("retirado");
+    });
+
+    it("retirado el primero, las plazas suben una", () => {
+      const { condiciones } = calcularClasificados([grupoB([30])], 0, DESEMPATES);
+
+      expect(condiciones.get(30)).toBe("retirado");
+      expect(condiciones.get(31)).toBe("directo");
+      expect(condiciones.get(32)).toBe("directo");
+      expect(condiciones.get(33)).toBeUndefined();
+    });
+
+    it("el bote de la repesca también se lo salta", () => {
+      // El tercero de B está retirado, así que su candidato pasa a ser el
+      // cuarto, con 2 puntos; el tercero de A gana la plaza con 4.
+      const grupos = [
+        grupo(1, "A", 2, true, [fila(1, 10, "A1", 9), fila(2, 11, "A2", 6), fila(3, 12, "A3", 4)]),
+        grupoB([32])
+      ];
+
+      const { condiciones } = calcularClasificados(grupos, 1, DESEMPATES);
+
+      expect(condiciones.get(32)).toBe("retirado");
+      expect(condiciones.get(12)).toBe("repesca");
+      expect(condiciones.get(33)).toBe("aspirante");
+    });
+
+    it("nunca se siembra, ni estando en posición de plaza directa", () => {
+      const { semillas } = calcularClasificados([grupoB([31])], 0, DESEMPATES);
+
+      expect(semillas.some((s) => s.equipoId === 31)).toBe(false);
+      expect(semillas.map((s) => s.equipoId)).toEqual([30, 32]);
+    });
+
+    // El reparto pasó de buscar por `posicion` a contar por orden dentro de la
+    // lista en juego. Con el conjunto vacío tiene que dar exactamente lo mismo.
+    it("con el conjunto vacío el reparto es el de siempre", () => {
+      const { condiciones, semillas } = calcularClasificados([grupoB([])], 1, DESEMPATES);
+
+      expect(condiciones.get(30)).toBe("directo");
+      expect(condiciones.get(31)).toBe("directo");
+      expect(condiciones.get(32)).toBe("repesca");
+      expect(condiciones.get(33)).toBeUndefined();
+      expect(semillas.map((s) => s.equipoId)).toEqual([30, 31, 32]);
+    });
   });
 });

@@ -300,6 +300,28 @@ export const puntuacion = {
   }
 };
 
+/**
+ * El aviso que explica por qué la tabla de un grupo no se lee como de costumbre.
+ *
+ * Es copia escrita a mano, como `puntuacion`: quien manda de verdad es la
+ * columna `torneo_grupo_equipos.retirado` en D1, que es la que pinta el gris y
+ * la que reparte las plazas. Esto solo lo cuenta con palabras. Va en el marcado
+ * estático de /torneo/ y no en JavaScript, así que sigue ahí si /api/torneo
+ * falla — que es justo cuando alguien necesita entender la tabla.
+ *
+ * `equipos` lleva los nombres tal y como están en la base, para que las fichas
+ * del aviso y las filas de la tabla digan lo mismo.
+ */
+export const avisoTorneo = {
+  eyebrow: "Cambio en el cuadro",
+  titulo: "Limens no juega la eliminatoria",
+  equipos: { fuera: "Limens", dentro: "Croquetillas de Arena" },
+  parrafos: [
+    "Limens se clasificó segundo del grupo B, pero no puede competir el fin de semana de la fase eliminatoria. Su plaza pasa a Croquetillas de Arena, tercero del grupo B.",
+    "Con esa plaza resuelta, la repesca ya no se disputa. Pasan los tres primeros del grupo A y Calvos de Orion se asegura el puesto."
+  ]
+};
+
 export const competicion = {
   fases: [
     {

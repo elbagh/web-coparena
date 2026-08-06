@@ -309,11 +309,16 @@ export async function crearGrupo(
   return fila!.id;
 }
 
-export async function asignarEquipoAGrupo(grupoId: number, faseId: number, equipoId: number): Promise<void> {
+export async function asignarEquipoAGrupo(
+  grupoId: number,
+  faseId: number,
+  equipoId: number,
+  opciones: { retirado?: boolean } = {}
+): Promise<void> {
   await env.DB.prepare(
-    "INSERT INTO torneo_grupo_equipos (grupo_id, fase_id, equipo_id) VALUES (?1, ?2, ?3)"
+    "INSERT INTO torneo_grupo_equipos (grupo_id, fase_id, equipo_id, retirado) VALUES (?1, ?2, ?3, ?4)"
   )
-    .bind(grupoId, faseId, equipoId)
+    .bind(grupoId, faseId, equipoId, opciones.retirado ? 1 : 0)
     .run();
 }
 

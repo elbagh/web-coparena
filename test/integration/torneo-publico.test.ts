@@ -278,6 +278,58 @@ describe("condición de clasificación", () => {
     expect(condicion("A dos")).toBe("repesca");
     expect(condicion("C dos")).toBeNull();
   });
+
+  /*
+   * Quien se clasificó y no puede jugar la fase siguiente. Es la única condición
+   * que no sale de los partidos: es una baja, y vive en una columna. Lo que hay
+   * que comprobar de punta a punta son las dos mitades a la vez — pierde la
+   * plaza, que baja al siguiente, y conserva la posición que se ganó.
+   */
+  it("un retirado pierde la plaza, se la pasa al siguiente y conserva su posición", async () => {
+    const fase = await crearFase({ tipo: "grupos", clasifican: 2 });
+    const grupo = await crearGrupo(fase.id, { nombre: "B", orden: 0 });
+
+    const primero = await crearEquipo({ nombre: "Segarro" });
+    const segundo = await crearEquipo({ nombre: "Limens" });
+    const tercero = await crearEquipo({ nombre: "Croquetillas de Arena" });
+    const cuarto = await crearEquipo({ nombre: "Deportivo A Silva" });
+
+    await asignarEquipoAGrupo(grupo, fase.id, primero.id);
+    await asignarEquipoAGrupo(grupo, fase.id, segundo.id, { retirado: true });
+    await asignarEquipoAGrupo(grupo, fase.id, tercero.id);
+    await asignarEquipoAGrupo(grupo, fase.id, cuarto.id);
+
+    // Segarro > Limens > Croquetillas > Deportivo, por victorias.
+    await crearPartido({
+      faseId: fase.id, grupoId: grupo, equipoA: primero, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 30, puntosB: 10
+    });
+    await crearPartido({
+      faseId: fase.id, grupoId: grupo, equipoA: segundo, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 0, puntosA: 30, puntosB: 12
+    });
+    await crearPartido({
+      faseId: fase.id, grupoId: grupo, equipoA: tercero, equipoB: cuarto,
+      status: "finished", winner: "A", setsA: 2, setsB: 1, puntosA: 40, puntosB: 35
+    });
+
+    const respuesta = await onRequestGet(ctx(await peticion("/api/torneo"), env) as never);
+    const datos = (await respuesta.json()) as {
+      fases: { grupos: { clasificacion: { nombre: string; posicion: number; clasifica: string | null }[] }[] }[];
+    };
+    const clasificacion = datos.fases[0]!.grupos[0]!.clasificacion;
+    const de = (nombre: string) => clasificacion.find((f) => f.nombre === nombre)!;
+
+    expect(de("Segarro").clasifica).toBe("directo");
+    expect(de("Limens").clasifica).toBe("retirado");
+    // La segunda plaza no se queda vacía: baja al tercero.
+    expect(de("Croquetillas de Arena").clasifica).toBe("directo");
+    expect(de("Deportivo A Silva").clasifica).toBeNull();
+
+    // Y la tabla sigue diciendo lo que pasó en el campo.
+    expect(de("Limens").posicion).toBe(2);
+    expect(de("Croquetillas de Arena").posicion).toBe(3);
+  });
 });
 
 /*

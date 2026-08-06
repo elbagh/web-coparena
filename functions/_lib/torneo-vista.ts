@@ -63,7 +63,7 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
       .all<GrupoRow>(),
     db
       .prepare(
-        `SELECT ge.grupo_id, ge.equipo_id, e.nombre
+        `SELECT ge.grupo_id, ge.equipo_id, ge.retirado, e.nombre
            FROM torneo_grupo_equipos ge
            JOIN equipos e ON e.id = ge.equipo_id
            JOIN torneo_fases f ON f.id = ge.fase_id
@@ -71,7 +71,7 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
           ORDER BY ge.orden ASC, e.nombre COLLATE NOCASE ASC`
       )
       .bind(edicionId)
-      .all<{ grupo_id: number; equipo_id: number; nombre: string }>(),
+      .all<{ grupo_id: number; equipo_id: number; nombre: string; retirado: number }>(),
     db
       .prepare(
         // El EXISTS es una sonda al índice de UNIQUE(partido_id, orden) por
@@ -104,13 +104,15 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
     const calculados = gruposDeFase.map((grupo) => {
       const equiposDelGrupo = asignados.results
         .filter((a) => a.grupo_id === grupo.id)
-        .map((a) => ({ id: a.equipo_id, nombre: a.nombre }));
+        .map((a) => ({ id: a.equipo_id, nombre: a.nombre, retirado: a.retirado === 1 }));
       const reglas = reglasEfectivas(fase, grupo);
 
       return {
         grupo,
         equiposDelGrupo,
         reglas,
+        /** Quien no compite la fase siguiente: sigue en la tabla, no ocupa plaza. */
+        retirados: new Set(equiposDelGrupo.filter((e) => e.retirado).map((e) => e.id)),
         /** El cupo del grupo si lo tiene; si no, el de la fase. */
         clasifican: grupo.clasifican ?? fase.clasifican,
         enRepesca: grupo.en_repesca !== 0,
@@ -127,6 +129,7 @@ export async function cargarTorneo(db: D1Database, edicionId: number) {
       nombre: c.grupo.nombre,
       clasifican: c.clasifican,
       enRepesca: c.enRepesca,
+      retirados: c.retirados,
       clasificacion: c.clasificacion
     }));
     const { condiciones } = calcularClasificados(
